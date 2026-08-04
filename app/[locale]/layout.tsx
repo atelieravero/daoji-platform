@@ -1,15 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Menu, X, Globe, Leaf, ArrowUpRight } from 'lucide-react';
+import { Menu, X, Globe, Leaf, ArrowUpRight, ChevronDown } from 'lucide-react';
 
-// MOCK: In production, we use next-intl to fetch these from messages/en.json and zh.json
 const dictionaries = {
   en: {
     nav: {
       events: 'Events & Retreats',
       resources: 'Resources',
       about: 'About Us',
+      aboutSub: [
+        { label: 'Our Lineage', href: '/en/about/lineage' },
+        { label: 'Core Teachings', href: '/en/about/teachings' },
+        { label: 'Contact Us', href: '/en/about/contact' }
+      ]
     },
     footer: {
       orgName: 'Maggapaṭipadā Meditation Centre',
@@ -24,6 +28,11 @@ const dictionaries = {
       events: '活動與禪修',
       resources: '更多資源',
       about: '關於我們',
+      aboutSub: [
+        { label: '傳承與歷史', href: '/zh/about/lineage' },
+        { label: '核心教義', href: '/zh/about/teachings' },
+        { label: '聯絡我們', href: '/zh/about/contact' }
+      ]
     },
     footer: {
       orgName: '道跡禪院',
@@ -37,13 +46,8 @@ const dictionaries = {
 
 function Navbar({ currentLang, onToggleLang }: { currentLang: 'en' | 'zh', onToggleLang: () => void }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAboutDropdownOpen, setIsAboutDropdownOpen] = useState(false);
   const t = dictionaries[currentLang].nav;
-
-  const navLinks = [
-    { name: t.events, href: '/' + currentLang + '/events' },
-    { name: t.resources, href: '/' + currentLang + '/resources' },
-    { name: t.about, href: '/' + currentLang + '/about' },
-  ];
 
   return (
     <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-stone-200 transition-all duration-300">
@@ -64,18 +68,46 @@ function Navbar({ currentLang, onToggleLang }: { currentLang: 'en' | 'zh', onTog
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => (
-              <a 
-                key={link.name} 
-                href={link.href}
-                onClick={(e) => e.preventDefault()} // Disabled for preview
-                className="text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors"
-              >
-                {link.name}
-              </a>
-            ))}
+            <a 
+              href={`/${currentLang}/events`}
+              className="text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors"
+            >
+              {t.events}
+            </a>
+            <a 
+              href={`/${currentLang}/resources`}
+              className="text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors"
+            >
+              {t.resources}
+            </a>
 
-            <div className="w-px h-6 bg-stone-200" /> {/* Divider */}
+            {/* About Dropdown */}
+            <div className="relative" onMouseLeave={() => setIsAboutDropdownOpen(false)}>
+              <button 
+                onMouseEnter={() => setIsAboutDropdownOpen(true)}
+                className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors py-2"
+              >
+                {t.about}
+                <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${isAboutDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isAboutDropdownOpen && (
+                <div className="absolute top-full left-0 w-48 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 animate-in fade-in slide-in-from-top-2">
+                  {t.aboutSub.map((sub, i) => (
+                    <a 
+                      key={i}
+                      href={sub.href}
+                      onClick={(e) => e.preventDefault()} // Disabled for preview
+                      className="block px-4 py-2.5 text-sm text-stone-700 hover:bg-[#FAF5F0] hover:text-[#A65D24] transition-colors"
+                    >
+                      {sub.label}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="w-px h-6 bg-stone-200" />
 
             {/* Language Switcher */}
             <button 
@@ -93,7 +125,6 @@ function Navbar({ currentLang, onToggleLang }: { currentLang: 'en' | 'zh', onTog
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
             >
-              <span className="sr-only">Open main menu</span>
               {isMobileMenuOpen ? (
                 <X className="block h-6 w-6" aria-hidden="true" />
               ) : (
@@ -108,16 +139,16 @@ function Navbar({ currentLang, onToggleLang }: { currentLang: 'en' | 'zh', onTog
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-stone-100 bg-white absolute w-full animate-in slide-in-from-top-4 duration-200 shadow-xl">
           <div className="px-4 pt-2 pb-6 space-y-1">
-            {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                onClick={(e) => e.preventDefault()} // Disabled for preview
-                className="block px-3 py-4 rounded-xl text-base font-medium text-stone-800 hover:bg-[#FAF5F0] hover:text-[#A65D24] transition-colors"
-              >
-                {link.name}
+            <a href={`/${currentLang}/events`} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-[#FAF5F0] hover:text-[#A65D24]">{t.events}</a>
+            <a href={`/${currentLang}/resources`} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-[#FAF5F0] hover:text-[#A65D24]">{t.resources}</a>
+            
+            <div className="px-3 py-2 text-xs font-semibold text-stone-400 uppercase tracking-wider mt-2">{t.about}</div>
+            {t.aboutSub.map((sub, i) => (
+              <a key={i} href={sub.href} className="block px-6 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-[#FAF5F0] hover:text-[#A65D24]">
+                {sub.label}
               </a>
             ))}
+
             <div className="mt-4 pt-4 border-t border-stone-100">
               <button 
                 onClick={() => {
@@ -175,7 +206,6 @@ function Footer({ currentLang }: { currentLang: 'en' | 'zh' }) {
 }
 
 export default function PublicLayout({ children }: { children?: React.ReactNode }) {
-  // MOCK: This represents the dynamic [locale] segment from the URL in Next.js
   const [locale, setLocale] = useState<'en' | 'zh'>('en');
 
   const toggleLanguage = () => {
@@ -186,10 +216,6 @@ export default function PublicLayout({ children }: { children?: React.ReactNode 
     <div className="min-h-screen flex flex-col bg-[#FCFAF8] font-sans text-stone-800 selection:bg-[#F2E8DC] selection:text-[#A65D24]">
       <Navbar currentLang={locale} onToggleLang={toggleLanguage} />
       
-      {/* 
-        This is where Next.js injects the specific page (e.g., events/page.tsx). 
-        For the preview, we display a placeholder if no children are provided.
-      */}
       <main className="flex-grow flex flex-col">
         {children || (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
@@ -201,8 +227,8 @@ export default function PublicLayout({ children }: { children?: React.ReactNode 
             </h1>
             <p className="text-lg text-stone-500 max-w-md">
               {locale === 'en' 
-                ? 'This is the main content area. The Event Discovery Feed and Application Forms will render right here.'
-                : '這是主要內容區域。活動列表和報名表單將在此處顯示。'}
+                ? 'Hover over "About Us" above to see the drop-down navigation for our static pages.'
+                : '將鼠標懸停在上方的「關於我們」即可查看靜態頁面的下拉導航。'}
             </p>
           </div>
         )}
