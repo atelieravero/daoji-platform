@@ -74,8 +74,9 @@ const dictionaries = {
   }
 };
 
-export default function EventDetailPageWrapper() {
-  const locale = 'en' as 'en' | 'zh';
+export default function EventDetailPageWrapper({ params }: { params?: Promise<{ locale?: string; id?: string }> | { locale?: string; id?: string } }) {
+  const resolvedParams = params ? (typeof (params as any).then === 'function' ? React.use(params as Promise<{ locale?: string; id?: string }>) : params) : {};
+  const locale = ((resolvedParams as { locale?: string })?.locale === 'zh' ? 'zh' : 'en') as 'en' | 'zh';
   return (
     <PostDetailPage 
       post={mockEventDetail} 

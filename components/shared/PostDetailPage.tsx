@@ -28,7 +28,6 @@ interface PostDetailPageProps {
   };
 }
 
-// Unified Block Renderer handling all inline media and blocks
 const BlockRenderer = ({ blocks }: { blocks: any[] }) => {
   const safeBlocks = Array.isArray(blocks) ? blocks : [];
   return (
@@ -131,7 +130,7 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
     content: {
       en: [
         { id: 'b1', type: 'h2', content: 'About the Program' },
-        { id: 'b2', type: 'p', content: 'Join us for a profound journey into mindfulness. This 7-day silent retreat is designed to help you disconnect from the noise of daily life.' }
+        { id: 'b2', type: 'p', content: 'Join us for a profound journey into mindfulness.' }
       ],
       zh: [
         { id: 'b1', type: 'h2', content: '關於本計劃' },
@@ -141,7 +140,7 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
   };
 
   const t = dictionary || {
-    back: locale === 'zh' ? '返回活動列表' : 'Back to Events',
+    back: locale === 'zh' ? '返回列表' : 'Back',
     share: locale === 'zh' ? '分享' : 'Share',
     dateTime: locale === 'zh' ? '日期與時間' : 'Date & Time',
     location: locale === 'zh' ? '地點' : 'Location',
@@ -159,11 +158,9 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
 
   return (
     <div className="w-full bg-[#FCFAF8] min-h-screen pb-32">
-      
-      {/* Top Back Nav */}
       <div className={`mx-auto px-4 sm:px-6 lg:px-8 py-6 ${isEvent ? 'max-w-6xl' : 'max-w-4xl'}`}>
         <a 
-          href={`/${locale}/${isEvent ? 'events' : 'resources'}`} 
+          href={`/${locale}/${isEvent ? 'events' : safePost.type === 'resource' ? 'resources' : ''}`} 
           className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors group"
         >
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
@@ -171,7 +168,6 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
         </a>
       </div>
 
-      {/* Hero Image */}
       {safePost.cover_image && (
         <div className={`mx-auto px-4 sm:px-6 lg:px-8 mb-12 ${isEvent ? 'max-w-6xl' : 'max-w-4xl'}`}>
           <div className={`w-full rounded-3xl overflow-hidden relative shadow-sm ${isEvent ? 'h-64 sm:h-96 md:h-[28rem]' : 'h-64 sm:h-96'}`}>
@@ -184,12 +180,8 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
         </div>
       )}
 
-      {/* Main Container */}
       <div className={`mx-auto px-4 sm:px-6 lg:px-8 ${isEvent ? 'max-w-6xl flex flex-col lg:flex-row gap-12 lg:gap-16 relative' : 'max-w-4xl'}`}>
-        
-        {/* Content Column */}
         <div className={`flex-1 ${isEvent ? 'lg:max-w-3xl' : 'max-w-none'}`}>
-          
           <div className="mb-10 pb-10 border-b border-stone-200/60">
             <div className="flex flex-wrap gap-2 mb-6">
               {Array.isArray(postTags) && postTags.map(tag => (
@@ -222,7 +214,6 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
           </article>
         </div>
 
-        {/* Event Sticky Sidebar (Only for events) */}
         {isEvent && (
           <div className="lg:w-80 shrink-0 relative">
             <div className="sticky top-28 bg-white p-6 sm:p-8 rounded-3xl border border-stone-200 shadow-sm">
@@ -275,7 +266,6 @@ export default function PostDetailPage({ post, locale = 'en', dictionary }: Post
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

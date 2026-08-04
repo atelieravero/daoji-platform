@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ArrowRight, Tag, Search, Calendar, Clock, ArrowDownUp } from 'lucide-react';
+import { ArrowRight, Tag, Search, Calendar } from 'lucide-react';
 
 interface PostDiscoveryFeedProps {
   postType?: 'event' | 'resource' | 'page';
@@ -12,15 +12,7 @@ interface PostDiscoveryFeedProps {
     subtitle?: string;
     searchPlaceholder?: string;
     filterAll?: string;
-    filterHappening?: string;
-    filterUpcoming?: string;
-    filterPast?: string;
-    sortLabel?: string;
-    sortEarliest?: string;
-    sortLatest?: string;
     readMore?: string;
-    statusOpen?: string;
-    statusClosed?: string;
   };
 }
 
@@ -37,8 +29,7 @@ export default function PostDiscoveryFeed({
 }: PostDiscoveryFeedProps) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [timeFilters, setTimeFilters] = useState<string[]>([]);
-  const [sortOrder, setSortOrder] = useState<'earliest' | 'latest'>('earliest');
+  const [sortOrder] = useState<'earliest' | 'latest'>('earliest');
 
   const getTimeStatus = (startDateStr?: string, endDateStr?: string | null) => {
     if (!startDateStr) return 'upcoming';
@@ -49,12 +40,6 @@ export default function PostDiscoveryFeed({
     if (now < start) return 'upcoming';
     if (now > end) return 'past';
     return 'happening';
-  };
-
-  const toggleTimeFilter = (status: string) => {
-    setTimeFilters(prev => 
-      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
-    );
   };
 
   const allTags = useMemo(() => {
@@ -78,13 +63,6 @@ export default function PostDiscoveryFeed({
       });
     }
 
-    if (postType === 'event' && timeFilters.length > 0) {
-      result = result.filter(p => {
-        const status = getTimeStatus(p.start_date, p.end_date);
-        return timeFilters.includes(status);
-      });
-    }
-
     if (searchTerm.trim() !== '') {
       const term = searchTerm.toLowerCase();
       result = result.filter(p => {
@@ -101,7 +79,7 @@ export default function PostDiscoveryFeed({
     });
 
     return result;
-  }, [posts, postType, activeTag, timeFilters, searchTerm, sortOrder, locale]);
+  }, [posts, postType, activeTag, searchTerm, sortOrder, locale]);
 
   return (
     <div className="w-full bg-[#FCFAF8] min-h-screen pb-20">

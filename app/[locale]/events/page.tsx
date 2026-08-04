@@ -83,8 +83,9 @@ const dictionaries = {
   }
 };
 
-export default function EventsPageWrapper() {
-  const locale = 'en' as 'en' | 'zh';
+export default function EventsPageWrapper({ params }: { params?: Promise<{ locale?: string }> | { locale?: string } }) {
+  const resolvedParams = params ? (typeof (params as any).then === 'function' ? React.use(params as Promise<{ locale?: string }>) : params) : {};
+  const locale = ((resolvedParams as { locale?: string })?.locale === 'zh' ? 'zh' : 'en') as 'en' | 'zh';
   return (
     <PostDiscoveryFeed 
       postType="event" 

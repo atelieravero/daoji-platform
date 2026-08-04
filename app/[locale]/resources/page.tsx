@@ -39,24 +39,6 @@ const mockResources = [
       zh: ['音頻', '唱誦', '日常實修']
     },
     cover_image: 'https://images.unsplash.com/photo-1511295742362-92c96b1fc485?auto=format&fit=crop&q=80&w=1000',
-  },
-  {
-    id: 'res_3',
-    type: 'resource',
-    title: {
-      en: 'Introduction to the Early Buddhist Teachings',
-      zh: '早期佛教教義導論'
-    },
-    excerpt: {
-      en: 'Recorded lecture exploring the historical preservation, structural overview, and core teachings of the early scriptures.',
-      zh: '現場錄影講座，探討早期經典的歷史流傳、結構概述及其核心教義。'
-    },
-    date_added: '2026-07-15',
-    tags: {
-      en: ['Study', 'Dhamma Talk', 'Video'],
-      zh: ['經教研讀', '佛法開示', '視頻']
-    },
-    cover_image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=1000',
   }
 ];
 
@@ -77,8 +59,9 @@ const dictionaries = {
   }
 };
 
-export default function ResourcesDiscoveryPage() {
-  const locale = 'en' as 'en' | 'zh';
+export default function ResourcesDiscoveryPage({ params }: { params?: Promise<{ locale?: string }> | { locale?: string } }) {
+  const resolvedParams = params ? (typeof (params as any).then === 'function' ? React.use(params as Promise<{ locale?: string }>) : params) : {};
+  const locale = ((resolvedParams as { locale?: string })?.locale === 'zh' ? 'zh' : 'en') as 'en' | 'zh';
   return (
     <PostDiscoveryFeed 
       postType="resource" 
