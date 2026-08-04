@@ -1,60 +1,134 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
-  ArrowLeft, 
-  Save, 
-  Settings, 
-  Image as ImageIcon, 
-  LayoutPanelLeft, 
-  PanelLeft,
-  GripVertical,
-  Plus,
-  X,
-  Calendar,
-  MapPin,
-  LayoutTemplate,
-  Link as LinkIcon,
-  FileText
+  ArrowLeft, Save, Settings, PanelLeft, LayoutPanelLeft, GripVertical, Plus, X, 
+  Calendar, MapPin, LayoutTemplate, Link as LinkIcon, Image as ImageIcon, 
+  Type, Heading2, Heading3, Quote, List, Music, PlaySquare, Film, Map as MapIcon, Paperclip, FileText, Download, Trash2
 } from 'lucide-react';
 
+// Enhanced initial blocks to show off the new in-line media capabilities
 const initialEnBlocks = [
   { id: 'en_1', type: 'h2', content: 'About the Program' },
   { id: 'en_2', type: 'p', content: 'Join us for a profound journey into mindfulness. This is designed to help you disconnect from the noise of daily life and reconnect with your inner stillness.' },
+  { id: 'en_3', type: 'attachment', url: '#', name: 'Preparation Guide.pdf', size: '1.2 MB' },
+  { id: 'en_4', type: 'h3', content: 'Location & Arrival' },
+  { id: 'en_5', type: 'p', content: 'Please review the map below to find the correct entrance to the main hall.' },
+  { id: 'en_6', type: 'map', embed: '<iframe>...</iframe>' },
 ];
 
-const initialZhBlocks = [
-  { id: 'zh_1', type: 'h2', content: '關於本計劃' },
-  { id: 'zh_2', type: 'p', content: '加入我們，展開一段深刻的正念之旅。本次活動旨在幫助您遠離日常生活的喧囂，重新與內在的寧靜建立連結。' },
-];
-
-// Next.js passes the URL parameters directly to the page component
 export default function UnifiedEditorPage({ params }: { params: { id: string } }) {
   const [isSplitView, setIsSplitView] = useState(true);
   const [activeLang, setActiveLang] = useState<'en' | 'zh'>('en');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  // PROTOTYPE ONLY: Let the user toggle the post type to see the dynamic metadata
   const [postType, setPostType] = useState<'event' | 'page' | 'resource'>('event');
+  
+  // State to manage the open Slash Command menu
+  const [slashMenuOpenFor, setSlashMenuOpenFor] = useState<string | null>(null);
 
-  // In production, we would use the params.id to fetch the data from Supabase
-  // useEffect(() => { fetchPost(params.id) }, [params.id]);
+  const SlashMenu = ({ blockId }: { blockId: string }) => {
+    const menuGroups = [
+      {
+        title: 'Basic Blocks',
+        items: [
+          { icon: Type, label: 'Text', desc: 'Just start writing with plain text.' },
+          { icon: Heading2, label: 'Heading 2', desc: 'Large section heading.' },
+          { icon: Heading3, label: 'Heading 3', desc: 'Medium subsection heading.' },
+          { icon: Quote, label: 'Quote', desc: 'Capture a quote or sutta.' },
+          { icon: List, label: 'Bulleted List', desc: 'Create a simple bulleted list.' },
+        ]
+      },
+      {
+        title: 'Media & Files',
+        items: [
+          { icon: ImageIcon, label: 'Image', desc: 'Upload or embed with a link.' },
+          { icon: Music, label: 'Audio', desc: 'Upload an mp3 for inline listening.' },
+          { icon: PlaySquare, label: 'Embedded Video', desc: 'Embed from YouTube or Bilibili.' },
+          { icon: Film, label: 'Native Video', desc: 'Upload directly (Max 64MB).' },
+          { icon: MapIcon, label: 'Interactive Map', desc: 'Embed a Google or Baidu Map.' },
+          { icon: Paperclip, label: 'File Attachment', desc: 'Upload a PDF, ZIP, or Doc.' },
+        ]
+      }
+    ];
+
+    return (
+      <div className="absolute top-10 left-0 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+        <div className="max-h-80 overflow-y-auto p-2 hide-scrollbar">
+          {menuGroups.map((group, idx) => (
+            <div key={idx} className="mb-2 last:mb-0">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
+                {group.title}
+              </div>
+              {group.items.map((item, i) => (
+                <button 
+                  key={i}
+                  onClick={() => setSlashMenuOpenFor(null)} // In a real app, this changes the block type
+                  className="w-full flex items-start text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors group/item"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0 mr-3 group-hover/item:border-indigo-300 transition-colors">
+                    <item.icon className="w-5 h-5 text-gray-600 group-hover/item:text-indigo-600 transition-colors" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">{item.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{item.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderBlock = (block: any, lang: 'en' | 'zh') => {
     return (
-      <div key={block.id} className="group relative flex items-start -ml-8 py-1">
-        <div className="w-8 flex-shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pt-1">
-          <button className="p-1 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded">
+      <div key={block.id} className="group/block relative flex items-start -ml-12 py-2">
+        {/* Block Controls (Drag & Add) */}
+        <div className="w-12 flex-shrink-0 flex items-center justify-end pr-2 opacity-0 group-hover/block:opacity-100 transition-opacity pt-1">
+          <button 
+            onClick={() => setSlashMenuOpenFor(slashMenuOpenFor === block.id ? null : block.id)}
+            className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+            title="Click to add block below, or type '/' in empty text"
+          >
             <Plus className="w-4 h-4" />
           </button>
-          <button className="p-1 text-gray-300 hover:text-gray-600 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded">
+          <button className="p-1 text-gray-300 hover:text-gray-600 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded transition-colors">
             <GripVertical className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 pl-2">
+
+        {/* Block Content Canvas */}
+        <div className="flex-1 pl-2 relative">
+          {slashMenuOpenFor === block.id && <SlashMenu blockId={block.id} />}
+
+          {/* Text Blocks */}
           {block.type === 'h2' && <h2 className="text-3xl font-bold text-gray-900 outline-none" contentEditable suppressContentEditableWarning>{block.content}</h2>}
           {block.type === 'h3' && <h3 className="text-xl font-semibold text-gray-800 outline-none mt-4" contentEditable suppressContentEditableWarning>{block.content}</h3>}
           {block.type === 'p' && <p className="text-gray-600 outline-none leading-relaxed min-h-[1.5em]" contentEditable suppressContentEditableWarning>{block.content}</p>}
+          
+          {/* Media Blocks (Admin Preview State) */}
+          {block.type === 'attachment' && (
+            <div className="flex items-center p-3 my-4 bg-gray-50 border border-gray-200 rounded-xl relative group-hover/block:border-indigo-300 transition-colors">
+               <div className="w-10 h-10 bg-white border border-gray-200 rounded-lg flex items-center justify-center mr-4 shrink-0">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <input type="text" defaultValue={block.name} className="bg-transparent font-medium text-gray-900 w-full outline-none focus:border-b focus:border-indigo-400 truncate" />
+                  <p className="text-xs text-gray-500 mt-0.5">{block.size} • PDF Document</p>
+                </div>
+                <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-4">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
+          )}
+
+          {block.type === 'map' && (
+            <div className="my-6 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 flex flex-col items-center justify-center text-center relative group-hover/block:border-indigo-300 transition-colors">
+              <MapIcon className="w-8 h-8 text-gray-400 mb-2" />
+              <input type="text" placeholder="Paste Map Embed Iframe Code Here..." className="w-full max-w-md px-3 py-2 border border-gray-200 rounded text-sm text-center focus:ring-2 focus:ring-indigo-500 outline-none bg-white" />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -66,12 +140,12 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
       {/* EDITOR HEADER */}
       <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 shrink-0 z-10 bg-white">
         <div className="flex items-center">
-          <button onClick={() => window.history.back()} className="p-2 -ml-2 mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+          <a href="/admin/events" className="p-2 -ml-2 mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </a>
           <div className="flex flex-col">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Editing {postType} ({params?.id || 'new'})
+              Editing {postType}
             </span>
             <h1 className="text-sm font-semibold text-gray-900">Daoji Foundation Program</h1>
           </div>
@@ -118,7 +192,7 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
       <div className="flex-1 flex overflow-hidden bg-gray-50/50">
         
         {/* ENGLISH PANE */}
-        <div className={`flex-1 flex flex-col overflow-y-auto border-r border-gray-200 transition-all ${!isSplitView && activeLang === 'zh' ? 'hidden' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col overflow-y-auto border-r border-gray-200 transition-all pb-32 ${!isSplitView && activeLang === 'zh' ? 'hidden' : 'flex'}`}>
           {!isSplitView && (
              <div className="h-10 bg-gray-100 border-b border-gray-200 flex items-center px-4 space-x-2 shrink-0">
                <button onClick={() => setActiveLang('en')} className={`px-3 py-1 text-sm font-medium rounded-md ${activeLang === 'en' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600 hover:bg-gray-200'}`}>English</button>
@@ -136,14 +210,25 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
                 Daoji Foundation Program
               </h1>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-1">
                {initialEnBlocks.map(block => renderBlock(block, 'en'))}
+               
+               {/* Empty trailing block to show the slash command hint */}
+               <div className="group/block relative flex items-start -ml-12 py-2 mt-4">
+                  <div className="w-12 flex-shrink-0 flex items-center justify-end pr-2 opacity-0 group-hover/block:opacity-100 transition-opacity pt-1">
+                    <button onClick={() => setSlashMenuOpenFor('new')} className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  <div className="flex-1 pl-2 relative">
+                    {slashMenuOpenFor === 'new' && <SlashMenu blockId="new" />}
+                    <p className="text-gray-300 outline-none leading-relaxed min-h-[1.5em] italic" contentEditable suppressContentEditableWarning>Type '/' for commands</p>
+                  </div>
+               </div>
             </div>
           </div>
         </div>
 
-        {/* CHINESE PANE */}
-        <div className={`flex-1 flex flex-col overflow-y-auto transition-all ${!isSplitView && activeLang === 'en' ? 'hidden' : 'flex'}`}>
+        {/* CHINESE PANE (Simplified for brevity) */}
+        <div className={`flex-1 flex flex-col overflow-y-auto transition-all pb-32 ${!isSplitView && activeLang === 'en' ? 'hidden' : 'flex'}`}>
            {!isSplitView && (
              <div className="h-10 bg-gray-100 border-b border-gray-200 flex items-center px-4 space-x-2 shrink-0">
                <button onClick={() => setActiveLang('en')} className={`px-3 py-1 text-sm font-medium rounded-md ${activeLang === 'en' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-600 hover:bg-gray-200'}`}>English</button>
@@ -156,14 +241,12 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
             </div>
           )}
           <div className="flex-1 max-w-3xl mx-auto w-full p-12 lg:p-16">
-            <div className="mb-12 group relative">
-              <h1 className="text-4xl font-bold text-gray-900 placeholder-gray-300 outline-none" contentEditable suppressContentEditableWarning>
+            <div className="mb-12">
+              <h1 className="text-4xl font-bold text-gray-900 outline-none" contentEditable suppressContentEditableWarning>
                 道濟基金會計劃
               </h1>
             </div>
-            <div className="space-y-4">
-               {initialZhBlocks.map(block => renderBlock(block, 'zh'))}
-            </div>
+             <p className="text-gray-300 outline-none leading-relaxed min-h-[1.5em] italic">Type '/' for commands</p>
           </div>
         </div>
       </div>
@@ -181,72 +264,42 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           
-          {/* PROTOTYPE TOGGLE: Switch post type */}
-          <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
-            <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Prototype: Post Type</label>
-            <div className="flex space-x-2">
-              {(['event', 'page', 'resource'] as const).map(t => (
-                <button 
-                  key={t}
-                  onClick={() => setPostType(t)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition-colors ${postType === t ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200'}`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+          <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex space-x-2">
+            {(['event', 'page', 'resource'] as const).map(t => (
+              <button 
+                key={t} onClick={() => setPostType(t)}
+                className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition-colors ${postType === t ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200'}`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
 
-          {/* COMMON FIELDS (All types) */}
+          {/* COMMON FIELDS */}
           <div className="space-y-4">
             <label className="block text-sm font-semibold text-gray-900">Cover Image</label>
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer transition-colors">
               <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
               <span className="text-sm font-medium text-indigo-600">Click to upload</span>
-              <span className="text-xs text-gray-500 mt-1">16:9 ratio recommended</span>
             </div>
           </div>
 
-          {/* CONDITIONAL: EVENT FIELDS */}
+          {/* EVENT METADATA ONLY */}
           {postType === 'event' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <hr className="border-gray-100" />
               <div className="space-y-4">
                 <label className="block text-sm font-semibold text-gray-900">Schedule & Location</label>
-                
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                      <input type="date" className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
-                    </div>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <input type="date" className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                      <input type="date" className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
-                    </div>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <input type="date" className="w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between py-2 border-y border-gray-100 mt-2 mb-2">
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">Recurring Event</span>
-                    <p className="text-xs text-gray-500">Configure complex repeats (RRULE)</p>
-                  </div>
-                  <button className="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-gray-200">
-                    <span className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0" />
-                  </button>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Human-Readable Display (Overrides dates on UI)</label>
-                  <input type="text" placeholder="EN: 'Every Wednesday'" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
-                  <input type="text" placeholder="ZH: '每週三'" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
-                </div>
-
                 <div className="relative pt-2">
                   <MapPin className="absolute left-3 top-4 w-4 h-4 text-gray-400" />
                   <input type="text" placeholder="Location Name" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" />
@@ -256,96 +309,35 @@ export default function UnifiedEditorPage({ params }: { params: { id: string } }
               <hr className="border-gray-100" />
               <div className="space-y-4">
                 <label className="block text-sm font-semibold text-gray-900">Application Form</label>
-                <p className="text-xs text-gray-500 mb-2">Select the primary form the "Apply Now" button should open.</p>
                 <div className="relative">
                   <LayoutTemplate className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                   <select className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white">
                     <option>Standard Retreat Application</option>
                     <option>Weekly RSVP Form</option>
-                    <option value="">None (Event is Informational)</option>
+                    <option value="">None (Informational Only)</option>
                   </select>
                 </div>
               </div>
             </div>
           )}
 
-          {/* CONDITIONAL: PAGE FIELDS */}
+          {/* PAGE METADATA ONLY */}
           {postType === 'page' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <hr className="border-gray-100" />
               <div className="space-y-4">
-                <label className="block text-sm font-semibold text-gray-900">Routing & Navigation</label>
-                
+                <label className="block text-sm font-semibold text-gray-900">Routing</label>
                 <div className="relative">
                   <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                   <input type="text" placeholder="URL Slug (e.g., /about/team)" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-indigo-500 focus:border-indigo-500" />
                 </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">Show in Main Navigation</span>
-                    <p className="text-xs text-gray-500">Add to 'About Us' dropdown menu</p>
-                  </div>
-                  <button className="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-indigo-600">
-                    <span className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-4" />
-                  </button>
-                </div>
               </div>
             </div>
           )}
 
-          {/* CONDITIONAL: RESOURCE FIELDS */}
-          {postType === 'resource' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <hr className="border-gray-100" />
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <label className="block text-sm font-semibold text-gray-900">Downloadable Assets</label>
-                  <button className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add File</button>
-                </div>
-                <p className="text-xs text-gray-500 mb-2">Attach PDFs, audio, or external links for users to download. (Embed promo videos directly in the text editor).</p>
-
-                <div className="space-y-3">
-                  {/* Mock Downloadable File */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-3 overflow-hidden">
-                      <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">meditation_guide.pdf</p>
-                        <p className="text-xs text-gray-500">2.4 MB</p>
-                      </div>
-                    </div>
-                    <button className="text-gray-400 hover:text-red-500 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  {/* Mock External Link */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-3 overflow-hidden">
-                      <LinkIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">External Audio Folder</p>
-                        <p className="text-xs text-gray-500 truncate">drive.google.com/...</p>
-                      </div>
-                    </div>
-                    <button className="text-gray-400 hover:text-red-500 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer transition-colors mt-4">
-                  <span className="text-sm font-medium text-indigo-600">Drag & Drop or Click to Upload</span>
-                  <span className="text-xs text-gray-500 mt-1">Max 50MB per file</span>
-                </div>
-              </div>
-            </div>
-          )}
-
+          {/* Notice: Resource Metadata section was removed! */}
         </div>
       </div>
-
     </div>
   );
 }
