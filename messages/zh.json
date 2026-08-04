@@ -1,21 +1,53 @@
 {
 "Navigation": {
-"events": "道場活動",
+"events": "活動與禪修",
 "resources": "更多資源",
-"about": "關於我們"
+"about": "關於我們",
+"switchTo": "English"
 },
-"Event": {
+"Footer": {
+"orgName": "道跡禪院",
+"tagline": "在喧囂的世界中培育寧靜。",
+"rights": "版權所有。"
+},
+"Feed": {
+"eventsTitle": "活動與禪修",
+"eventsSubtitle": "歡迎參加我們即將舉辦的禪修營、每週共修及特別法會。",
+"resourcesTitle": "法寶與資源文庫",
+"resourcesSubtitle": "探索道跡禪院提供的修行指南、唱誦音頻及影音開示。",
+"searchPlaceholder": "搜尋...",
+"filterAll": "所有活動/資源",
+"readMore": "查看詳情",
+"happeningNow": "進行中",
+"statusOpen": "立即報名",
+"statusClosed": "報名已截止"
+},
+"Detail": {
+"backToEvents": "返回活動列表",
+"backToResources": "返回資源列表",
+"backToHome": "返回首頁",
+"share": "分享",
+"dateTime": "日期與時間",
+"location": "地點",
 "applyNow": "立即報名",
-"closed": "報名已截止"
+"applicationClosed": "報名已截止",
+"limitedSpots": "名額有限。報名將以滾動方式進行審核。",
+"eventDetails": "活動詳情"
 },
 "Form": {
+"backToEvent": "返回活動詳情",
 "submit": "提交表單",
-"submitting": "提交中...",
-"successTitle": "已收到！",
-"successMessage": "感謝您的填寫。我們將盡快聯絡您。",
-"formNotOpen": "表單尚未開放。",
-"formClosed": "表單已關閉。",
-"submissionFailedNotOpen": "提交失敗：表單尚未開放。",
-"submissionFailedClosed": "提交失敗：表單已關閉。"
+"submitting": "正在提交表單...",
+"successTitle": "表單已成功提交！",
+"successMessage": "感謝您提交表單。我們已成功收到您的資料。",
+"nextSteps": "我們將審核您的資料，並盡快與您聯繫。",
+"required": "必填",
+"formClosed": "此表單目前已關閉。",
+"closedSub": "此禪修營的報名名額已滿或已過截止日期。",
+"typeAnswer": "在此輸入您的回答...",
+"provideDetails": "請提供詳細說明...",
+"selectOption": "請選擇...",
+"officialForm": "官方報名表單",
+"returnToEvents": "返回活動列表"
 }
 }
