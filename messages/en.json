@@ -1,0 +1,21 @@
+{
+"Navigation": {
+"events": "Events",
+"resources": "Resources",
+"about": "About Us"
+},
+"Event": {
+"applyNow": "Apply Now",
+"closed": "Application closed"
+},
+"Form": {
+"submit": "Submit",
+"submitting": "Submitting...",
+"successTitle": "Received!",
+"successMessage": "Thank you for submission. We will contact you soon.",
+"formNotOpen": "Form is not open yet.",
+"formClosed": "Form is closed.",
+"submissionFailedNotOpen": "Submission failed: form is not open yet.",
+"submissionFailedClosed": "Submission failed: form is closed."
+}
+}

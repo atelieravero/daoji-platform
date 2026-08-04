@@ -1,0 +1,21 @@
+{
+"Navigation": {
+"events": "道場活動",
+"resources": "更多資源",
+"about": "關於我們"
+},
+"Event": {
+"applyNow": "立即報名",
+"closed": "報名已截止"
+},
+"Form": {
+"submit": "提交表單",
+"submitting": "提交中...",
+"successTitle": "已收到！",
+"successMessage": "感謝您的填寫。我們將盡快聯絡您。",
+"formNotOpen": "表單尚未開放。",
+"formClosed": "表單已關閉。",
+"submissionFailedNotOpen": "提交失敗：表單尚未開放。",
+"submissionFailedClosed": "提交失敗：表單已關閉。"
+}
+}
