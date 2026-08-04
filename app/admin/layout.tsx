@@ -9,7 +9,8 @@ import {
   Tags, 
   Users, 
   LogOut,
-  Leaf
+  Leaf,
+  History
 } from 'lucide-react';
 
 const navGroups = [
@@ -24,7 +25,6 @@ const navGroups = [
   {
     title: "Applications",
     items: [
-      // Notice we only have Forms here now! Submissions are accessed directly from the Forms page.
       { id: '/admin/forms', label: 'Forms & Data', icon: LayoutList },
     ]
   },
@@ -33,6 +33,7 @@ const navGroups = [
     items: [
       { id: '/admin/tags', label: 'Tags & Filters', icon: Tags },
       { id: '/admin/team', label: 'Team Roles', icon: Users },
+      { id: '/admin/logs', label: 'Audit Logs', icon: History },
     ]
   }
 ];
@@ -42,19 +43,18 @@ export default function AdminLayout({
 }: {
   children?: React.ReactNode;
 }) {
-  const [pathname, setPathname] = useState('/admin/forms');
+  const [pathname, setPathname] = useState('/admin/team');
 
   // Fallback to safely get the current path in the browser if available
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setPathname(window.location.pathname === '/' ? '/admin/forms' : window.location.pathname);
+      setPathname(window.location.pathname === '/' ? '/admin/team' : window.location.pathname);
     }
   }, []);
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
       
-      {}
       <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-800">
           <Leaf className="w-6 h-6 text-indigo-400" />
@@ -95,14 +95,13 @@ export default function AdminLayout({
           ))}
         </nav>
 
-        {}
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-              AD
+              ML
             </div>
             <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Admin User</p>
+              <p className="text-sm font-medium text-white truncate">Master Lin</p>
               <button className="text-xs text-gray-400 hover:text-white transition-colors flex items-center mt-0.5">
                 <LogOut className="w-3 h-3 mr-1" />
                 Sign out
@@ -112,7 +111,6 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         {children || (
           <div className="flex-1 p-8 flex items-center justify-center text-gray-500">
