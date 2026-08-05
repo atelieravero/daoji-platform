@@ -49,5 +49,12 @@
 "selectOption": "請選擇...",
 "officialForm": "官方報名表單",
 "returnToEvents": "返回活動列表"
+},
+
+"Languages": {
+"cantonese": "粵語",
+"mandarin": "華語普通話",
+"english": "英語",
+"thai": "泰語"
 }
 }

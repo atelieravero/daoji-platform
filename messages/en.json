@@ -49,5 +49,11 @@
 "selectOption": "Select an option...",
 "officialForm": "Official Application Form",
 "returnToEvents": "Return to Events"
+},
+"Languages": {
+"cantonese": "Cantonese",
+"mandarin": "Mandarin",
+"english": "English",
+"thai": "Thai"
 }
 }
