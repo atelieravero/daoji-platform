@@ -162,7 +162,7 @@ export default function TeamPage() {
           <input
             type="text"
             placeholder="Search by name or email..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors text-gray-900 placeholder-gray-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -302,7 +302,7 @@ export default function TeamPage() {
                 value={editingAdmin?.name || ''}
                 onChange={(e) => setEditingAdmin({ ...editingAdmin, name: e.target.value })}
                 placeholder="e.g. Jane Doe"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-gray-900 placeholder-gray-400"
               />
             </div>
             
@@ -317,7 +317,7 @@ export default function TeamPage() {
                 onChange={(e) => setEditingAdmin({ ...editingAdmin, email: e.target.value })}
                 placeholder="jane@daoji.org"
                 className={`w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors ${
-                  editingAdmin?.id ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'
+                  editingAdmin?.id ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-900 placeholder-gray-400'
                 }`}
               />
             </div>
