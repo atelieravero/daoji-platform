@@ -12,15 +12,14 @@
 },
 "Feed": {
 "eventsTitle": "Events & Retreats",
-"eventsSubtitle": "Join us for upcoming retreats, weekly classes, and special ceremonies.",
+"eventsSubtitle": "Explore upcoming retreats and programs.",
 "resourcesTitle": "Dhamma Resources & Library",
-"resourcesSubtitle": "Explore guides, audio recordings, and teachings from Maggapaṭipadā.",
+"resourcesSubtitle": "Explore guides, audio recordings, and teachings.",
 "searchPlaceholder": "Search...",
 "filterAll": "All",
-"readMore": "View Details",
-"happeningNow": "Happening Now",
+"readMore": "Read More",
 "statusOpen": "Apply Now",
-"statusClosed": "Application Closed"
+"statusClosed": "Closed"
 },
 "Detail": {
 "backToEvents": "Back to Events",
@@ -34,21 +33,19 @@
 "limitedSpots": "Spaces are limited. Applications are reviewed on a rolling basis.",
 "eventDetails": "Event Details"
 },
-"Form": {
-"backToEvent": "Back to Event",
-"submit": "Submit Form",
-"submitting": "Submitting Form...",
-"successTitle": "Form Successfully Submitted!",
-"successMessage": "Thank you for submitting the form. We have successfully received your submission.",
-"nextSteps": "We will review your submission and contact you soon.",
-"required": "Required",
-"formClosed": "This form is currently closed.",
-"closedSub": "Applications for this retreat have reached capacity or the deadline has passed.",
-"typeAnswer": "Type your answer here...",
-"provideDetails": "Provide details...",
-"selectOption": "Select an option...",
+"ApplyForm": {
+"back": "Back to Event",
 "officialForm": "Official Application Form",
-"returnToEvents": "Return to Events"
+"required": "Required",
+"selectDefault": "Select an option...",
+"submit": "Submit Application",
+"submitting": "Submitting...",
+"successTitle": "Application Received!",
+"successMessage": "Thank you for applying. We have successfully received your application data.",
+"nextSteps": "We will review your application and contact you via email or WhatsApp within 3-5 working days.",
+"returnToEvents": "Return to Events",
+"formClosed": "This form is closed.",
+"closedSub": "Applications for this retreat have reached capacity or the deadline has passed."
 },
 "Languages": {
 "cantonese": "Cantonese",

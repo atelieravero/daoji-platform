@@ -12,15 +12,14 @@
 },
 "Feed": {
 "eventsTitle": "活動與禪修",
-"eventsSubtitle": "歡迎參加我們即將舉辦的禪修營、每週共修及特別法會。",
+"eventsSubtitle": "歡迎參加我們即將舉辦的禪修營與共修。",
 "resourcesTitle": "法寶與資源文庫",
-"resourcesSubtitle": "探索道跡禪院提供的修行指南、唱誦音頻及影音開示。",
+"resourcesSubtitle": "探索道跡禪院提供的修行指南與影音開示。",
 "searchPlaceholder": "搜尋...",
-"filterAll": "所有活動/資源",
+"filterAll": "全部",
 "readMore": "查看詳情",
-"happeningNow": "進行中",
 "statusOpen": "立即報名",
-"statusClosed": "報名已截止"
+"statusClosed": "已截止"
 },
 "Detail": {
 "backToEvents": "返回活動列表",
@@ -34,23 +33,20 @@
 "limitedSpots": "名額有限。報名將以滾動方式進行審核。",
 "eventDetails": "活動詳情"
 },
-"Form": {
-"backToEvent": "返回活動詳情",
-"submit": "提交表單",
-"submitting": "正在提交表單...",
-"successTitle": "表單已成功提交！",
-"successMessage": "感謝您提交表單。我們已成功收到您的資料。",
-"nextSteps": "我們將審核您的資料，並盡快與您聯繫。",
-"required": "必填",
-"formClosed": "此表單目前已關閉。",
-"closedSub": "此禪修營的報名名額已滿或已過截止日期。",
-"typeAnswer": "在此輸入您的回答...",
-"provideDetails": "請提供詳細說明...",
-"selectOption": "請選擇...",
+"ApplyForm": {
+"back": "返回活動詳情",
 "officialForm": "官方報名表單",
-"returnToEvents": "返回活動列表"
+"required": "必填",
+"selectDefault": "請選擇...",
+"submit": "提交報名申請",
+"submitting": "提交中...",
+"successTitle": "報名申請已成功提交！",
+"successMessage": "感謝您報名道跡禪院。我們已成功收到您的報名資料。",
+"nextSteps": "我們將在 3-5 個工作日內審核您的申請，並透過電郵或 WhatsApp 與您聯繫。",
+"returnToEvents": "返回活動列表",
+"formClosed": "表單已關閉",
+"closedSub": "此活動的報名名額已滿或已過截止日期。"
 },
-
 "Languages": {
 "cantonese": "粵語",
 "mandarin": "華語普通話",
