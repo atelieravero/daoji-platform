@@ -43,18 +43,20 @@ export default function AdminLayout({
 }: {
   children?: React.ReactNode;
 }) {
-  const [pathname, setPathname] = useState('/admin/team');
+  const [pathname, setPathname] = useState('/admin/events');
 
-  // Fallback to safely get the current path in the browser if available
+  // Safely determine the current path in the browser environment
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setPathname(window.location.pathname === '/' ? '/admin/team' : window.location.pathname);
+      const currentPath = window.location.pathname;
+      setPathname(currentPath === '/' || currentPath === '/admin' ? '/admin/events' : currentPath);
     }
   }, []);
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
       
+      {}
       <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-800">
           <Leaf className="w-6 h-6 text-indigo-400" />
@@ -75,10 +77,6 @@ export default function AdminLayout({
                     <a
                       key={item.id}
                       href={item.id}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setPathname(item.id);
-                      }}
                       className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                         isActive 
                           ? 'bg-indigo-600 text-white' 
@@ -95,6 +93,7 @@ export default function AdminLayout({
           ))}
         </nav>
 
+        {}
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
@@ -111,6 +110,7 @@ export default function AdminLayout({
         </div>
       </aside>
 
+      {}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         {children || (
           <div className="flex-1 p-8 flex items-center justify-center text-gray-500">
