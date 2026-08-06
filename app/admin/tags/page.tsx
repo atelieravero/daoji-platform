@@ -11,6 +11,7 @@ import {
   Save,
   AlertCircle
 } from 'lucide-react';
+import { FormInput } from '../../../components/ui/FormControls';
 
 type Tag = {
   id: string;
@@ -49,16 +50,14 @@ export default function TagsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setTimeout(() => setEditingTag(null), 200); // Wait for transition
+    setTimeout(() => setEditingTag(null), 200);
   };
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full relative">
-      
-      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Tags & Filters</h1>
+          <h1 className="text-2xl font-bold text-gray-950 tracking-tight">Tags & Filters</h1>
           <p className="text-sm text-gray-500 mt-1">Manage the bilingual categories used in the public discovery feed.</p>
         </div>
         <button 
@@ -70,38 +69,33 @@ export default function TagsPage() {
         </button>
       </div>
 
-      {}
       <div className="bg-white p-4 rounded-t-xl border border-gray-200 border-b-0 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="relative w-full sm:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            type="text"
+        <div className="w-full sm:w-96">
+          <FormInput
+            icon={Search}
             placeholder="Search tags by name or slug..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-gray-50"
           />
         </div>
       </div>
 
-      {}
       <div className="bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/50">
               <tr>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-2/5">
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-2/5">
                   Tag Display Name
                 </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   URL Slug
                 </th>
-                <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Usage Count
                 </th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -116,19 +110,19 @@ export default function TagsPage() {
                         <TagIcon className="h-5 w-5 text-indigo-600" />
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-semibold text-gray-900">{tag.nameEn}</div>
+                        <div className="text-sm font-semibold text-gray-950">{tag.nameEn}</div>
                         <div className="text-sm text-gray-500 mt-0.5">{tag.nameZh}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-xs font-mono text-slate-700">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-xs font-mono text-slate-800">
                       {tag.slug}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      tag.usageCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                      tag.usageCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
                     }`}>
                       {tag.usageCount} posts
                     </span>
@@ -163,8 +157,6 @@ export default function TagsPage() {
         </div>
       </div>
 
-      {}
-      {/* Overlay Backdrop */}
       {isModalOpen && (
         <div 
           className="absolute inset-0 bg-gray-900/20 backdrop-blur-sm z-40 transition-opacity"
@@ -172,14 +164,13 @@ export default function TagsPage() {
         />
       )}
 
-      {/* Slide-out Panel */}
       <div 
         className={`absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl transform transition-transform duration-300 ease-in-out z-50 flex flex-col border-l border-gray-200 ${
           isModalOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 shrink-0 bg-gray-50/50">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-950">
             {editingTag?.id ? 'Edit Tag' : 'Create New Tag'}
           </h2>
           <button 
@@ -191,52 +182,32 @@ export default function TagsPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                English Name
-              </label>
-              <input
-                type="text"
-                value={editingTag?.nameEn || ''}
-                onChange={(e) => setEditingTag({ ...editingTag, nameEn: e.target.value })}
-                placeholder="e.g. Zen Retreat"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-              />
-            </div>
+            <FormInput
+              label="English Name"
+              value={editingTag?.nameEn || ''}
+              onChange={(e) => setEditingTag({ ...editingTag, nameEn: e.target.value })}
+              placeholder="e.g. Zen Retreat"
+            />
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Chinese Name
-              </label>
-              <input
-                type="text"
-                value={editingTag?.nameZh || ''}
-                onChange={(e) => setEditingTag({ ...editingTag, nameZh: e.target.value })}
-                placeholder="e.g. 禪修營"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-              />
-            </div>
+            <FormInput
+              label="Chinese Name"
+              value={editingTag?.nameZh || ''}
+              onChange={(e) => setEditingTag({ ...editingTag, nameZh: e.target.value })}
+              placeholder="e.g. 禪修營"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL Slug <span className="text-gray-400 font-normal ml-1">(Must be unique)</span>
-              </label>
-              <input
-                type="text"
-                value={editingTag?.slug || ''}
-                onChange={(e) => setEditingTag({ 
-                  ...editingTag, 
-                  slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') 
-                })}
-                placeholder="e.g. zen-retreat"
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono text-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                This is the exact text that will appear in the web address (e.g., /events?tag=<strong>zen-retreat</strong>)
-              </p>
-            </div>
+            <FormInput
+              label="URL Slug (Must be unique)"
+              value={editingTag?.slug || ''}
+              onChange={(e) => setEditingTag({ 
+                ...editingTag, 
+                slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') 
+              })}
+              placeholder="e.g. zen-retreat"
+              helperText="This is the exact text that will appear in the web address (e.g., /events?tag=zen-retreat)"
+              className="font-mono bg-gray-50"
+            />
           </div>
 
           {editingTag?.id && (
@@ -247,7 +218,6 @@ export default function TagsPage() {
               </p>
             </div>
           )}
-
         </div>
 
         <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end space-x-3">
@@ -263,7 +233,6 @@ export default function TagsPage() {
           </button>
         </div>
       </div>
-
     </div>
   );
 }
