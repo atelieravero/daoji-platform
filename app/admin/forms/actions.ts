@@ -103,3 +103,46 @@ export async function updateFormStatus(id: string, newStatus: string) {
 
   revalidatePath('/admin/forms');
 }
+
+export async function duplicateForm(id: string) {
+  const supabase = getSupabaseAdmin();
+
+  // 1. Fetch the original form
+  const { data: original, error: fetchError } = await supabase
+    .from('forms')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !original) {
+    throw new Error('Form not found for duplication.');
+  }
+
+  // 2. Prepare the duplicated payload
+  const duplicatedPayload = {
+    event_id: original.event_id,
+    title: `${original.title} (Copy)`,
+    is_followup: original.is_followup,
+    schema: {
+      ...original.schema,
+      status: 'draft', // Force status to draft for safety
+      titleEn: original.schema?.titleEn ? `${original.schema.titleEn} (Copy)` : '',
+      titleZh: original.schema?.titleZh ? `${original.schema.titleZh} (複製)` : '',
+    }
+  };
+
+  // 3. Insert as a new row and return the new ID
+  const { data: inserted, error: insertError } = await supabase
+    .from('forms')
+    .insert([duplicatedPayload])
+    .select('id')
+    .single();
+
+  if (insertError || !inserted) {
+    console.error('Error duplicating form:', insertError);
+    throw new Error('Failed to duplicate form.');
+  }
+
+  revalidatePath('/admin/forms');
+  return inserted.id;
+}

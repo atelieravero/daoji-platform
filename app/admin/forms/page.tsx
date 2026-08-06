@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getForms, deleteForm, updateFormStatus } from './actions';
+import { getForms, deleteForm, updateFormStatus, duplicateForm } from './actions';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   Search, 
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function FormsPage() {
+  const router = useRouter();
   const [forms, setForms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,6 +54,15 @@ export default function FormsPage() {
       setForms(forms.map(f => f.id === id ? { ...f, schema: { ...f.schema, status: newStatus } } : f));
     } catch (err) {
       alert('Failed to update status.');
+    }
+  };
+
+  const handleDuplicate = async (id: string) => {
+    try {
+      const newId = await duplicateForm(id);
+      router.push(`/admin/forms/builder?id=${newId}`);
+    } catch (err) {
+      alert('Failed to duplicate form.');
     }
   };
 
@@ -178,7 +189,13 @@ export default function FormsPage() {
                           <button className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Preview & Test">
                             <Eye className="w-4 h-4" />
                           </button>
-                          
+                          <button 
+                            onClick={() => handleDuplicate(form.id)}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" 
+                            title="Duplicate Form"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>                          
                           {/* Only show delete button if form status is draft */}
                           {status === 'draft' && (
                             <button 
