@@ -37,12 +37,12 @@ export default function FormsPage() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this form?')) return;
+    if (!confirm('Are you sure you want to delete this draft form?')) return;
     try {
       await deleteForm(id);
       setForms(forms.filter(f => f.id !== id));
-    } catch (err) {
-      alert('Failed to delete form.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete form.');
     }
   };
 
@@ -178,13 +178,17 @@ export default function FormsPage() {
                           <button className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Preview & Test">
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button 
-                            onClick={() => handleDelete(form.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Delete Form"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          
+                          {/* Only show delete button if form status is draft */}
+                          {status === 'draft' && (
+                            <button 
+                              onClick={() => handleDelete(form.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Delete Draft Form"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
