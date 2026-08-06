@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
-import { saveFormSchema } from './actions';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { saveFormSchema, getFormSchema } from './actions';
 import { 
   ArrowLeft, Save, GripVertical, Settings2, Type, ListOrdered, 
   PlusCircle, Trash2, LayoutTemplate, X, GitBranch, Eye,
   FileText, Calendar, Smartphone, CheckSquare, UploadCloud,
-  ChevronUp, ChevronDown, AlignLeft, AlertCircle
+  ChevronUp, ChevronDown, AlignLeft, AlertCircle, Loader2
 } from 'lucide-react';
 
 type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info';
@@ -117,6 +118,28 @@ const initialFields: FormField[] = [
 ];
 
 export default function FormBuilderPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center h-full bg-gray-50">
+        <div className="flex items-center space-x-2 text-gray-500 text-sm font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+          <span>Loading form builder...</span>
+        </div>
+      </div>
+    }>
+      <FormBuilderContent />
+    </Suspense>
+  );
+}
+
+function FormBuilderContent() {
+  const searchParams = useSearchParams();
+  const formIdParam = searchParams.get('id');
+
+  const [currentFormId, setCurrentFormId] = useState<string | null>(
+    formIdParam && formIdParam !== 'new' ? formIdParam : null
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [invalidFieldIds, setInvalidFieldIds] = useState<string[]>([]);
   
@@ -133,6 +156,39 @@ export default function FormBuilderPage() {
   
   const [fields, setFields] = useState<FormField[]>(initialFields);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!formIdParam || formIdParam === 'new') return;
+
+    let isMounted = true;
+    setIsLoading(true);
+
+    getFormSchema(formIdParam).then((record) => {
+      if (!isMounted || !record) return;
+
+      setCurrentFormId(record.id);
+      setFormConfig({
+        internalName: record.title || '',
+        eventId: record.event_id || 'evt_1',
+        isFollowUp: record.is_followup || false,
+        titleEn: record.schema?.titleEn || '',
+        titleZh: record.schema?.titleZh || '',
+        subtitleEn: record.schema?.subtitleEn || '',
+        subtitleZh: record.schema?.subtitleZh || '',
+        status: record.schema?.status || 'draft',
+      });
+
+      if (record.schema?.fields && Array.isArray(record.schema.fields)) {
+        setFields(record.schema.fields);
+      }
+    }).finally(() => {
+      if (isMounted) setIsLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [formIdParam]);
 
   const activeField = fields.find(f => f.id === activeFieldId);
   const activeFieldIndex = fields.findIndex(f => f.id === activeFieldId);
@@ -272,7 +328,13 @@ export default function FormBuilderPage() {
         }
       };
       
-      await saveFormSchema(payload);
+      const savedId = await saveFormSchema(payload, currentFormId);
+      
+      if (savedId && !currentFormId) {
+        setCurrentFormId(savedId);
+        window.history.replaceState(null, '', `?id=${savedId}`);
+      }
+
       alert('Form Schema saved successfully!');
     } catch (error) {
       console.error(error);
@@ -283,6 +345,17 @@ export default function FormBuilderPage() {
   };
 
   const hasOptions = activeField?.type === 'select' || activeField?.type === 'radio' || activeField?.type === 'checkbox';
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center h-full bg-gray-50">
+        <div className="flex items-center space-x-2 text-gray-500 text-sm font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+          <span>Loading form schema...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-50 overflow-hidden font-sans">
@@ -481,7 +554,7 @@ export default function FormBuilderPage() {
           </div>
         </div>
 
-        {/* RIGHT INSPECTOR (Wider by 20% -> w-[460px]) */}
+        {/* RIGHT INSPECTOR */}
         <div className="w-[460px] bg-white border-l border-gray-200 flex flex-col shadow-xl z-20">
           <div className="h-14 border-b border-gray-100 flex items-center px-6 bg-gray-50/50 shrink-0">
             <Settings2 className="w-4 h-4 text-gray-500 mr-2" />
@@ -587,7 +660,6 @@ export default function FormBuilderPage() {
             ) : (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 
-                {/* Data Key (Completely hidden if type is 'info') */}
                 {activeField.type !== 'info' && (
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
@@ -606,7 +678,6 @@ export default function FormBuilderPage() {
                   </div>
                 )}
 
-                {/* Bilingual Labels */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                     {activeField.type === 'info' ? 'Block Content' : 'Question Content'}
@@ -659,7 +730,6 @@ export default function FormBuilderPage() {
 
                 <hr className="border-gray-100" />
 
-                {/* Field Format */}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Field Format</label>
@@ -706,7 +776,6 @@ export default function FormBuilderPage() {
                     </div>
                   </div>
 
-                  {/* Options Editor */}
                   {hasOptions && (
                     <div className="space-y-3 pt-2">
                       <label className="block text-xs font-medium text-gray-500">Choices Configuration</label>
@@ -774,7 +843,6 @@ export default function FormBuilderPage() {
                     </div>
                   )}
 
-                  {/* Required Toggle */}
                   {activeField.type !== 'info' && (
                     <div className="flex items-center justify-between py-3 border-y border-gray-100">
                       <div>
@@ -795,7 +863,6 @@ export default function FormBuilderPage() {
                   )}
                 </div>
 
-                {/* Conditional Logic */}
                 <div className="space-y-4 p-4 bg-amber-50/50 border border-amber-200/60 rounded-xl">
                   <div className="flex items-center justify-between">
                      <h3 className="text-sm font-bold text-amber-900 uppercase tracking-wider flex items-center">
@@ -945,7 +1012,6 @@ export default function FormBuilderPage() {
                   )}
                 </div>
 
-                {/* Danger Zone */}
                 <div className="pt-8">
                   <button 
                     onClick={() => {
