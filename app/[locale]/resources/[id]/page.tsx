@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import PostDetailPage from '../../../../components/shared/PostDetailPage';
+import PostDetailPage from '@/components/shared/PostDetailPage';
 
 const mockResourceDetail = {
   id: 'res_1',

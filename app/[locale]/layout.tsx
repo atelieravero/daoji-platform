@@ -1,7 +1,7 @@
 import React from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
-import PublicShell from '../../components/shared/PublicShell';
+import PublicShell from '@/components/shared/PublicShell';
 
 // MOCK: Simulates fetching dynamic navigation items where `showInNav: true`
 const fetchDynamicNavItems = async () => {

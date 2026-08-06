@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import PostDiscoveryFeed from '../../../components/shared/PostDiscoveryFeed';
+import PostDiscoveryFeed from '@/components/shared/PostDiscoveryFeed';
 
 const mockResources = [
   {
