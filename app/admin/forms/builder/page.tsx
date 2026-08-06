@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import { saveFormSchema } from './actions';
 import { 
   ArrowLeft, Save, GripVertical, Settings2, Type, ListOrdered, 
   PlusCircle, Trash2, LayoutTemplate, X, GitBranch, Eye,
   FileText, Calendar, Smartphone, CheckSquare, UploadCloud,
-  ChevronUp, ChevronDown, AlignLeft
+  ChevronUp, ChevronDown, AlignLeft, AlertCircle
 } from 'lucide-react';
 
 type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info';
@@ -42,12 +43,11 @@ const MarkdownPreview = ({ text, className = "" }: { text?: string, className?: 
   if (!text) return null;
   
   let html = text
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;') // Basic sanitize
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-indigo-600 hover:underline" target="_blank">$1</a>') // Links
-    .replace(/!!(.*?)!!/g, '<span class="text-red-500 font-medium">$1</span>'); // Red Text
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;') 
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-indigo-600 hover:underline" target="_blank">$1</a>') 
+    .replace(/!!(.*?)!!/g, '<span class="text-red-500 font-medium">$1</span>'); 
 
-  // Handle lists and line breaks
   const lines = html.split('\n');
   let inUl = false, inOl = false, result = '';
 
@@ -117,6 +117,9 @@ const initialFields: FormField[] = [
 ];
 
 export default function FormBuilderPage() {
+  const [isSaving, setIsSaving] = useState(false);
+  const [invalidFieldIds, setInvalidFieldIds] = useState<string[]>([]);
+  
   const [formConfig, setFormConfig] = useState({
     internalName: 'Standard Retreat Application',
     titleEn: '7-Day Silent Zen Retreat Application',
@@ -124,12 +127,11 @@ export default function FormBuilderPage() {
     subtitleEn: 'Please read the [Retreat Guidelines](https://daoji.org/guidelines) before applying.',
     subtitleZh: '報名前請先閱讀[禪修營須知](https://daoji.org/guidelines)。',
     eventId: 'evt_1',
-    type: 'application',
+    isFollowUp: false,
     status: 'draft'
   });
   
   const [fields, setFields] = useState<FormField[]>(initialFields);
-  // activeFieldId being null means we are editing the "Form Level Settings"
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
   const activeField = fields.find(f => f.id === activeFieldId);
@@ -152,11 +154,24 @@ export default function FormBuilderPage() {
     setFields(newFields);
   };
 
+  const moveOption = (index: number, direction: 'up' | 'down') => {
+    if (!activeField || !activeField.options) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === activeField.options.length - 1) return;
+
+    const newOpts = [...activeField.options];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = newOpts[index];
+    newOpts[index] = newOpts[targetIndex];
+    newOpts[targetIndex] = temp;
+    updateActiveField({ options: newOpts });
+  };
+
   const handleAddQuestion = () => {
     const newId = `field_${Date.now()}`;
     const newField: FormField = {
       id: newId,
-      dataKey: `new_question_${fields.length + 1}`,
+      dataKey: `question_${fields.length + 1}`,
       type: 'text',
       labelEn: 'New Question',
       labelZh: '新問題',
@@ -218,6 +233,55 @@ export default function FormBuilderPage() {
     }
   };
 
+  const handleSave = async () => {
+    const invalidIds: string[] = [];
+
+    for (const f of fields) {
+      if (f.type !== 'info' && (!f.dataKey || f.dataKey.trim() === '')) {
+        invalidIds.push(f.id);
+      }
+      if (f.options) {
+        for (const opt of f.options) {
+          if (!opt.value || opt.value.trim() === '') {
+            if (!invalidIds.includes(f.id)) invalidIds.push(f.id);
+          }
+        }
+      }
+    }
+
+    if (invalidIds.length > 0) {
+      setInvalidFieldIds(invalidIds);
+      alert('Validation Error: Some questions have missing Data Keys or Option Values. Please check the highlighted questions in red.');
+      return;
+    }
+
+    setInvalidFieldIds([]);
+    setIsSaving(true);
+    try {
+      const payload = {
+        event_id: formConfig.eventId,
+        title: formConfig.internalName,
+        is_followup: formConfig.isFollowUp,
+        schema: {
+          titleEn: formConfig.titleEn,
+          titleZh: formConfig.titleZh,
+          subtitleEn: formConfig.subtitleEn,
+          subtitleZh: formConfig.subtitleZh,
+          status: formConfig.status,
+          fields: fields
+        }
+      };
+      
+      await saveFormSchema(payload);
+      alert('Form Schema saved successfully!');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save Form Schema.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const hasOptions = activeField?.type === 'select' || activeField?.type === 'radio' || activeField?.type === 'checkbox';
 
   return (
@@ -245,9 +309,13 @@ export default function FormBuilderPage() {
             <Eye className="w-4 h-4 mr-2" />
             Preview & Test
           </button>
-          <button className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors">
-            <Save className="w-4 h-4 mr-2" />
-            Save Schema
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+          >
+            <Save className={`w-4 h-4 mr-2 ${isSaving ? 'animate-pulse' : ''}`} />
+            {isSaving ? 'Saving...' : 'Save Schema'}
           </button>
         </div>
       </div>
@@ -275,111 +343,130 @@ export default function FormBuilderPage() {
               </div>
               
               <div className="p-8 space-y-6">
-                {fields.map((field, idx) => (
-                  <div 
-                    key={field.id}
-                    onClick={() => setActiveFieldId(field.id)}
-                    className={`relative p-5 rounded-xl border-2 transition-all cursor-pointer group ${
-                      activeFieldId === field.id 
-                        ? 'border-indigo-500 bg-indigo-50/10 shadow-sm' 
-                        : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    {/* Visual Indicator for Conditional Logic */}
-                    {field.condition && field.condition.rules.length > 0 && (
-                      <div className="absolute -top-3 left-4 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center shadow-sm">
-                        <GitBranch className="w-3 h-3 mr-1" />
-                        Conditional
-                      </div>
-                    )}
+                {fields.map((field, idx) => {
+                  const isInvalid = invalidFieldIds.includes(field.id);
+                  return (
+                    <div 
+                      key={field.id}
+                      onClick={() => setActiveFieldId(field.id)}
+                      className={`relative p-5 rounded-xl border-2 transition-all cursor-pointer group ${
+                        activeFieldId === field.id 
+                          ? 'border-indigo-500 bg-indigo-50/10 shadow-sm' 
+                          : isInvalid
+                          ? 'border-red-500 bg-red-50/20 hover:border-red-600'
+                          : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {field.condition && field.condition.rules.length > 0 && (
+                        <div className="absolute -top-3 left-4 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center shadow-sm">
+                          <GitBranch className="w-3 h-3 mr-1" />
+                          Conditional
+                        </div>
+                      )}
 
-                    {/* Active Controls (Move Up/Down) */}
-                    {activeFieldId === field.id && (
-                      <div className="absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); moveField(idx, 'up'); }}
-                          disabled={idx === 0}
-                          className="p-1 bg-white border border-gray-200 rounded shadow-sm text-gray-500 hover:text-indigo-600 disabled:opacity-30 transition-colors"
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); moveField(idx, 'down'); }}
-                          disabled={idx === fields.length - 1}
-                          className="p-1 bg-white border border-gray-200 rounded shadow-sm text-gray-500 hover:text-indigo-600 disabled:opacity-30 transition-colors"
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
+                      {isInvalid && (
+                        <div className="absolute -top-3 right-4 bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200 flex items-center shadow-sm">
+                          <AlertCircle className="w-3 h-3 mr-1 text-red-600" />
+                          Missing Data Key or Option Value
+                        </div>
+                      )}
 
-                    {/* Drag Handle (Visual Only for now) */}
-                    <div className={`absolute -left-3 top-1/2 -translate-y-1/2 p-1 bg-white border border-gray-200 rounded text-gray-300 shadow-sm transition-opacity ${
-                      activeFieldId === field.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}>
-                      <GripVertical className="w-4 h-4" />
+                      {activeFieldId === field.id && (
+                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); moveField(idx, 'up'); }}
+                            disabled={idx === 0}
+                            className="p-1 bg-white border border-gray-200 rounded shadow-sm text-gray-500 hover:text-indigo-600 disabled:opacity-30 transition-colors"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); moveField(idx, 'down'); }}
+                            disabled={idx === fields.length - 1}
+                            className="p-1 bg-white border border-gray-200 rounded shadow-sm text-gray-500 hover:text-indigo-600 disabled:opacity-30 transition-colors"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      <div className={`absolute -left-3 top-1/2 -translate-y-1/2 p-1 bg-white border border-gray-200 rounded text-gray-300 shadow-sm transition-opacity ${
+                        activeFieldId === field.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className={`block font-semibold text-gray-900 ${field.type === 'info' ? 'text-base text-indigo-900 mb-1' : 'text-sm'}`}>
+                            {field.labelEn} <span className="text-gray-400 font-normal ml-1">/ {field.labelZh}</span>
+                            {field.type !== 'info' && (
+                              <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded ml-2 font-normal">
+                                key: {field.dataKey || '(missing)'}
+                              </span>
+                            )}
+                            {field.required && field.type !== 'info' && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          <MarkdownPreview text={field.descriptionEn} />
+                          <MarkdownPreview text={field.descriptionZh} />
+                        </div>
+                        
+                        {field.type === 'info' ? null : field.type === 'text' || field.type === 'email' ? (
+                          <input type={field.type} disabled placeholder="Applicant input..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
+                        ) : field.type === 'textarea' ? (
+                          <textarea disabled rows={3} placeholder="Applicant input..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
+                        ) : field.type === 'mobile' ? (
+                          <div className="relative">
+                            <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                            <input type="tel" disabled placeholder="+852 1234 5678" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
+                          </div>
+                        ) : field.type === 'date' ? (
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                            <input type="date" disabled className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
+                          </div>
+                        ) : field.type === 'file' ? (
+                          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50">
+                            <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
+                            <span className="text-sm font-medium text-indigo-600">Click or drag file to upload</span>
+                          </div>
+                        ) : field.type === 'select' ? (
+                          <select disabled className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 appearance-none">
+                            <option>Select an option...</option>
+                          </select>
+                        ) : field.type === 'radio' ? (
+                          <div className="space-y-2">
+                            {field.options?.map((opt, i) => (
+                              <div key={i} className="flex items-center">
+                                <input type="radio" disabled className="w-4 h-4 text-indigo-600 border-gray-300" />
+                                <label className="ml-3 block text-sm font-medium text-gray-700">
+                                  {opt.labelEn} <span className="text-gray-400 font-normal ml-1">/ {opt.labelZh}</span>
+                                  <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-2">
+                                    val: {opt.value || '(empty)'}
+                                  </span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        ) : field.type === 'checkbox' ? (
+                          <div className="space-y-2">
+                            {field.options?.map((opt, i) => (
+                              <div key={i} className="flex items-center">
+                                <input type="checkbox" disabled className="w-4 h-4 text-indigo-600 border-gray-300 rounded" />
+                                <label className="ml-3 block text-sm font-medium text-gray-700">
+                                  {opt.labelEn} <span className="text-gray-400 font-normal ml-1">/ {opt.labelZh}</span>
+                                  <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded ml-2">
+                                    val: {opt.value || '(empty)'}
+                                  </span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className={`block font-semibold text-gray-900 ${field.type === 'info' ? 'text-base text-indigo-900 mb-1' : 'text-sm'}`}>
-                          {field.labelEn} <span className="text-gray-400 font-normal ml-1">/ {field.labelZh}</span>
-                          {field.required && field.type !== 'info' && <span className="text-red-500 ml-1">*</span>}
-                        </label>
-                        <MarkdownPreview text={field.descriptionEn} />
-                        <MarkdownPreview text={field.descriptionZh} />
-                      </div>
-                      
-                      {/* Fake Inputs for visual preview */}
-                      {field.type === 'info' ? null : field.type === 'text' || field.type === 'email' ? (
-                        <input type={field.type} disabled placeholder="Applicant input..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
-                      ) : field.type === 'textarea' ? (
-                        <textarea disabled rows={3} placeholder="Applicant input..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
-                      ) : field.type === 'mobile' ? (
-                        <div className="relative">
-                          <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                          <input type="tel" disabled placeholder="+852 1234 5678" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
-                        </div>
-                      ) : field.type === 'date' ? (
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                          <input type="date" disabled className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 placeholder-gray-400" />
-                        </div>
-                      ) : field.type === 'file' ? (
-                        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50">
-                          <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
-                          <span className="text-sm font-medium text-indigo-600">Click or drag file to upload</span>
-                        </div>
-                      ) : field.type === 'select' ? (
-                        <select disabled className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 appearance-none">
-                          <option>Select an option...</option>
-                        </select>
-                      ) : field.type === 'radio' ? (
-                        <div className="space-y-2">
-                          {field.options?.map((opt, i) => (
-                            <div key={i} className="flex items-center">
-                              <input type="radio" disabled className="w-4 h-4 text-indigo-600 border-gray-300" />
-                              <label className="ml-3 block text-sm font-medium text-gray-700">
-                                {opt.labelEn} <span className="text-gray-400 font-normal ml-1">/ {opt.labelZh}</span>
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      ) : field.type === 'checkbox' ? (
-                        <div className="space-y-2">
-                          {field.options?.map((opt, i) => (
-                            <div key={i} className="flex items-center">
-                              <input type="checkbox" disabled className="w-4 h-4 text-indigo-600 border-gray-300 rounded" />
-                              <label className="ml-3 block text-sm font-medium text-gray-700">
-                                {opt.labelEn} <span className="text-gray-400 font-normal ml-1">/ {opt.labelZh}</span>
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <button 
                   onClick={handleAddQuestion}
@@ -394,8 +481,8 @@ export default function FormBuilderPage() {
           </div>
         </div>
 
-        {/* RIGHT INSPECTOR */}
-        <div className="w-96 bg-white border-l border-gray-200 flex flex-col shadow-xl z-20">
+        {/* RIGHT INSPECTOR (Wider by 20% -> w-[460px]) */}
+        <div className="w-[460px] bg-white border-l border-gray-200 flex flex-col shadow-xl z-20">
           <div className="h-14 border-b border-gray-100 flex items-center px-6 bg-gray-50/50 shrink-0">
             <Settings2 className="w-4 h-4 text-gray-500 mr-2" />
             <span className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
@@ -417,6 +504,7 @@ export default function FormBuilderPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 bg-white"
                     />
                   </div>
+                  
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-1">Linked Event</label>
                     <select
@@ -428,23 +516,28 @@ export default function FormBuilderPage() {
                       <option value="evt_2">Weekly Wednesday Wisdom</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-1">Form Type</label>
-                    <select
-                      value={formConfig.type}
-                      onChange={(e) => setFormConfig({...formConfig, type: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                  
+                  <div className="flex items-center justify-between py-3 border-y border-gray-100 mt-4">
+                    <div>
+                      <span className="text-sm font-bold text-gray-900">Follow-up Form</span>
+                      <p className="text-[11px] text-gray-500 leading-tight mt-1">
+                        Requires an existing applicant<br/>magic token via URL to access.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setFormConfig({ ...formConfig, isFollowUp: !formConfig.isFollowUp })}
+                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                        formConfig.isFollowUp ? 'bg-indigo-600' : 'bg-gray-200'
+                      }`}
                     >
-                      <option value="application">Initial Application</option>
-                      <option value="confirmation">Confirmation / Logistics</option>
-                      <option value="auxiliary">Auxiliary (Feedback, etc)</option>
-                    </select>
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        formConfig.isFollowUp ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
                   </div>
                 </div>
 
-                <hr className="border-gray-100" />
-                
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Public Presentation</h3>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Public Title (English)</label>
@@ -494,23 +587,24 @@ export default function FormBuilderPage() {
             ) : (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 
-                {/* Data Key */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-                    {activeField.type === 'info' ? 'Block Reference ID' : 'Data Key (Database Column)'}
-                  </label>
-                  <input
-                    type="text"
-                    value={activeField.dataKey}
-                    onChange={(e) => updateActiveField({ dataKey: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-slate-500 focus:border-slate-500 bg-white text-slate-900 placeholder-slate-400"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-                    {activeField.type === 'info' 
-                      ? 'Used internally for conditional logic tracking.' 
-                      : 'This is the exact key your CSV export and Coda database will use.'}
-                  </p>
-                </div>
+                {/* Data Key (Completely hidden if type is 'info') */}
+                {activeField.type !== 'info' && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+                      Data Key (Database Column) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={activeField.dataKey}
+                      onChange={(e) => updateActiveField({ dataKey: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-slate-500 focus:border-slate-500 bg-white text-slate-900 placeholder-slate-400"
+                      required
+                    />
+                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                      This is the exact key your CSV export and Coda database will use.
+                    </p>
+                  </div>
+                )}
 
                 {/* Bilingual Labels */}
                 <div className="space-y-4">
@@ -572,10 +666,14 @@ export default function FormBuilderPage() {
                     <div className="relative">
                       <select
                         value={activeField.type}
-                        onChange={(e) => updateActiveField({ 
-                          type: e.target.value as FieldType,
-                          options: (['select', 'radio', 'checkbox'].includes(e.target.value)) && !activeField.options ? [{ value: 'opt_1', labelEn: 'Option 1', labelZh: '選項 1' }] : activeField.options,
-                        })}
+                        onChange={(e) => {
+                          const newType = e.target.value as FieldType;
+                          updateActiveField({ 
+                            type: newType,
+                            dataKey: newType === 'info' ? '' : (activeField.dataKey || `question_${fields.length + 1}`),
+                            options: (['select', 'radio', 'checkbox'].includes(newType)) && !activeField.options ? [{ value: 'opt_1', labelEn: 'Option 1', labelZh: '選項 1' }] : activeField.options,
+                          });
+                        }}
                         className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white text-gray-900"
                       >
                         <optgroup label="Text">
@@ -615,14 +713,34 @@ export default function FormBuilderPage() {
                       <div className="space-y-3">
                         {activeField.options?.map((opt, index) => (
                           <div key={index} className="flex items-start bg-gray-50 p-3 rounded-lg border border-gray-200 gap-2">
+                            <div className="flex flex-col gap-1 justify-center pt-2">
+                              <button 
+                                onClick={() => moveOption(index, 'up')}
+                                disabled={index === 0}
+                                className="p-1 text-gray-400 hover:text-indigo-600 disabled:opacity-30 transition-colors"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => moveOption(index, 'down')}
+                                disabled={!activeField.options || index === activeField.options.length - 1}
+                                className="p-1 text-gray-400 hover:text-indigo-600 disabled:opacity-30 transition-colors"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                             <div className="flex-1 space-y-2">
-                              <input
-                                type="text"
-                                value={opt.value}
-                                onChange={(e) => handleUpdateOption(index, 'value', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
-                                placeholder="Data value (e.g., vegan)"
-                                className="w-full px-2 py-1.5 text-xs font-mono border border-gray-300 rounded focus:ring-indigo-500 text-gray-900 placeholder-gray-400 bg-white"
-                              />
+                              <div>
+                                <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Value <span className="text-red-500">*</span></label>
+                                <input
+                                  type="text"
+                                  value={opt.value}
+                                  onChange={(e) => handleUpdateOption(index, 'value', e.target.value)}
+                                  placeholder="Data value (e.g., vegan)"
+                                  className="w-full px-2 py-1.5 text-xs font-mono border border-gray-300 rounded focus:ring-indigo-500 text-gray-900 placeholder-gray-400 bg-white"
+                                  required
+                                />
+                              </div>
                               <input
                                 type="text"
                                 value={opt.labelEn}
@@ -715,52 +833,106 @@ export default function FormBuilderPage() {
                       </div>
 
                       <div className="space-y-3 border-l-2 border-amber-200 pl-3">
-                        {activeField.condition.rules.map((rule, idx) => (
-                          <div key={rule.id} className="space-y-2 bg-white p-3 rounded-lg border border-amber-200 shadow-sm relative group/rule">
-                            <button 
-                              onClick={() => handleRemoveRule(rule.id)}
-                              className="absolute -right-2 -top-2 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full p-0.5 shadow-sm opacity-0 group-hover/rule:opacity-100 transition-opacity"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                            
-                            <select
-                              value={rule.dependsOn}
-                              onChange={(e) => handleUpdateRule(rule.id, { dependsOn: e.target.value })}
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
-                            >
-                              <option value="">Select previous field...</option>
-                              {previousFields.map(f => (
-                                <option key={f.id} value={f.dataKey}>{f.labelEn}</option>
-                              ))}
-                            </select>
+                        {activeField.condition.rules.map((rule, idx) => {
+                          const dependentField = previousFields.find(f => f.dataKey === rule.dependsOn);
+                          const dependentOptions = dependentField?.options;
+                          const showValueDropdown = dependentOptions && dependentOptions.length > 0;
+                          const isMultiSelectOp = rule.operator === 'contains' || rule.operator === 'not_contains';
 
-                            <div className="flex gap-2">
-                              <select
-                                value={rule.operator}
-                                onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator })}
-                                className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
+                          return (
+                            <div key={rule.id} className="space-y-2 bg-white p-3 rounded-lg border border-amber-200 shadow-sm relative group/rule">
+                              <button 
+                                onClick={() => handleRemoveRule(rule.id)}
+                                className="absolute -right-2 -top-2 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full p-0.5 shadow-sm opacity-0 group-hover/rule:opacity-100 transition-opacity"
                               >
-                                <option value="equals">Equals</option>
-                                <option value="not_equals">Does Not Equal</option>
-                                <option value="contains">Contains</option>
-                                <option value="not_contains">Does Not Contain</option>
-                                <option value="is_blank">Is Blank</option>
-                                <option value="is_not_blank">Is Not Blank</option>
+                                <X className="w-3 h-3" />
+                              </button>
+                              
+                              <select
+                                value={rule.dependsOn}
+                                onChange={(e) => handleUpdateRule(rule.id, { dependsOn: e.target.value, value: '' })}
+                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
+                              >
+                                <option value="">Select previous field...</option>
+                                {previousFields.map(f => (
+                                  <option key={f.id} value={f.dataKey}>
+                                    {f.labelEn} (Key: {f.dataKey})
+                                  </option>
+                                ))}
                               </select>
 
-                              {rule.operator !== 'is_blank' && rule.operator !== 'is_not_blank' && (
-                                <input
-                                  type="text"
-                                  value={rule.value}
-                                  onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
-                                  placeholder="Value..."
-                                  className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 font-mono text-gray-900 placeholder-gray-400 bg-white"
-                                />
-                              )}
+                              <div className="flex flex-col gap-2">
+                                <select
+                                  value={rule.operator}
+                                  onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator, value: '' })}
+                                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
+                                >
+                                  <option value="equals">Equals</option>
+                                  <option value="not_equals">Does Not Equal</option>
+                                  <option value="contains">Contains</option>
+                                  <option value="not_contains">Does Not Contain</option>
+                                  <option value="is_blank">Is Blank</option>
+                                  <option value="is_not_blank">Is Not Blank</option>
+                                </select>
+
+                                {rule.operator !== 'is_blank' && rule.operator !== 'is_not_blank' && (
+                                  showValueDropdown ? (
+                                    isMultiSelectOp ? (
+                                      <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200 max-h-36 overflow-y-auto">
+                                        <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Select matching options:</span>
+                                        {dependentOptions.map((opt, optIdx) => {
+                                          const currentValues = rule.value ? rule.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                          const isChecked = currentValues.includes(opt.value);
+                                          return (
+                                            <label key={optIdx} className="flex items-center text-xs text-gray-800 cursor-pointer hover:bg-gray-100 p-1 rounded">
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={(e) => {
+                                                  let updated = [...currentValues];
+                                                  if (e.target.checked) {
+                                                    updated.push(opt.value);
+                                                  } else {
+                                                    updated = updated.filter(v => v !== opt.value);
+                                                  }
+                                                  handleUpdateRule(rule.id, { value: updated.join(',') });
+                                                }}
+                                                className="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded mr-2"
+                                              />
+                                              <span className="font-mono text-[11px] text-indigo-700 mr-1.5">[{opt.value}]</span>
+                                              <span>{opt.labelEn || opt.labelZh}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={rule.value}
+                                        onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
+                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
+                                      >
+                                        <option value="">Select option value...</option>
+                                        {dependentOptions.map((opt, optIdx) => (
+                                          <option key={optIdx} value={opt.value}>
+                                            {opt.value} ({opt.labelEn || opt.labelZh})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      value={rule.value}
+                                      onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
+                                      placeholder="Value..."
+                                      className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 font-mono text-gray-900 placeholder-gray-400 bg-white"
+                                    />
+                                  )
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       <button 
