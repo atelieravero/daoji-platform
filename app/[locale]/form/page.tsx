@@ -55,8 +55,40 @@ function PublicFormContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Raw state containing all user interactions (including orphaned data from hidden fields)
+  // Raw state containing all user interactions
   const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  // Localization Dictionary
+  const t = {
+    submit: locale === 'zh' ? '提交表單' : 'Submit Form',
+    submitting: locale === 'zh' ? '提交中...' : 'Submitting...',
+    selectDefault: locale === 'zh' ? '請選擇...' : 'Select an option...',
+    successTitle: locale === 'zh' ? '已成功提交！' : 'Submission Received!',
+    successMessage: locale === 'zh' ? '感謝您填寫表單。我們已成功收到您的資料。' : 'Thank you for submitting the form. We have successfully received your information.',
+    formClosed: locale === 'zh' ? '表單已關閉' : 'This form is closed.',
+    closedSub: locale === 'zh' ? '此活動的報名名額已滿或已過截止日期。' : 'Applications for this retreat have reached capacity or the deadline has passed.',
+    loading: locale === 'zh' ? '載入中...' : 'Loading form...',
+    notFound: locale === 'zh' ? '找不到表單或表單無法使用。' : 'Form not found or unavailable.',
+    missingId: locale === 'zh' ? 'URL 中缺少表單 ID。' : 'Missing form ID parameter in URL.',
+    submissionFailed: locale === 'zh' ? '提交失敗。' : 'Submission failed.'
+  };
+
+  // Create a unique key for this specific form
+  const formStorageKey = formId ? `daoji_form_draft_${formId}` : null;
+
+  // Load saved answers from sessionStorage when the page loads (or switches language)
+  useEffect(() => {
+    if (formStorageKey) {
+      const saved = sessionStorage.getItem(formStorageKey);
+      if (saved) {
+        try {
+          setAnswers(JSON.parse(saved));
+        } catch (e) {
+          console.error("Failed to parse saved form draft.");
+        }
+      }
+    }
+  }, [formStorageKey]);
 
   useEffect(() => {
     if (!formId) {
@@ -81,18 +113,28 @@ function PublicFormContent() {
       const dependentVal = activeAnswers[rule.dependsOn];
       
       switch (rule.operator) {
-        case 'equals': return dependentVal === rule.value;
-        case 'not_equals': return dependentVal !== rule.value;
+        case 'equals': 
+          if (Array.isArray(dependentVal)) {
+            return dependentVal.length === 1 && dependentVal[0] === rule.value;
+          }
+          return dependentVal === rule.value;
+          
+        case 'not_equals': 
+          if (Array.isArray(dependentVal)) {
+            return dependentVal.length !== 1 || dependentVal[0] !== rule.value;
+          }
+          return dependentVal !== rule.value;
+
         case 'contains':
           if (Array.isArray(dependentVal)) return dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return dependentVal.includes(rule.value);
           return false;
+          
         case 'not_contains':
           if (Array.isArray(dependentVal)) return !dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return !dependentVal.includes(rule.value);
           return true;
           
-        // NEW: is_one_of (Supports array or comma-separated string)
         case 'is_one_of': {
           const allowedValues = Array.isArray(rule.value) 
             ? rule.value 
@@ -101,12 +143,11 @@ function PublicFormContent() {
               : [];
           
           if (Array.isArray(dependentVal)) {
-            return dependentVal.some(val => allowedValues.includes(val));
+            return dependentVal.some((val: string) => allowedValues.includes(val));
           }
           return allowedValues.includes(dependentVal);
         }
           
-        // NEW: is_not_one_of
         case 'is_not_one_of': {
           const disallowedValues = Array.isArray(rule.value) 
             ? rule.value 
@@ -115,7 +156,7 @@ function PublicFormContent() {
               : [];
               
           if (Array.isArray(dependentVal)) {
-            return !dependentVal.some(val => disallowedValues.includes(val));
+            return !dependentVal.some((val: string) => disallowedValues.includes(val));
           }
           return !disallowedValues.includes(dependentVal);
         }
@@ -131,14 +172,19 @@ function PublicFormContent() {
   };
 
   const handleInputChange = (dataKey: string, value: any) => {
-    setAnswers(prev => ({ ...prev, [dataKey]: value }));
+    setAnswers(prev => {
+      const updatedAnswers = { ...prev, [dataKey]: value };
+      if (formStorageKey) {
+        sessionStorage.setItem(formStorageKey, JSON.stringify(updatedAnswers));
+      }
+      return updatedAnswers;
+    });
   };
 
-  // 1. Build the cascading logic tree on every render
+  // Build the cascading logic tree on every render
   const activeAnswers: Record<string, any> = {};
   const visibleFields = (form?.schema?.fields || []).filter((field: any) => {
     const isVisible = shouldShowField(field, activeAnswers);
-    // If field is visible, register its answer so downstream fields can evaluate against it
     if (isVisible && field.dataKey) {
       activeAnswers[field.dataKey] = answers[field.dataKey];
     }
@@ -156,20 +202,25 @@ function PublicFormContent() {
       await submitPublicForm({
         form_id: form.id,
         event_id: form.event_id,
-        answers: activeAnswers, // STRICTLY submit only visible/active answers
+        answers: activeAnswers, 
         is_test: isTest,
         applicant_token: token || undefined,
       });
       setIsSubmitted(true);
+      
+      if (formStorageKey) {
+        sessionStorage.removeItem(formStorageKey);
+      }
+      
     } catch (err: any) {
-      setErrorMessage(err.message || 'Submission failed.');
+      setErrorMessage(err.message || t.submissionFailed);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   if (!formId) {
-    return <div className="min-h-screen flex items-center justify-center text-red-500 font-medium bg-surface-base">Missing form ID parameter in URL.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-red-500 font-medium bg-surface-base">{t.missingId}</div>;
   }
 
   if (isLoading) {
@@ -181,7 +232,7 @@ function PublicFormContent() {
   }
 
   if (!form) {
-    return <div className="min-h-screen flex items-center justify-center text-stone-500 font-medium bg-surface-base">Form not found or unavailable.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-stone-500 font-medium bg-surface-base">{t.notFound}</div>;
   }
 
   if (form.schema?.status === 'closed') {
@@ -189,8 +240,8 @@ function PublicFormContent() {
       <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
         <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-stone-800">Form Closed</h1>
-          <p className="text-sm text-stone-500 mt-2">This application form is currently closed and no longer accepting submissions.</p>
+          <h1 className="text-xl font-bold text-stone-800">{t.formClosed}</h1>
+          <p className="text-sm text-stone-500 mt-2">{t.closedSub}</p>
         </div>
       </div>
     );
@@ -201,14 +252,14 @@ function PublicFormContent() {
       <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
         <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
           <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-stone-800">Application Submitted</h1>
-          <p className="text-sm text-stone-500 mt-2">Thank you! Your responses have been successfully recorded.</p>
+          <h1 className="text-xl font-bold text-stone-800">{t.successTitle}</h1>
+          <p className="text-sm text-stone-500 mt-2">{t.successMessage}</p>
         </div>
       </div>
     );
   }
 
-  // 2. Strict Fallback Chains for Form Headers
+  // Strict Fallback Chains for Form Headers
   const formTitle = locale === 'zh' 
     ? (form.schema?.titleZh || form.schema?.titleEn || form.title || '') 
     : (form.schema?.titleEn || form.schema?.titleZh || form.title || '');
@@ -236,7 +287,7 @@ function PublicFormContent() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {visibleFields.map((field: any) => {
             
-            // 3. Strict Fallback Chains for Fields
+            // Strict Fallback Chains for Fields
             const fieldLabel = locale === 'zh' 
               ? (field.labelZh || field.labelEn || field.title || field.dataKey || '') 
               : (field.labelEn || field.labelZh || field.title || field.dataKey || '');
@@ -269,7 +320,7 @@ function PublicFormContent() {
                     value={activeAnswers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
-                    placeholder="Your answer..."
+                    placeholder="..."
                   />
                 ) : field.type === 'textarea' ? (
                   <textarea
@@ -278,7 +329,7 @@ function PublicFormContent() {
                     value={activeAnswers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
-                    placeholder="Your answer..."
+                    placeholder="..."
                   />
                 ) : field.type === 'mobile' ? (
                   <div className="relative mt-2">
@@ -310,9 +361,8 @@ function PublicFormContent() {
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none bg-white text-stone-800 transition-shadow mt-2"
                   >
-                    <option value="">Select an option...</option>
+                    <option value="">{t.selectDefault}</option>
                     {field.options?.map((opt: any, idx: number) => {
-                      // 4. Strict Fallback Chain for Options
                       const optionLabel = locale === 'zh' 
                         ? (opt.labelZh || opt.labelEn || opt.value || '') 
                         : (opt.labelEn || opt.labelZh || opt.value || '');
@@ -391,7 +441,7 @@ function PublicFormContent() {
             className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            {isSubmitting ? 'Submitting...' : 'Submit Application'}
+            {isSubmitting ? t.submitting : t.submit}
           </button>
         </form>
 

@@ -14,7 +14,6 @@ type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'ch
 
 type FieldOption = { value: string; labelEn: string; labelZh: string };
 
-// 1. UPDATED: Added new operators to the type definition
 type LogicOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'is_blank' | 'is_not_blank' | 'is_one_of' | 'is_not_one_of';
 
 interface LogicRule {
@@ -905,7 +904,6 @@ function FormBuilderContent() {
                           const dependentOptions = dependentField?.options;
                           const showValueDropdown = dependentOptions && dependentOptions.length > 0;
                           
-                          // 2. UPDATED: Expanded logic to render the checkbox list for the new operators
                           const isMultiValueOp = rule.operator === 'contains' || rule.operator === 'not_contains' || rule.operator === 'is_one_of' || rule.operator === 'is_not_one_of';
 
                           return (
@@ -936,7 +934,6 @@ function FormBuilderContent() {
                                   onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator, value: '' })}
                                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
                                 >
-                                  {/* 3. UPDATED: Added new operators to the dropdown menu */}
                                   <option value="equals">Equals</option>
                                   <option value="not_equals">Does Not Equal</option>
                                   <option value="contains">Contains</option>
@@ -986,7 +983,7 @@ function FormBuilderContent() {
                                         <option value="">Select option value...</option>
                                         {dependentOptions.map((opt, optIdx) => (
                                           <option key={optIdx} value={opt.value}>
-                                            {opt.value} ({opt.labelEn || opt.labelZh})
+                                            [{opt.value}] {opt.labelEn || opt.labelZh}
                                           </option>
                                         ))}
                                       </select>
