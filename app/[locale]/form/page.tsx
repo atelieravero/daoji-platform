@@ -91,6 +91,35 @@ function PublicFormContent() {
           if (Array.isArray(dependentVal)) return !dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return !dependentVal.includes(rule.value);
           return true;
+          
+        // NEW: is_one_of (Supports array or comma-separated string)
+        case 'is_one_of': {
+          const allowedValues = Array.isArray(rule.value) 
+            ? rule.value 
+            : typeof rule.value === 'string' 
+              ? rule.value.split(',').map((v: string) => v.trim()) 
+              : [];
+          
+          if (Array.isArray(dependentVal)) {
+            return dependentVal.some(val => allowedValues.includes(val));
+          }
+          return allowedValues.includes(dependentVal);
+        }
+          
+        // NEW: is_not_one_of
+        case 'is_not_one_of': {
+          const disallowedValues = Array.isArray(rule.value) 
+            ? rule.value 
+            : typeof rule.value === 'string' 
+              ? rule.value.split(',').map((v: string) => v.trim()) 
+              : [];
+              
+          if (Array.isArray(dependentVal)) {
+            return !dependentVal.some(val => disallowedValues.includes(val));
+          }
+          return !disallowedValues.includes(dependentVal);
+        }
+
         case 'is_blank': return !dependentVal || dependentVal.length === 0;
         case 'is_not_blank': return !!dependentVal && dependentVal.length > 0;
         default: return true;

@@ -14,7 +14,8 @@ type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'ch
 
 type FieldOption = { value: string; labelEn: string; labelZh: string };
 
-type LogicOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'is_blank' | 'is_not_blank';
+// 1. UPDATED: Added new operators to the type definition
+type LogicOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'is_blank' | 'is_not_blank' | 'is_one_of' | 'is_not_one_of';
 
 interface LogicRule {
   id: string;
@@ -39,7 +40,6 @@ interface FormField {
   };
 }
 
-// Custom lightweight markdown parser for the live preview
 const MarkdownPreview = ({ text, className = "" }: { text?: string, className?: string }) => {
   if (!text) return null;
   
@@ -904,7 +904,9 @@ function FormBuilderContent() {
                           const dependentField = previousFields.find(f => f.dataKey === rule.dependsOn);
                           const dependentOptions = dependentField?.options;
                           const showValueDropdown = dependentOptions && dependentOptions.length > 0;
-                          const isMultiSelectOp = rule.operator === 'contains' || rule.operator === 'not_contains';
+                          
+                          // 2. UPDATED: Expanded logic to render the checkbox list for the new operators
+                          const isMultiValueOp = rule.operator === 'contains' || rule.operator === 'not_contains' || rule.operator === 'is_one_of' || rule.operator === 'is_not_one_of';
 
                           return (
                             <div key={rule.id} className="space-y-2 bg-white p-3 rounded-lg border border-amber-200 shadow-sm relative group/rule">
@@ -934,17 +936,20 @@ function FormBuilderContent() {
                                   onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator, value: '' })}
                                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-900"
                                 >
+                                  {/* 3. UPDATED: Added new operators to the dropdown menu */}
                                   <option value="equals">Equals</option>
                                   <option value="not_equals">Does Not Equal</option>
                                   <option value="contains">Contains</option>
                                   <option value="not_contains">Does Not Contain</option>
+                                  <option value="is_one_of">Is One Of (Multiple)</option>
+                                  <option value="is_not_one_of">Is Not One Of (Multiple)</option>
                                   <option value="is_blank">Is Blank</option>
                                   <option value="is_not_blank">Is Not Blank</option>
                                 </select>
 
                                 {rule.operator !== 'is_blank' && rule.operator !== 'is_not_blank' && (
                                   showValueDropdown ? (
-                                    isMultiSelectOp ? (
+                                    isMultiValueOp ? (
                                       <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200 max-h-36 overflow-y-auto">
                                         <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Select matching options:</span>
                                         {dependentOptions.map((opt, optIdx) => {
@@ -991,7 +996,7 @@ function FormBuilderContent() {
                                       type="text"
                                       value={rule.value}
                                       onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
-                                      placeholder="Value..."
+                                      placeholder="Value (separate multiple with commas)..."
                                       className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 font-mono text-gray-900 placeholder-gray-400 bg-white"
                                     />
                                   )
