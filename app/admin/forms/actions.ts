@@ -9,18 +9,20 @@ const getSupabaseAdmin = () => createClient(
 );
 
 export async function getForms() {
-  const supabase = getSupabaseAdmin();
+  const supabase = getSupabaseAdmin(); 
+
   const { data, error } = await supabase
     .from('forms')
-    .select('*')
-    .order('id', { ascending: false });
+    .select('*, submissions(count)') // <-- This tells Supabase to aggregate the count
+    .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching forms:', error);
-    return [];
-  }
-
-  return data;
+  if (error) throw new Error(error.message);
+  
+  // Flatten the response so the frontend gets a clean number
+  return (data || []).map((form: any) => ({
+    ...form,
+    submission_count: form.submissions?.[0]?.count || 0
+  }));
 }
 
 export async function deleteForm(id: string) {

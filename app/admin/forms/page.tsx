@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getForms, deleteForm, updateFormStatus, duplicateForm } from './actions';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Plus, 
   Search, 
@@ -12,7 +13,6 @@ import {
   Trash2, 
   FileSignature,
   CalendarDays,
-  Inbox,
   Loader2
 } from 'lucide-react';
 
@@ -79,10 +79,10 @@ export default function FormsPage() {
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Form Builder</h1>
           <p className="text-sm text-gray-500 mt-1">Design applications, health declarations, and feedback surveys.</p>
         </div>
-        <a href="/admin/forms/builder?id=new" className="inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none">
+        <Link href="/admin/forms/builder?id=new" className="inline-flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none">
           <Plus className="w-4 h-4 mr-2" />
           Create Form
-        </a>
+        </Link>
       </div>
 
       <div className="bg-white p-4 rounded-t-xl border border-gray-200 border-b-0 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -127,6 +127,9 @@ export default function FormsPage() {
                   <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
+                  <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Submissions
+                  </th>
                   <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -137,6 +140,8 @@ export default function FormsPage() {
                 {filteredForms.map((form) => {
                   const status = form.schema?.status || 'draft';
                   const isFollowUp = form.is_followup;
+                  // Safely extract count based on common Supabase return shapes
+                  const submissionCount = form.submission_count || 0;
 
                   return (
                     <tr key={form.id} className="hover:bg-gray-50/80 transition-colors group">
@@ -178,17 +183,32 @@ export default function FormsPage() {
                         </select>
                       </td>
                       
+                      {/* New Submissions Count Column */}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <Link 
+                          href={`/admin/forms/${form.id}/submissions`} 
+                          className="inline-flex items-center justify-center min-w-[2.5rem] px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-2 hover:ring-indigo-200 font-semibold text-sm transition-all"
+                          title="View Submissions Data"
+                        >
+                          {submissionCount}
+                        </Link>
+                      </td>
+                      
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <a href={`/admin/forms/${form.id}/submissions`} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="View Submissions Data">
-                            <Inbox className="w-4 h-4" />
-                          </a>
-                          <a href={`/admin/forms/builder?id=${form.id}`} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Edit Schema">
+                          
+                          <Link href={`/admin/forms/builder?id=${form.id}`} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Edit Schema">
                             <LayoutTemplate className="w-4 h-4" />
-                          </a>
-                          <button className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" title="Preview & Test">
+                          </Link>
+                          
+                          <button 
+                            onClick={() => window.open(`/en/form?id=${form.id}&test=true`, '_blank')}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" 
+                            title="Preview & Test"
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
+
                           <button 
                             onClick={() => handleDuplicate(form.id)}
                             className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" 
@@ -196,7 +216,7 @@ export default function FormsPage() {
                           >
                             <Copy className="w-4 h-4" />
                           </button>                          
-                          {/* Only show delete button if form status is draft */}
+                          
                           {status === 'draft' && (
                             <button 
                               onClick={() => handleDelete(form.id)}
