@@ -28,14 +28,17 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
   };
 
   const toggleLanguage = () => {
-    const nextLocale = locale === 'en' ? 'zh' : 'en';
-    if (typeof window !== 'undefined') {
-        const currentPath = window.location.pathname;
-        const newPath = currentPath.replace(/^\/(en|zh)/, `/${nextLocale}`);
-        window.location.href = newPath || `/${nextLocale}`;
-    }
-    setIsMobileMenuOpen(false);
-  };
+      const nextLocale = locale === 'en' ? 'zh' : 'en';
+      if (typeof window !== 'undefined') {
+          const currentPath = window.location.pathname;
+          const currentSearch = window.location.search; // Captures ?id=...&token=...
+          const newPath = currentPath.replace(/^\/(en|zh)/, `/${nextLocale}`);
+          
+          // Appends the query parameters back onto the path
+          window.location.href = (newPath || `/${nextLocale}`) + currentSearch;
+      }
+      setIsMobileMenuOpen(false);
+    };
 
   return (
     <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-stone-200 transition-all duration-300">
