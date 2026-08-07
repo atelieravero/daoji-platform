@@ -1,56 +1,68 @@
 {
-"Navigation": {
-"events": "活動與禪修",
-"resources": "更多資源",
-"about": "關於我們",
-"switchTo": "English"
-},
-"Footer": {
-"orgName": "道跡禪院",
-"tagline": "在喧囂的世界中培育寧靜。",
-"rights": "版權所有"
-},
-"Feed": {
-"eventsTitle": "活動與禪修",
-"eventsSubtitle": "歡迎參加我們即將舉辦的禪修營與共修。",
-"resourcesTitle": "法寶與資源文庫",
-"resourcesSubtitle": "探索道跡禪院提供的修行指南與影音開示。",
-"searchPlaceholder": "搜尋...",
-"filterAll": "全部",
-"readMore": "查看詳情",
-"statusOpen": "立即報名",
-"statusClosed": "已截止"
-},
-"Detail": {
-"backToEvents": "返回活動列表",
-"backToResources": "返回資源列表",
-"backToHome": "返回首頁",
-"share": "分享",
-"dateTime": "日期與時間",
-"location": "地點",
-"applyNow": "立即報名",
-"applicationClosed": "報名已截止",
-"limitedSpots": "名額有限。報名將以滾動方式進行審核。",
-"eventDetails": "活動詳情"
-},
-"ApplyForm": {
-"back": "返回活動詳情",
-"officialForm": "官方報名表單",
-"required": "必填",
-"selectDefault": "請選擇...",
-"submit": "提交表單",
-"submitting": "提交中...",
-"successTitle": "已成功提交！",
-"successMessage": "感謝您填寫表單。我們已成功收到您的資料。",
-"nextSteps": "我們將審核您的申請，並盡快與您聯繫。",
-"returnToEvents": "返回活動列表",
-"formClosed": "表單已關閉",
-"closedSub": "此活動的報名名額已滿或已過截止日期。"
-},
-"Languages": {
-"cantonese": "粵語",
-"mandarin": "華語普通話",
-"english": "英語",
-"thai": "泰語"
-}
+  "Navigation": {
+    "events": "活動與禪修",
+    "resources": "更多資源",
+    "about": "關於我們",
+    "switchTo": "English"
+  },
+  "Footer": {
+    "orgName": "道跡禪院",
+    "tagline": "在喧囂的世界中培育寧靜。",
+    "rights": "版權所有"
+  },
+  "Feed": {
+    "eventsTitle": "活動與禪修",
+    "eventsSubtitle": "歡迎參加我們即將舉辦的禪修營與共修。",
+    "resourcesTitle": "法寶與資源文庫",
+    "resourcesSubtitle": "探索道跡禪院提供的修行指南與影音開示。",
+    "searchPlaceholder": "搜尋...",
+    "filterAll": "全部",
+    "readMore": "查看詳情",
+    "statusOpen": "立即報名",
+    "statusClosed": "已截止"
+  },
+  "Detail": {
+    "backToEvents": "返回活動列表",
+    "backToResources": "返回資源列表",
+    "backToHome": "返回首頁",
+    "share": "分享",
+    "dateTime": "日期與時間",
+    "location": "地點",
+    "applyNow": "立即報名",
+    "applicationClosed": "報名已截止",
+    "limitedSpots": "名額有限。報名將以滾動方式進行審核。",
+    "eventDetails": "活動詳情"
+  },
+  "ApplyForm": {
+    "back": "返回活動詳情",
+    "officialForm": "官方報名表單",
+    "required": "必填",
+    "selectDefault": "請選擇...",
+    "submit": "提交表單",
+    "submitting": "提交中...",
+    "successTitle": "已成功提交！",
+    "successMessage": "感謝您填寫表單。我們已成功收到您的資料。",
+    "nextSteps": "我們將審核您的申請，並盡快與您聯繫。",
+    "returnToEvents": "返回活動列表",
+    "formClosed": "表單已關閉",
+    "closedSub": "此活動的報名名額已滿或已過截止日期。",
+    "tokenGateTitle": "輸入身份核驗碼",
+    "tokenGateSubtitle": "請輸入您的 MMC-XXXX-XXXX 核驗碼，以進入後續表單。",
+    "tokenPlaceholder": "MMC-XXXX-XXXX",
+    "verify": "驗證",
+    "verifying": "驗證中...",
+    "invalidToken": "此活動的身份核驗碼無效或已過期。",
+    "tokenVerified": "核驗碼驗證成功！",
+    "loading": "載入中...",
+    "notFound": "找不到表單或表單無法使用。",
+    "missingId": "URL 中缺少表單 ID。",
+    "submissionFailed": "提交失敗。",
+    "verifyRequired": "請在提交前驗證您的身份核驗碼。"
+  },
+  "Languages": {
+    "cantonese": "粵語",
+    "mandarin": "華語普通話",
+    "english": "英語",
+    "thai": "泰語"
+  }
 }

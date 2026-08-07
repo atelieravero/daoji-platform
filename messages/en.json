@@ -1,56 +1,68 @@
 {
-"Navigation": {
-"events": "Events & Retreats",
-"resources": "Resources",
-"about": "About Us",
-"switchTo": "中文"
-},
-"Footer": {
-"orgName": "Maggapaṭipadā Meditation Centre",
-"tagline": "Cultivating stillness in a moving world.",
-"rights": "All rights reserved."
-},
-"Feed": {
-"eventsTitle": "Events & Retreats",
-"eventsSubtitle": "Explore upcoming retreats and programs.",
-"resourcesTitle": "Dhamma Resources & Library",
-"resourcesSubtitle": "Explore guides, audio recordings, and teachings.",
-"searchPlaceholder": "Search...",
-"filterAll": "All",
-"readMore": "Read More",
-"statusOpen": "Apply Now",
-"statusClosed": "Closed"
-},
-"Detail": {
-"backToEvents": "Back to Events",
-"backToResources": "Back to Resources",
-"backToHome": "Back to Home",
-"share": "Share",
-"dateTime": "Date & Time",
-"location": "Location",
-"applyNow": "Apply Now",
-"applicationClosed": "Application Closed",
-"limitedSpots": "Spaces are limited. Applications are reviewed on a rolling basis.",
-"eventDetails": "Event Details"
-},
-"ApplyForm": {
-"back": "Back to Event",
-"officialForm": "Official Application Form",
-"required": "Required",
-"selectDefault": "Select an option...",
-"submit": "Submit Form",
-"submitting": "Submitting...",
-"successTitle": "Submission Received!",
-"successMessage": "Thank you for submitting the form. We have successfully received your information.",
-"nextSteps": "We will review your application and contact you soon.",
-"returnToEvents": "Return to Events",
-"formClosed": "This form is closed.",
-"closedSub": "Applications for this retreat have reached capacity or the deadline has passed."
-},
-"Languages": {
-"cantonese": "Cantonese",
-"mandarin": "Mandarin",
-"english": "English",
-"thai": "Thai"
-}
+  "Navigation": {
+    "events": "Events & Retreats",
+    "resources": "Resources",
+    "about": "About Us",
+    "switchTo": "中文"
+  },
+  "Footer": {
+    "orgName": "Maggapaṭipadā Meditation Centre",
+    "tagline": "Cultivating stillness in a moving world.",
+    "rights": "All rights reserved."
+  },
+  "Feed": {
+    "eventsTitle": "Events & Retreats",
+    "eventsSubtitle": "Explore upcoming retreats and programs.",
+    "resourcesTitle": "Dhamma Resources & Library",
+    "resourcesSubtitle": "Explore guides, audio recordings, and teachings.",
+    "searchPlaceholder": "Search...",
+    "filterAll": "All",
+    "readMore": "Read More",
+    "statusOpen": "Apply Now",
+    "statusClosed": "Closed"
+  },
+  "Detail": {
+    "backToEvents": "Back to Events",
+    "backToResources": "Back to Resources",
+    "backToHome": "Back to Home",
+    "share": "Share",
+    "dateTime": "Date & Time",
+    "location": "Location",
+    "applyNow": "Apply Now",
+    "applicationClosed": "Application Closed",
+    "limitedSpots": "Spaces are limited. Applications are reviewed on a rolling basis.",
+    "eventDetails": "Event Details"
+  },
+  "ApplyForm": {
+    "back": "Back to Event",
+    "officialForm": "Official Application Form",
+    "required": "Required",
+    "selectDefault": "Select an option...",
+    "submit": "Submit Form",
+    "submitting": "Submitting...",
+    "successTitle": "Submission Received!",
+    "successMessage": "Thank you for submitting the form. We have successfully received your information.",
+    "nextSteps": "We will review your application and contact you soon.",
+    "returnToEvents": "Return to Events",
+    "formClosed": "This form is closed.",
+    "closedSub": "Applications for this retreat have reached capacity or the deadline has passed.",
+    "tokenGateTitle": "Enter Access Token",
+    "tokenGateSubtitle": "Please enter your MMC-XXXX-XXXX token to access this follow-up form.",
+    "tokenPlaceholder": "MMC-XXXX-XXXX",
+    "verify": "Verify",
+    "verifying": "Verifying...",
+    "invalidToken": "Invalid or expired access token for this event.",
+    "tokenVerified": "Token verified successfully!",
+    "loading": "Loading form...",
+    "notFound": "Form not found or unavailable.",
+    "missingId": "Missing form ID parameter in URL.",
+    "submissionFailed": "Submission failed.",
+    "verifyRequired": "Please verify your access token before submitting."
+  },
+  "Languages": {
+    "cantonese": "Cantonese",
+    "mandarin": "Mandarin",
+    "english": "English",
+    "thai": "Thai"
+  }
 }

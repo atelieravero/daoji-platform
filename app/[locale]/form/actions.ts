@@ -34,6 +34,27 @@ export async function getPublicForm(formId: string) {
   return data;
 }
 
+export async function verifyApplicantToken(token: string, eventId: string) {
+  const supabase = getSupabaseAdmin();
+  
+  if (!token || !eventId) {
+    return { valid: false, message: 'Token and Event ID are required.' };
+  }
+
+  const { data: existingSubmissions, error } = await supabase
+    .from('submissions')
+    .select('id')
+    .eq('applicant_token', token.trim())
+    .eq('event_id', eventId)
+    .limit(1);
+
+  if (error || !existingSubmissions || existingSubmissions.length === 0) {
+    return { valid: false, message: 'Invalid or expired access token for this event.' };
+  }
+
+  return { valid: true };
+}
+
 export async function submitPublicForm(payload: {
   form_id: string;
   event_id: string;
@@ -68,9 +89,8 @@ export async function submitPublicForm(payload: {
     .insert([{
       form_id: payload.form_id,
       event_id: payload.event_id,
-      response: payload.answers, // Updated to match your DB column
+      response: payload.answers, // Mapped to your Supabase JSONB column
       applicant_token: activeToken, 
-      // is_test is removed to prevent the schema cache error
     }]);
 
   if (insertError) {

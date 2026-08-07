@@ -7,10 +7,10 @@ import {
   ArrowLeft, Save, GripVertical, Settings2, Type, ListOrdered, 
   PlusCircle, Trash2, LayoutTemplate, X, GitBranch, Eye,
   FileText, Calendar, Smartphone, CheckSquare, UploadCloud,
-  ChevronUp, ChevronDown, AlignLeft, AlertCircle, Loader2
+  ChevronUp, ChevronDown, AlignLeft, AlertCircle, Loader2, KeyRound
 } from 'lucide-react';
 
-type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info';
+type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info' | 'applicant_token';
 
 type FieldOption = { value: string; labelEn: string; labelZh: string };
 
@@ -70,51 +70,8 @@ const MarkdownPreview = ({ text, className = "" }: { text?: string, className?: 
   return <div dangerouslySetInnerHTML={{ __html: result }} className={`text-sm text-gray-500 mt-1 ${className}`} />;
 };
 
-const initialFields: FormField[] = [
-  {
-    id: 'field_1',
-    dataKey: 'full_name',
-    type: 'text',
-    labelEn: 'Full Legal Name',
-    labelZh: '真實姓名',
-    descriptionEn: 'Please enter your name exactly as it appears on your ID card.\n!!Do not use nicknames.!!',
-    descriptionZh: '請輸入與您的身份證上完全相同的姓名。\n!!請勿使用暱稱。!!',
-    required: true,
-  },
-  {
-    id: 'field_2',
-    dataKey: 'mobile_number',
-    type: 'mobile',
-    labelEn: 'Mobile Number',
-    labelZh: '手機號碼',
-    required: true,
-  },
-  {
-    id: 'field_3',
-    dataKey: 'dietary_requirements',
-    type: 'select',
-    labelEn: 'Dietary Requirements',
-    labelZh: '飲食要求',
-    required: true,
-    options: [
-      { value: 'regular', labelEn: 'None / Regular', labelZh: '無 / 普通飲食' },
-      { value: 'vegetarian', labelEn: 'Vegetarian', labelZh: '素食' },
-      { value: 'other', labelEn: 'Other', labelZh: '其他' }
-    ]
-  },
-  {
-    id: 'field_4',
-    dataKey: 'dietary_other',
-    type: 'text',
-    labelEn: 'Please specify your diet',
-    labelZh: '請具體說明您的飲食',
-    required: true,
-    condition: { 
-      match: 'AND', 
-      rules: [{ id: 'rule_1', dependsOn: 'dietary_requirements', operator: 'equals', value: 'other' }] 
-    }
-  }
-];
+// Start with an empty canvas instead of mock data
+const initialFields: FormField[] = [];
 
 export default function FormBuilderPage() {
   return (
@@ -142,12 +99,13 @@ function FormBuilderContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [invalidFieldIds, setInvalidFieldIds] = useState<string[]>([]);
   
+  // Start with a clean, empty form configuration
   const [formConfig, setFormConfig] = useState({
-    internalName: 'Standard Retreat Application',
-    titleEn: '7-Day Silent Zen Retreat Application',
-    titleZh: '七日內觀止語禪修營 - 報名表',
-    subtitleEn: 'Please read the [Retreat Guidelines](https://daoji.org/guidelines) before applying.',
-    subtitleZh: '報名前請先閱讀[禪修營須知](https://daoji.org/guidelines)。',
+    internalName: 'Untitled Form',
+    titleEn: 'New Form',
+    titleZh: '新表單',
+    subtitleEn: '',
+    subtitleZh: '',
     eventId: 'evt_1',
     isFollowUp: false,
     status: 'draft'
@@ -415,6 +373,14 @@ function FormBuilderContent() {
               </div>
               
               <div className="p-8 space-y-6">
+                {fields.length === 0 && (
+                  <div className="text-center py-12 px-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                    <LayoutTemplate className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <h3 className="text-sm font-medium text-gray-900 mb-1">Your form is empty</h3>
+                    <p className="text-xs text-gray-500">Click the button below to add your first question.</p>
+                  </div>
+                )}
+
                 {fields.map((field, idx) => {
                   const isInvalid = invalidFieldIds.includes(field.id);
                   return (
@@ -501,6 +467,16 @@ function FormBuilderContent() {
                           <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50">
                             <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
                             <span className="text-sm font-medium text-indigo-600">Click or drag file to upload</span>
+                          </div>
+                        ) : field.type === 'applicant_token' ? (
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <KeyRound className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                              <input type="text" disabled placeholder="MMC-XXXX-XXXX" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 font-mono placeholder-gray-400" />
+                            </div>
+                            <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg border border-gray-200">
+                              Verify
+                            </button>
                           </div>
                         ) : field.type === 'select' ? (
                           <select disabled className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 appearance-none">
@@ -756,6 +732,9 @@ function FormBuilderContent() {
                           <option value="radio">Single Choice (Radio)</option>
                           <option value="checkbox">Multiple Choice (Checkboxes)</option>
                         </optgroup>
+                        <optgroup label="Verification">
+                          <option value="applicant_token">Applicant Token (Verify)</option>
+                        </optgroup>
                         <optgroup label="Other">
                           <option value="date">Date Picker</option>
                           <option value="file">File Upload</option>
@@ -769,6 +748,7 @@ function FormBuilderContent() {
                          ['select', 'radio', 'checkbox'].includes(activeField.type) ? <ListOrdered className="w-4 h-4 text-gray-400" /> :
                          activeField.type === 'date' ? <Calendar className="w-4 h-4 text-gray-400" /> :
                          activeField.type === 'file' ? <FileText className="w-4 h-4 text-gray-400" /> :
+                         activeField.type === 'applicant_token' ? <KeyRound className="w-4 h-4 text-gray-400" /> :
                          activeField.type === 'info' ? <AlignLeft className="w-4 h-4 text-gray-400" /> :
                          <Smartphone className="w-4 h-4 text-gray-400" />}
                       </div>

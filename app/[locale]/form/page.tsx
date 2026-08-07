@@ -2,9 +2,12 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getPublicForm, submitPublicForm } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar } from 'lucide-react';
+import { getPublicForm, submitPublicForm, verifyApplicantToken } from './actions';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+
+import enDict from '@/messages/en.json';
+import zhDict from '@/messages/zh.json';
 
 // --- Reusable Markdown Renderer ---
 const MarkdownRenderer = ({ content, className }: { content: string, className?: string }) => (
@@ -55,28 +58,31 @@ function PublicFormContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Pre-Gate State
+  const [manualToken, setManualToken] = useState('');
+  const [isPreGateVerifying, setIsPreGateVerifying] = useState(false);
+  const [preGateError, setPreGateError] = useState<string | null>(null);
+  const [isPreGatePassed, setIsPreGatePassed] = useState(false);
+  
+  // URL Token Verification State
+  const [validatedToken, setValidatedToken] = useState<string | null>(null);
+  const [isUrlTokenVerifying, setIsUrlTokenVerifying] = useState(false);
+  const [hasCheckedUrlToken, setHasCheckedUrlToken] = useState(false);
+
+  // Inline Token Verification State
+  const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean, verified: boolean, error: string | null }>>({});
+
+  // Success Screen State
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
   // Raw state containing all user interactions
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
-  // Localization Dictionary
-  const t = {
-    submit: locale === 'zh' ? '提交表單' : 'Submit Form',
-    submitting: locale === 'zh' ? '提交中...' : 'Submitting...',
-    selectDefault: locale === 'zh' ? '請選擇...' : 'Select an option...',
-    successTitle: locale === 'zh' ? '已成功提交！' : 'Submission Received!',
-    successMessage: locale === 'zh' ? '感謝您填寫表單。我們已成功收到您的資料。' : 'Thank you for submitting the form. We have successfully received your information.',
-    formClosed: locale === 'zh' ? '表單已關閉' : 'This form is closed.',
-    closedSub: locale === 'zh' ? '此活動的報名名額已滿或已過截止日期。' : 'Applications for this retreat have reached capacity or the deadline has passed.',
-    loading: locale === 'zh' ? '載入中...' : 'Loading form...',
-    notFound: locale === 'zh' ? '找不到表單或表單無法使用。' : 'Form not found or unavailable.',
-    missingId: locale === 'zh' ? 'URL 中缺少表單 ID。' : 'Missing form ID parameter in URL.',
-    submissionFailed: locale === 'zh' ? '提交失敗。' : 'Submission failed.'
-  };
+  const t = locale === 'zh' ? zhDict.ApplyForm : enDict.ApplyForm;
 
-  // Create a unique key for this specific form
   const formStorageKey = formId ? `daoji_form_draft_${formId}` : null;
 
-  // Load saved answers from sessionStorage when the page loads (or switches language)
   useEffect(() => {
     if (formStorageKey) {
       const saved = sessionStorage.getItem(formStorageKey);
@@ -102,7 +108,75 @@ function PublicFormContent() {
     });
   }, [formId]);
 
-  // Evaluates rules strictly against ACTIVE (visible) answers
+  // Security Gate: Verify URL token on load if it's a follow-up form
+  useEffect(() => {
+    let isMounted = true;
+    if (form?.is_followup && token && !hasCheckedUrlToken) {
+      setIsUrlTokenVerifying(true);
+      verifyApplicantToken(token, form.event_id)
+        .then(res => {
+          if (!isMounted) return;
+          if (res.valid) {
+            setValidatedToken(token); // Lock in the valid token
+            setIsPreGatePassed(true);
+          } else {
+            setPreGateError(t.invalidToken); // Throw them to the manual screen
+          }
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setPreGateError(t.invalidToken);
+        })
+        .finally(() => {
+          if (!isMounted) return;
+          setIsUrlTokenVerifying(false);
+          setHasCheckedUrlToken(true);
+        });
+    }
+    return () => { isMounted = false; };
+  }, [form, token, hasCheckedUrlToken, t.invalidToken]);
+
+  // Handle Follow-up Form Pre-Gate Verification (Manual Entry)
+  const handlePreGateVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualToken) return;
+    
+    setIsPreGateVerifying(true);
+    setPreGateError(null);
+    
+    try {
+      const res = await verifyApplicantToken(manualToken, form.event_id);
+      if (res.valid) {
+        setValidatedToken(manualToken); // Lock in the valid token
+        setIsPreGatePassed(true);
+      } else {
+        setPreGateError(t.invalidToken); 
+      }
+    } catch (err) {
+      setPreGateError(t.invalidToken);
+    } finally {
+      setIsPreGateVerifying(false);
+    }
+  };
+
+  // Handle Inline Field Verification
+  const handleInlineVerify = async (dataKey: string, tokenVal: string) => {
+    if (!tokenVal) return;
+    
+    setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: true, verified: false, error: null } }));
+    
+    try {
+      const res = await verifyApplicantToken(tokenVal, form.event_id);
+      if (res.valid) {
+        setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: true, error: null } }));
+      } else {
+        setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } })); 
+      }
+    } catch (err) {
+      setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } }));
+    }
+  };
+
   const shouldShowField = (field: any, activeAnswers: Record<string, any>) => {
     if (!field.condition || !field.condition.rules || field.condition.rules.length === 0) {
       return true;
@@ -114,53 +188,29 @@ function PublicFormContent() {
       
       switch (rule.operator) {
         case 'equals': 
-          if (Array.isArray(dependentVal)) {
-            return dependentVal.length === 1 && dependentVal[0] === rule.value;
-          }
+          if (Array.isArray(dependentVal)) return dependentVal.length === 1 && dependentVal[0] === rule.value;
           return dependentVal === rule.value;
-          
         case 'not_equals': 
-          if (Array.isArray(dependentVal)) {
-            return dependentVal.length !== 1 || dependentVal[0] !== rule.value;
-          }
+          if (Array.isArray(dependentVal)) return dependentVal.length !== 1 || dependentVal[0] !== rule.value;
           return dependentVal !== rule.value;
-
         case 'contains':
           if (Array.isArray(dependentVal)) return dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return dependentVal.includes(rule.value);
           return false;
-          
         case 'not_contains':
           if (Array.isArray(dependentVal)) return !dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return !dependentVal.includes(rule.value);
           return true;
-          
         case 'is_one_of': {
-          const allowedValues = Array.isArray(rule.value) 
-            ? rule.value 
-            : typeof rule.value === 'string' 
-              ? rule.value.split(',').map((v: string) => v.trim()) 
-              : [];
-          
-          if (Array.isArray(dependentVal)) {
-            return dependentVal.some((val: string) => allowedValues.includes(val));
-          }
+          const allowedValues = Array.isArray(rule.value) ? rule.value : typeof rule.value === 'string' ? rule.value.split(',').map((v: string) => v.trim()) : [];
+          if (Array.isArray(dependentVal)) return dependentVal.some((val: string) => allowedValues.includes(val));
           return allowedValues.includes(dependentVal);
         }
-          
         case 'is_not_one_of': {
-          const disallowedValues = Array.isArray(rule.value) 
-            ? rule.value 
-            : typeof rule.value === 'string' 
-              ? rule.value.split(',').map((v: string) => v.trim()) 
-              : [];
-              
-          if (Array.isArray(dependentVal)) {
-            return !dependentVal.some((val: string) => disallowedValues.includes(val));
-          }
+          const disallowedValues = Array.isArray(rule.value) ? rule.value : typeof rule.value === 'string' ? rule.value.split(',').map((v: string) => v.trim()) : [];
+          if (Array.isArray(dependentVal)) return !dependentVal.some((val: string) => disallowedValues.includes(val));
           return !disallowedValues.includes(dependentVal);
         }
-
         case 'is_blank': return !dependentVal || dependentVal.length === 0;
         case 'is_not_blank': return !!dependentVal && dependentVal.length > 0;
         default: return true;
@@ -181,7 +231,6 @@ function PublicFormContent() {
     });
   };
 
-  // Build the cascading logic tree on every render
   const activeAnswers: Record<string, any> = {};
   const visibleFields = (form?.schema?.fields || []).filter((field: any) => {
     const isVisible = shouldShowField(field, activeAnswers);
@@ -195,25 +244,49 @@ function PublicFormContent() {
     e.preventDefault();
     if (!form) return;
 
+    const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
+    for (const f of tokenFields) {
+      const isFilled = !!activeAnswers[f.dataKey];
+      const isVerified = inlineTokens[f.dataKey]?.verified;
+
+      if ((f.required && !isVerified) || (isFilled && !isVerified)) {
+        setErrorMessage(t.verifyRequired);
+        return;
+      }
+    }
+
+    const inlineTokenVal = tokenFields.length > 0 ? activeAnswers[tokenFields[0].dataKey] : undefined;
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      await submitPublicForm({
+      const response = await submitPublicForm({
         form_id: form.id,
         event_id: form.event_id,
         answers: activeAnswers, 
         is_test: isTest,
-        applicant_token: token || undefined,
+        // Only submit the token if it has been strictly validated
+        applicant_token: form.is_followup ? (validatedToken || undefined) : (token || inlineTokenVal || undefined),
       });
+      
       setIsSubmitted(true);
+      
+      if (response.applicant_token && !validatedToken && !inlineTokenVal) {
+        setGeneratedToken(response.applicant_token);
+      }
       
       if (formStorageKey) {
         sessionStorage.removeItem(formStorageKey);
       }
       
     } catch (err: any) {
-      setErrorMessage(err.message || t.submissionFailed);
+      const backendError = err.message || '';
+      if (backendError.includes('Invalid or expired')) {
+        setErrorMessage(t.invalidToken);
+      } else {
+        setErrorMessage(t.submissionFailed);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -247,19 +320,97 @@ function PublicFormContent() {
     );
   }
 
-  if (isSubmitted) {
+  // --- PRE-GATE SCREEN ---
+  if (form.is_followup && !isPreGatePassed) {
+    
+    // Show a loading screen while the URL token is silently verified
+    if (isUrlTokenVerifying) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+          <div className="flex flex-col items-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+            <p className="text-sm font-medium text-stone-500">{t.verifying}</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
-          <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-stone-800">{t.successTitle}</h1>
-          <p className="text-sm text-stone-500 mt-2">{t.successMessage}</p>
+        <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200">
+          <div className="flex items-center justify-center w-14 h-14 bg-primary/10 text-primary rounded-full mb-6 mx-auto">
+            <KeyRound className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl font-bold text-stone-800 text-center mb-2">{t.tokenGateTitle}</h1>
+          <p className="text-sm text-stone-500 text-center leading-relaxed">{t.tokenGateSubtitle}</p>
+
+          <form onSubmit={handlePreGateVerify} className="mt-8">
+            <input
+              type="text"
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value.toUpperCase())}
+              placeholder={t.tokenPlaceholder}
+              className="w-full px-4 py-3.5 rounded-xl border border-stone-300 text-center font-mono text-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 transition-shadow"
+            />
+            
+            {preGateError && (
+              <div className="mt-3 p-3 bg-red-50 text-red-600 rounded-lg text-sm flex items-center justify-center text-center font-medium">
+                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                {preGateError}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={isPreGateVerifying || !manualToken}
+              className="w-full mt-6 py-3.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 flex items-center justify-center"
+            >
+              {isPreGateVerifying && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
+              {isPreGateVerifying ? t.verifying : t.verify}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  // Strict Fallback Chains for Form Headers
+  // --- SUCCESS SCREEN ---
+  if (isSubmitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+        <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200 text-center">
+          <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-5" />
+          <h1 className="text-2xl font-bold text-stone-800 mb-2">{t.successTitle}</h1>
+          <p className="text-sm text-stone-500">{t.successMessage}</p>
+
+          {generatedToken && (
+            <div className="mt-8 p-6 bg-stone-50 border border-stone-200 rounded-xl text-left">
+              <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+                {locale === 'zh' ? '請妥善保存您的核驗碼' : 'Save your Access Token'}
+              </p>
+              <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
+                <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedToken);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none"
+                >
+                  {isCopied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+                </button>
+              </div>
+              <p className="text-xs text-stone-400 mt-3 leading-relaxed">
+                {locale === 'zh' ? '此代碼將用於進入後續表單。請務必複製或截圖保存。' : 'You will need this code to access follow-up forms. Please copy or screenshot it now.'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const formTitle = locale === 'zh' 
     ? (form.schema?.titleZh || form.schema?.titleEn || form.title || '') 
     : (form.schema?.titleEn || form.schema?.titleZh || form.title || '');
@@ -286,8 +437,6 @@ function PublicFormContent() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {visibleFields.map((field: any) => {
-            
-            // Strict Fallback Chains for Fields
             const fieldLabel = locale === 'zh' 
               ? (field.labelZh || field.labelEn || field.title || field.dataKey || '') 
               : (field.labelEn || field.labelZh || field.title || field.dataKey || '');
@@ -353,6 +502,49 @@ function PublicFormContent() {
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     />
+                  </div>
+                ) : field.type === 'applicant_token' ? (
+                  <div className="mt-3 space-y-2.5">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <KeyRound className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+                        <input
+                          type="text"
+                          required={field.required}
+                          value={activeAnswers[field.dataKey] || ''}
+                          onChange={(e) => handleInputChange(field.dataKey, e.target.value.toUpperCase())}
+                          disabled={inlineTokens[field.dataKey]?.verified}
+                          placeholder={t.tokenPlaceholder}
+                          className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
+                            inlineTokens[field.dataKey]?.verified
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                              : inlineTokens[field.dataKey]?.error
+                              ? 'border-red-300 focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-stone-800 bg-white'
+                              : 'border-stone-300 focus:ring-2 focus:ring-primary/50 focus:border-primary text-stone-800 bg-white'
+                          }`}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleInlineVerify(field.dataKey, activeAnswers[field.dataKey])}
+                        disabled={!activeAnswers[field.dataKey] || inlineTokens[field.dataKey]?.verifying || inlineTokens[field.dataKey]?.verified}
+                        className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                      >
+                        {inlineTokens[field.dataKey]?.verifying ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : inlineTokens[field.dataKey]?.verified ? (
+                          <Check className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          t.verify
+                        )}
+                      </button>
+                    </div>
+                    {inlineTokens[field.dataKey]?.error && (
+                      <p className="text-xs text-red-500 font-medium flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {inlineTokens[field.dataKey]?.error}</p>
+                    )}
+                    {inlineTokens[field.dataKey]?.verified && (
+                      <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}</p>
+                    )}
                   </div>
                 ) : field.type === 'select' ? (
                   <select
@@ -430,7 +622,8 @@ function PublicFormContent() {
           })}
 
           {errorMessage && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">
+            <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl flex items-center">
+              <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
               {errorMessage}
             </div>
           )}
@@ -438,7 +631,7 @@ function PublicFormContent() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {isSubmitting ? t.submitting : t.submit}
