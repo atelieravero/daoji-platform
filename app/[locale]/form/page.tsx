@@ -4,6 +4,26 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { getPublicForm, submitPublicForm } from './actions';
 import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+
+// --- Reusable Markdown Renderer ---
+const MarkdownRenderer = ({ content, className }: { content: string, className?: string }) => (
+  <div className={className}>
+    <ReactMarkdown
+      components={{
+        p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+        a: ({ node, ...props }) => (
+          <a className="text-primary hover:text-primary-hover hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
+        ),
+        ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
+        ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
+        strong: ({ node, ...props }) => <strong className="font-semibold text-stone-800" {...props} />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  </div>
+);
 
 export default function PublicFormRoute() {
   return (
@@ -35,6 +55,7 @@ function PublicFormContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Raw state containing all user interactions (including orphaned data from hidden fields)
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -49,14 +70,15 @@ function PublicFormContent() {
     });
   }, [formId]);
 
-  const shouldShowField = (field: any, allAnswers: Record<string, any>) => {
+  // Evaluates rules strictly against ACTIVE (visible) answers
+  const shouldShowField = (field: any, activeAnswers: Record<string, any>) => {
     if (!field.condition || !field.condition.rules || field.condition.rules.length === 0) {
       return true;
     }
 
     const { match, rules } = field.condition;
     const evaluations = rules.map((rule: any) => {
-      const dependentVal = allAnswers[rule.dependsOn];
+      const dependentVal = activeAnswers[rule.dependsOn];
       
       switch (rule.operator) {
         case 'equals': return dependentVal === rule.value;
@@ -83,6 +105,17 @@ function PublicFormContent() {
     setAnswers(prev => ({ ...prev, [dataKey]: value }));
   };
 
+  // 1. Build the cascading logic tree on every render
+  const activeAnswers: Record<string, any> = {};
+  const visibleFields = (form?.schema?.fields || []).filter((field: any) => {
+    const isVisible = shouldShowField(field, activeAnswers);
+    // If field is visible, register its answer so downstream fields can evaluate against it
+    if (isVisible && field.dataKey) {
+      activeAnswers[field.dataKey] = answers[field.dataKey];
+    }
+    return isVisible;
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
@@ -94,7 +127,7 @@ function PublicFormContent() {
       await submitPublicForm({
         form_id: form.id,
         event_id: form.event_id,
-        answers,
+        answers: activeAnswers, // STRICTLY submit only visible/active answers
         is_test: isTest,
         applicant_token: token || undefined,
       });
@@ -146,9 +179,14 @@ function PublicFormContent() {
     );
   }
 
-  const fields = form.schema?.fields || [];
-  const title = locale === 'zh' ? (form.schema?.titleZh || form.schema?.titleEn) : form.schema?.titleEn;
-  const subtitle = locale === 'zh' ? (form.schema?.subtitleZh || form.schema?.subtitleEn) : form.schema?.subtitleEn;
+  // 2. Strict Fallback Chains for Form Headers
+  const formTitle = locale === 'zh' 
+    ? (form.schema?.titleZh || form.schema?.titleEn || form.title || '') 
+    : (form.schema?.titleEn || form.schema?.titleZh || form.title || '');
+    
+  const formSubtitle = locale === 'zh' 
+    ? (form.schema?.subtitleZh || form.schema?.subtitleEn || '') 
+    : (form.schema?.subtitleEn || form.schema?.subtitleZh || '');
 
   return (
     <div className="min-h-screen bg-surface-base py-12 px-4 sm:px-6 font-sans">
@@ -162,22 +200,27 @@ function PublicFormContent() {
         )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6 p-8">
-          <h1 className="text-2xl font-bold text-stone-800">{title}</h1>
-          {subtitle && <p className="text-sm text-stone-500 mt-2 leading-relaxed">{subtitle}</p>}
+          <h1 className="text-2xl font-bold text-stone-800">{formTitle}</h1>
+          {formSubtitle && <MarkdownRenderer content={formSubtitle} className="text-sm text-stone-500 mt-3" />}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {fields.map((field: any) => {
-            if (!shouldShowField(field, answers)) return null;
+          {visibleFields.map((field: any) => {
+            
+            // 3. Strict Fallback Chains for Fields
+            const fieldLabel = locale === 'zh' 
+              ? (field.labelZh || field.labelEn || field.title || field.dataKey || '') 
+              : (field.labelEn || field.labelZh || field.title || field.dataKey || '');
 
-            const fieldLabel = locale === 'zh' ? (field.labelZh || field.labelEn) : field.labelEn;
-            const fieldDesc = locale === 'zh' ? (field.descriptionZh || field.descriptionEn) : field.descriptionEn;
+            const fieldDesc = locale === 'zh' 
+              ? (field.descriptionZh || field.descriptionEn || '') 
+              : (field.descriptionEn || field.descriptionZh || '');
 
             if (field.type === 'info') {
               return (
                 <div key={field.id} className="bg-surface-cream border border-surface-dark p-6 rounded-2xl">
                   <h3 className="text-base font-semibold text-stone-800 mb-1">{fieldLabel}</h3>
-                  {fieldDesc && <p className="text-sm text-stone-600 leading-relaxed">{fieldDesc}</p>}
+                  {fieldDesc && <MarkdownRenderer content={fieldDesc} className="text-sm text-stone-600 mt-2" />}
                 </div>
               );
             }
@@ -187,45 +230,46 @@ function PublicFormContent() {
                 <label className="block text-sm font-semibold text-stone-800">
                   {fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
                 </label>
-                {fieldDesc && <p className="text-xs text-stone-500 leading-normal">{fieldDesc}</p>}
+                
+                {fieldDesc && <MarkdownRenderer content={fieldDesc} className="text-xs text-stone-500" />}
 
                 {field.type === 'text' || field.type === 'email' ? (
                   <input
                     type={field.type}
                     required={field.required}
-                    value={answers[field.dataKey] || ''}
+                    value={activeAnswers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
                     placeholder="Your answer..."
                   />
                 ) : field.type === 'textarea' ? (
                   <textarea
                     rows={4}
                     required={field.required}
-                    value={answers[field.dataKey] || ''}
+                    value={activeAnswers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
                     placeholder="Your answer..."
                   />
                 ) : field.type === 'mobile' ? (
-                  <div className="relative">
+                  <div className="relative mt-2">
                     <Smartphone className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
                     <input
                       type="tel"
                       required={field.required}
-                      value={answers[field.dataKey] || ''}
+                      value={activeAnswers[field.dataKey] || ''}
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                       placeholder="+852 1234 5678"
                     />
                   </div>
                 ) : field.type === 'date' ? (
-                  <div className="relative">
+                  <div className="relative mt-2">
                     <Calendar className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
                     <input
                       type="date"
                       required={field.required}
-                      value={answers[field.dataKey] || ''}
+                      value={activeAnswers[field.dataKey] || ''}
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     />
@@ -233,38 +277,56 @@ function PublicFormContent() {
                 ) : field.type === 'select' ? (
                   <select
                     required={field.required}
-                    value={answers[field.dataKey] || ''}
+                    value={activeAnswers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none bg-white text-stone-800 transition-shadow"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none bg-white text-stone-800 transition-shadow mt-2"
                   >
                     <option value="">Select an option...</option>
-                    {field.options?.map((opt: any, idx: number) => (
-                      <option key={idx} value={opt.value}>
-                        {locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}
-                      </option>
-                    ))}
+                    {field.options?.map((opt: any, idx: number) => {
+                      // 4. Strict Fallback Chain for Options
+                      const optionLabel = locale === 'zh' 
+                        ? (opt.labelZh || opt.labelEn || opt.value || '') 
+                        : (opt.labelEn || opt.labelZh || opt.value || '');
+                      
+                      return (
+                        <option key={idx} value={opt.value}>
+                          {optionLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                 ) : field.type === 'radio' ? (
-                  <div className="space-y-2.5">
-                    {field.options?.map((opt: any, idx: number) => (
-                      <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
-                        <input
-                          type="radio"
-                          name={field.dataKey}
-                          required={field.required && !answers[field.dataKey]}
-                          checked={answers[field.dataKey] === opt.value}
-                          onChange={() => handleInputChange(field.dataKey, opt.value)}
-                          className="w-4 h-4 text-primary border-stone-300 focus:ring-primary"
-                        />
-                        <span className="group-hover:text-stone-900 transition-colors">{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
-                      </label>
-                    ))}
+                  <div className="space-y-2.5 mt-2">
+                    {field.options?.map((opt: any, idx: number) => {
+                      const optionLabel = locale === 'zh' 
+                        ? (opt.labelZh || opt.labelEn || opt.value || '') 
+                        : (opt.labelEn || opt.labelZh || opt.value || '');
+
+                      return (
+                        <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
+                          <input
+                            type="radio"
+                            name={field.dataKey}
+                            required={field.required && !activeAnswers[field.dataKey]}
+                            checked={activeAnswers[field.dataKey] === opt.value}
+                            onChange={() => handleInputChange(field.dataKey, opt.value)}
+                            className="w-4 h-4 text-primary border-stone-300 focus:ring-primary"
+                          />
+                          <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 ) : field.type === 'checkbox' ? (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2.5 mt-2">
                     {field.options?.map((opt: any, idx: number) => {
-                      const currentVals = answers[field.dataKey] || [];
+                      const optionLabel = locale === 'zh' 
+                        ? (opt.labelZh || opt.labelEn || opt.value || '') 
+                        : (opt.labelEn || opt.labelZh || opt.value || '');
+
+                      const currentVals = activeAnswers[field.dataKey] || [];
                       const isChecked = currentVals.includes(opt.value);
+                      
                       return (
                         <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                           <input
@@ -278,7 +340,7 @@ function PublicFormContent() {
                             }}
                             className="w-4 h-4 text-primary border-stone-300 rounded focus:ring-primary"
                           />
-                          <span className="group-hover:text-stone-900 transition-colors">{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
+                          <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
                         </label>
                       );
                     })}
