@@ -10,6 +10,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* --- Daoji Brand Colors --- */
+  --color-primary: #A65D24;
+  --color-primary-hover: #8A4D1E;
+  --color-surface-base: #FCFAF8;
+  --color-surface-cream: #FAF5F0;
+  --color-surface-dark: #F2E8DC;
 }
 
 @media (prefers-color-scheme: dark) {

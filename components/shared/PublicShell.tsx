@@ -28,17 +28,16 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
   };
 
   const toggleLanguage = () => {
-      const nextLocale = locale === 'en' ? 'zh' : 'en';
-      if (typeof window !== 'undefined') {
-          const currentPath = window.location.pathname;
-          const currentSearch = window.location.search; // Captures ?id=...&token=...
-          const newPath = currentPath.replace(/^\/(en|zh)/, `/${nextLocale}`);
-          
-          // Appends the query parameters back onto the path
-          window.location.href = (newPath || `/${nextLocale}`) + currentSearch;
-      }
-      setIsMobileMenuOpen(false);
-    };
+    const nextLocale = locale === 'en' ? 'zh' : 'en';
+    if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search; // Preserves query params like ?id=123
+        const newPath = currentPath.replace(/^\/(en|zh)/, `/${nextLocale}`);
+        
+        window.location.href = (newPath || `/${nextLocale}`) + currentSearch;
+    }
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-stone-200 transition-all duration-300">
@@ -48,10 +47,10 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
           {/* Logo */}
           <div className="flex items-center">
             <a href={`/${locale}`} className="flex items-center space-x-2 group">
-              <div className="w-10 h-10 bg-[#FAF5F0] rounded-xl flex items-center justify-center group-hover:bg-[#F2E8DC] transition-colors">
-                <Leaf className="w-6 h-6 text-[#A65D24]" />
+              <div className="w-10 h-10 bg-surface-cream rounded-xl flex items-center justify-center group-hover:bg-surface-dark transition-colors">
+                <Leaf className="w-6 h-6 text-primary" />
               </div>
-              <span className="font-bold text-xl tracking-tight text-stone-800 group-hover:text-[#A65D24] transition-colors">
+              <span className="font-bold text-xl tracking-tight text-stone-800 group-hover:text-primary transition-colors">
                 {locale === 'en' ? 'Maggapaṭipadā' : '道跡禪院'}
               </span>
             </a>
@@ -61,13 +60,13 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
           <div className="hidden md:flex items-center space-x-8">
             <a 
               href={`/${locale}/events`}
-              className="text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors"
+              className="text-sm font-medium text-stone-500 hover:text-primary transition-colors"
             >
               {t.events}
             </a>
             <a 
               href={`/${locale}/resources`}
-              className="text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors"
+              className="text-sm font-medium text-stone-500 hover:text-primary transition-colors"
             >
               {t.resources}
             </a>
@@ -76,7 +75,7 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
             <div className="relative" onMouseLeave={() => setIsAboutDropdownOpen(false)}>
               <button 
                 onMouseEnter={() => setIsAboutDropdownOpen(true)}
-                className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-[#A65D24] transition-colors py-2"
+                className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-primary transition-colors py-2"
               >
                 {t.about}
                 <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${isAboutDropdownOpen ? 'rotate-180' : ''}`} />
@@ -88,7 +87,7 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
                     <a 
                       key={i}
                       href={`/${locale}${page.href}`}
-                      className="block px-4 py-2.5 text-sm text-stone-700 hover:bg-[#FAF5F0] hover:text-[#A65D24] transition-colors"
+                      className="block px-4 py-2.5 text-sm text-stone-700 hover:bg-surface-cream hover:text-primary transition-colors"
                     >
                       {page.label[locale]}
                     </a>
@@ -129,13 +128,13 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-stone-100 bg-white absolute w-full animate-in slide-in-from-top-4 duration-200 shadow-xl">
           <div className="px-4 pt-2 pb-6 space-y-1">
-            <a href={`/${locale}/events`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-[#FAF5F0] hover:text-[#A65D24]">{t.events}</a>
-            <a href={`/${locale}/resources`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-[#FAF5F0] hover:text-[#A65D24]">{t.resources}</a>
+            <a href={`/${locale}/events`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-surface-cream hover:text-primary">{t.events}</a>
+            <a href={`/${locale}/resources`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-surface-cream hover:text-primary">{t.resources}</a>
             
             <div className="px-3 py-2 text-xs font-semibold text-stone-400 uppercase tracking-wider mt-2">{t.about}</div>
             
             {dynamicAboutPages?.map((page, i) => (
-              <a key={i} href={`/${locale}${page.href}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-6 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-[#FAF5F0] hover:text-[#A65D24]">
+              <a key={i} href={`/${locale}${page.href}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-6 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-surface-cream hover:text-primary">
                 {page.label[locale]}
               </a>
             ))}
@@ -143,7 +142,7 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
             <div className="mt-4 pt-4 border-t border-stone-100">
               <button 
                 onClick={toggleLanguage}
-                className="w-full flex items-center justify-center px-4 py-3 rounded-xl text-base font-medium text-[#A65D24] bg-[#FAF5F0] hover:bg-[#F2E8DC] transition-colors"
+                className="w-full flex items-center justify-center px-4 py-3 rounded-xl text-base font-medium text-primary bg-surface-cream hover:bg-surface-dark transition-colors"
               >
                 <Globe className="w-5 h-5 mr-2" />
                 {t.switchTo}
@@ -172,7 +171,7 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
           
           {/* Footer Branding */}
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
-            <div className="flex items-center space-x-2 text-[#A65D24] mb-4">
+            <div className="flex items-center space-x-2 text-primary mb-4">
               <Leaf className="w-5 h-5" />
               <span className="font-bold text-lg tracking-tight text-stone-800">{t.orgName}</span>
             </div>
@@ -184,7 +183,7 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
           {/* Footer Links */}
           <div className="flex flex-wrap justify-center gap-6 text-sm font-medium text-stone-400">
             {footerPages.map((page, i) => (
-              <a key={i} href={`/${locale}${page.href}`} className="hover:text-[#A65D24] transition-colors flex items-center">
+              <a key={i} href={`/${locale}${page.href}`} className="hover:text-primary transition-colors flex items-center">
                 {page.label[locale]} <ArrowUpRight className="w-3 h-3 ml-1 opacity-50" />
               </a>
             ))}
@@ -201,7 +200,7 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
 
 export default function PublicShell({ children, dynamicAboutPages, footerPages, locale = 'en', dictionary }: PublicShellProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-[#FCFAF8] font-sans text-stone-800 selection:bg-[#F2E8DC] selection:text-[#A65D24]">
+    <div className="min-h-screen flex flex-col bg-surface-base font-sans text-stone-800 selection:bg-surface-dark selection:text-primary">
       <Navbar dynamicAboutPages={dynamicAboutPages} locale={locale} dictionary={dictionary} />
       <main className="flex-grow flex flex-col">
         {children}

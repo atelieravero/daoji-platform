@@ -3,14 +3,14 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { getPublicForm, submitPublicForm } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, UploadCloud, Type } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar } from 'lucide-react';
 
 export default function PublicFormRoute() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex items-center space-x-2 text-gray-500 text-sm font-medium">
-          <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+      <div className="min-h-screen flex items-center justify-center bg-surface-base">
+        <div className="flex items-center space-x-2 text-stone-500 text-sm font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
           <span>Loading form...</span>
         </div>
       </div>
@@ -35,7 +35,6 @@ function PublicFormContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Store applicant answers keyed by field dataKey
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -50,7 +49,6 @@ function PublicFormContent() {
     });
   }, [formId]);
 
-  // Evaluate conditional logic for a given field
   const shouldShowField = (field: any, allAnswers: Record<string, any>) => {
     if (!field.condition || !field.condition.rules || field.condition.rules.length === 0) {
       return true;
@@ -61,10 +59,8 @@ function PublicFormContent() {
       const dependentVal = allAnswers[rule.dependsOn];
       
       switch (rule.operator) {
-        case 'equals':
-          return dependentVal === rule.value;
-        case 'not_equals':
-          return dependentVal !== rule.value;
+        case 'equals': return dependentVal === rule.value;
+        case 'not_equals': return dependentVal !== rule.value;
         case 'contains':
           if (Array.isArray(dependentVal)) return dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return dependentVal.includes(rule.value);
@@ -73,18 +69,13 @@ function PublicFormContent() {
           if (Array.isArray(dependentVal)) return !dependentVal.includes(rule.value);
           if (typeof dependentVal === 'string') return !dependentVal.includes(rule.value);
           return true;
-        case 'is_blank':
-          return !dependentVal || dependentVal.length === 0;
-        case 'is_not_blank':
-          return !!dependentVal && dependentVal.length > 0;
-        default:
-          return true;
+        case 'is_blank': return !dependentVal || dependentVal.length === 0;
+        case 'is_not_blank': return !!dependentVal && dependentVal.length > 0;
+        default: return true;
       }
     });
 
-    if (match === 'OR') {
-      return evaluations.some(Boolean);
-    }
+    if (match === 'OR') return evaluations.some(Boolean);
     return evaluations.every(Boolean);
   };
 
@@ -116,28 +107,28 @@ function PublicFormContent() {
   };
 
   if (!formId) {
-    return <div className="min-h-screen flex items-center justify-center text-red-500 font-medium">Missing form ID parameter in URL.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-red-500 font-medium bg-surface-base">Missing form ID parameter in URL.</div>;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+      <div className="min-h-screen flex items-center justify-center bg-surface-base">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!form) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500 font-medium">Form not found or unavailable.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-stone-500 font-medium bg-surface-base">Form not found or unavailable.</div>;
   }
 
   if (form.schema?.status === 'closed') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900">Form Closed</h1>
-          <p className="text-sm text-gray-500 mt-2">This application form is currently closed and no longer accepting submissions.</p>
+          <h1 className="text-xl font-bold text-stone-800">Form Closed</h1>
+          <p className="text-sm text-stone-500 mt-2">This application form is currently closed and no longer accepting submissions.</p>
         </div>
       </div>
     );
@@ -145,11 +136,11 @@ function PublicFormContent() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
           <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900">Application Submitted</h1>
-          <p className="text-sm text-gray-500 mt-2">Thank you! Your responses have been successfully recorded.</p>
+          <h1 className="text-xl font-bold text-stone-800">Application Submitted</h1>
+          <p className="text-sm text-stone-500 mt-2">Thank you! Your responses have been successfully recorded.</p>
         </div>
       </div>
     );
@@ -160,19 +151,19 @@ function PublicFormContent() {
   const subtitle = locale === 'zh' ? (form.schema?.subtitleZh || form.schema?.subtitleEn) : form.schema?.subtitleEn;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6">
+    <div className="min-h-screen bg-surface-base py-12 px-4 sm:px-6 font-sans">
       <div className="max-w-2xl mx-auto">
         
         {isTest && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-xs font-semibold flex items-center">
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-xl text-xs font-semibold flex items-center">
             <AlertCircle className="w-4 h-4 mr-2 text-amber-600" />
             TEST MODE ACTIVE (Submissions will be tagged as test data)
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6 p-8">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-          {subtitle && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{subtitle}</p>}
+        <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6 p-8">
+          <h1 className="text-2xl font-bold text-stone-800">{title}</h1>
+          {subtitle && <p className="text-sm text-stone-500 mt-2 leading-relaxed">{subtitle}</p>}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -184,19 +175,19 @@ function PublicFormContent() {
 
             if (field.type === 'info') {
               return (
-                <div key={field.id} className="bg-indigo-50/50 border border-indigo-100 p-6 rounded-2xl">
-                  <h3 className="text-base font-semibold text-indigo-900 mb-1">{fieldLabel}</h3>
-                  {fieldDesc && <p className="text-sm text-indigo-700/80 leading-relaxed">{fieldDesc}</p>}
+                <div key={field.id} className="bg-surface-cream border border-surface-dark p-6 rounded-2xl">
+                  <h3 className="text-base font-semibold text-stone-800 mb-1">{fieldLabel}</h3>
+                  {fieldDesc && <p className="text-sm text-stone-600 leading-relaxed">{fieldDesc}</p>}
                 </div>
               );
             }
 
             return (
-              <div key={field.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-3">
-                <label className="block text-sm font-semibold text-gray-900">
+              <div key={field.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-3">
+                <label className="block text-sm font-semibold text-stone-800">
                   {fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
                 </label>
-                {fieldDesc && <p className="text-xs text-gray-500 leading-normal">{fieldDesc}</p>}
+                {fieldDesc && <p className="text-xs text-stone-500 leading-normal">{fieldDesc}</p>}
 
                 {field.type === 'text' || field.type === 'email' ? (
                   <input
@@ -204,7 +195,7 @@ function PublicFormContent() {
                     required={field.required}
                     value={answers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     placeholder="Your answer..."
                   />
                 ) : field.type === 'textarea' ? (
@@ -213,30 +204,30 @@ function PublicFormContent() {
                     required={field.required}
                     value={answers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     placeholder="Your answer..."
                   />
                 ) : field.type === 'mobile' ? (
                   <div className="relative">
-                    <Smartphone className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
+                    <Smartphone className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
                     <input
                       type="tel"
                       required={field.required}
                       value={answers[field.dataKey] || ''}
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                       placeholder="+852 1234 5678"
                     />
                   </div>
                 ) : field.type === 'date' ? (
                   <div className="relative">
-                    <Calendar className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
+                    <Calendar className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
                     <input
                       type="date"
                       required={field.required}
                       value={answers[field.dataKey] || ''}
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     />
                   </div>
                 ) : field.type === 'select' ? (
@@ -244,7 +235,7 @@ function PublicFormContent() {
                     required={field.required}
                     value={answers[field.dataKey] || ''}
                     onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-gray-900"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none bg-white text-stone-800 transition-shadow"
                   >
                     <option value="">Select an option...</option>
                     {field.options?.map((opt: any, idx: number) => (
@@ -254,28 +245,28 @@ function PublicFormContent() {
                     ))}
                   </select>
                 ) : field.type === 'radio' ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {field.options?.map((opt: any, idx: number) => (
-                      <label key={idx} className="flex items-center space-x-3 text-sm text-gray-700 cursor-pointer">
+                      <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                         <input
                           type="radio"
                           name={field.dataKey}
                           required={field.required && !answers[field.dataKey]}
                           checked={answers[field.dataKey] === opt.value}
                           onChange={() => handleInputChange(field.dataKey, opt.value)}
-                          className="w-4 h-4 text-indigo-600 border-gray-300"
+                          className="w-4 h-4 text-primary border-stone-300 focus:ring-primary"
                         />
-                        <span>{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
+                        <span className="group-hover:text-stone-900 transition-colors">{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
                       </label>
                     ))}
                   </div>
                 ) : field.type === 'checkbox' ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {field.options?.map((opt: any, idx: number) => {
                       const currentVals = answers[field.dataKey] || [];
                       const isChecked = currentVals.includes(opt.value);
                       return (
-                        <label key={idx} className="flex items-center space-x-3 text-sm text-gray-700 cursor-pointer">
+                        <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -285,9 +276,9 @@ function PublicFormContent() {
                               else updated = updated.filter((v: string) => v !== opt.value);
                               handleInputChange(field.dataKey, updated);
                             }}
-                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded"
+                            className="w-4 h-4 text-primary border-stone-300 rounded focus:ring-primary"
                           />
-                          <span>{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
+                          <span className="group-hover:text-stone-900 transition-colors">{locale === 'zh' ? (opt.labelZh || opt.labelEn) : opt.labelEn}</span>
                         </label>
                       );
                     })}
@@ -306,7 +297,7 @@ function PublicFormContent() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {isSubmitting ? 'Submitting...' : 'Submit Application'}
