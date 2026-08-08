@@ -138,7 +138,9 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
     const selectedSubs = submissions.filter(s => selectedRows.includes(s.id));
     const csvRows = selectedSubs.map(sub => {
       
-      const eventIdVal = escapeCSV(formConfig?.event_id || '');
+      // Read directly from the schema, fallback to event_id
+      const rawEventCode = formConfig?.schema?.interimEventCode || formConfig?.event_id || 'MMC'; // <-- Renamed
+      const eventIdVal = escapeCSV(rawEventCode);
       const formTitleVal = escapeCSV(formConfig?.title || '');
       const isTestVal = escapeCSV(sub.is_test ? 'TRUE' : 'FALSE');
 

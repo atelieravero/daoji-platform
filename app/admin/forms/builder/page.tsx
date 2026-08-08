@@ -108,7 +108,8 @@ function FormBuilderContent() {
     subtitleZh: '',
     eventId: 'evt_1',
     isFollowUp: false,
-    status: 'draft'
+    status: 'draft',
+    interimEventCode: 'OCT26'
   });
   
   const [fields, setFields] = useState<FormField[]>(initialFields);
@@ -133,6 +134,7 @@ function FormBuilderContent() {
         subtitleEn: record.schema?.subtitleEn || '',
         subtitleZh: record.schema?.subtitleZh || '',
         status: record.schema?.status || 'draft',
+        interimEventCode: record.schema?.interimEventCode || 'OCT26'
       });
 
       if (record.schema?.fields && Array.isArray(record.schema.fields)) {
@@ -281,6 +283,7 @@ function FormBuilderContent() {
           subtitleEn: formConfig.subtitleEn,
           subtitleZh: formConfig.subtitleZh,
           status: formConfig.status,
+          interimEventCode: formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, ''),
           fields: fields
         }
       };
@@ -572,6 +575,19 @@ function FormBuilderContent() {
                       <option value="evt_1">7-Day Silent Zen Retreat</option>
                       <option value="evt_2">Weekly Wednesday Wisdom</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Interim Event Code (Token Prefix)</label>
+                    <p className="text-[11px] text-gray-500 mb-2">Applicants will get tokens like [PREFIX]-A4X9-P2M8</p>
+                    <input
+                      type="text"
+                      maxLength={8}
+                      value={formConfig.interimEventCode}
+                      onChange={(e) => setFormConfig({...formConfig, interimEventCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 bg-white"
+                      placeholder="e.g., ZEN26"
+                    />
                   </div>
                   
                   <div className="flex items-center justify-between py-3 border-y border-gray-100 mt-4">

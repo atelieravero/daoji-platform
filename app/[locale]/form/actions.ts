@@ -11,11 +11,11 @@ const getSupabaseAdmin = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Generates a recognizable but highly secure token (e.g., MMC-A4X9-P2M8)
+// Generates a recognizable but highly secure token (e.g., ZEN26-A4X9-P2M8)
 // Excludes confusing characters (0, O, 1, I) to prevent transcription errors
-function generateMagicToken(): string {
+function generateMagicToken(prefix: string = 'MMC'): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
-  let token = 'MMC-';
+  let token = `${prefix}-`;
   for (let i = 0; i < 8; i++) {
     if (i === 4) token += '-';
     token += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -70,6 +70,7 @@ export async function submitPublicForm(payload: {
   answers: Record<string, any>;
   is_test?: boolean;
   applicant_token?: string;
+  interim_event_code?: string;
 }) {
   const supabase = getSupabaseAdmin();
   let activeToken = payload.applicant_token;
@@ -91,8 +92,8 @@ export async function submitPublicForm(payload: {
       }
     }
   } else {
-    // Initial Application: Generate a new token
-    activeToken = generateMagicToken();
+    // Initial Application: Generate a new token using the interim event code prefix
+    activeToken = generateMagicToken(payload.interim_event_code || 'MMC');
   }
 
   // 2. Insert the Submission

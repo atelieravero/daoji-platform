@@ -358,6 +358,7 @@ function PublicFormContent() {
         answers: activeAnswers, 
         is_test: isTest,
         applicant_token: form.is_followup ? (validatedToken || undefined) : (token || inlineTokenVal || undefined),
+        interim_event_code: form.schema?.interimEventCode || 'MMC' // <-- Renamed
       });
       
       setIsSubmitted(true);
