@@ -1,6 +1,10 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3Client } from "@/lib/s3/client";
+import { randomUUID } from "crypto";
 
 const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -109,4 +113,27 @@ export async function submitPublicForm(payload: {
 
   // Return the token to the frontend so it can be displayed to the user
   return { success: true, applicant_token: activeToken };
+}
+
+export async function getPresignedUploadUrl(fileName: string, contentType: string) {
+  try {
+    const uniqueId = randomUUID();
+    const extension = fileName.split('.').pop() || 'file';
+    const objectKey = `submissions/${uniqueId}.${extension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET_NAME!,
+      Key: objectKey,
+      ContentType: contentType,
+    });
+
+    // Generate a temporary URL valid for 15 minutes (900 seconds) for UPLOAD only
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+
+    // RETURN THE RAW KEY, NOT A PUBLIC URL
+    return { success: true, signedUrl, fileKey: objectKey };
+  } catch (error: any) {
+    console.error('Error generating pre-signed URL:', error);
+    return { success: false, error: 'Failed to generate secure upload URL.' };
+  }
 }

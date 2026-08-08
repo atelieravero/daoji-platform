@@ -129,6 +129,11 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
     const headersArray = ['Event', 'Form', 'Is Test', ...activeCols.map(c => escapeCSV(c.label))];
     const headers = headersArray.join(',');
     
+    // --- NEW: Prepare File Export Base URL ---
+    // Fallback to window origin if the env var isn't set
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const fileDataKeys = formConfig?.schema?.fields?.filter((f: any) => f.type === 'file').map((f: any) => f.dataKey) || [];
+
     // 3. Build Rows based on selected submissions
     const selectedSubs = submissions.filter(s => selectedRows.includes(s.id));
     const csvRows = selectedSubs.map(sub => {
@@ -140,7 +145,17 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
       const rowValues = activeCols.map(c => {
         if (c.id === 'created_at') return escapeCSV(new Date(sub.created_at).toLocaleString());
         if (c.id === 'applicant_token') return escapeCSV(sub.applicant_token);
-        return escapeCSV(sub.response?.[c.id]);
+        
+        let rawVal = sub.response?.[c.id];
+
+        // --- NEW: Convert raw S3 keys to secure proxy URLs for CSV ---
+        if (fileDataKeys.includes(c.id) && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
+          rawVal = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
+        } else if (Array.isArray(rawVal)) {
+          rawVal = rawVal.join(', '); // Cleanly stringify checkbox arrays
+        }
+
+        return escapeCSV(rawVal);
       });
 
       return [eventIdVal, formTitleVal, isTestVal, ...rowValues].join(',');
@@ -367,12 +382,29 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
 
                     {/* Dynamically Map Visible Columns for Cells */}
                     {columns.filter(c => c.visible).map(col => {
-                      let cellValue = '-';
-                      if (col.id === 'created_at') cellValue = new Date(sub.created_at).toLocaleString();
-                      else if (col.id === 'applicant_token') cellValue = sub.applicant_token || '-';
-                      else {
+                      let cellValue: React.ReactNode = '-';
+                      
+                      if (col.id === 'created_at') {
+                        cellValue = new Date(sub.created_at).toLocaleString();
+                      } else if (col.id === 'applicant_token') {
+                        cellValue = sub.applicant_token || '-';
+                      } else {
                         const rawVal = sub.response?.[col.id];
-                        cellValue = Array.isArray(rawVal) ? rawVal.join(', ') : (rawVal || '-');
+                        const isFileField = formConfig?.schema?.fields?.find((f: any) => f.dataKey === col.id)?.type === 'file';
+
+                        // --- NEW: Render UI link for files in the admin dashboard ---
+                        if (isFileField && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
+                          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                          const fileUrl = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
+                          
+                          cellValue = (
+                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium">
+                              {rawVal.split('/').pop()}
+                            </a>
+                          );
+                        } else {
+                          cellValue = Array.isArray(rawVal) ? rawVal.join(', ') : (rawVal || '-');
+                        }
                       }
 
                       return (

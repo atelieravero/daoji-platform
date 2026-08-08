@@ -46,6 +46,7 @@ export type Database = {
           id: string
           is_followup: boolean
           schema: Json
+          status: string
           title: string
         }
         Insert: {
@@ -54,6 +55,7 @@ export type Database = {
           id?: string
           is_followup?: boolean
           schema?: Json
+          status?: string
           title: string
         }
         Update: {
@@ -62,6 +64,7 @@ export type Database = {
           id?: string
           is_followup?: boolean
           schema?: Json
+          status?: string
           title?: string
         }
         Relationships: []
@@ -73,6 +76,8 @@ export type Database = {
           event_id: string
           form_id: string
           id: string
+          is_processed: boolean | null
+          is_test: boolean | null
           response: Json
         }
         Insert: {
@@ -81,6 +86,8 @@ export type Database = {
           event_id: string
           form_id: string
           id?: string
+          is_processed?: boolean | null
+          is_test?: boolean | null
           response?: Json
         }
         Update: {
@@ -89,6 +96,8 @@ export type Database = {
           event_id?: string
           form_id?: string
           id?: string
+          is_processed?: boolean | null
+          is_test?: boolean | null
           response?: Json
         }
         Relationships: [

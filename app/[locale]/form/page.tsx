@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getPublicForm, submitPublicForm, verifyApplicantToken } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check } from 'lucide-react';
+import { getPublicForm, submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 import enDict from '@/messages/en.json';
@@ -71,6 +71,9 @@ function PublicFormContent() {
 
   // Inline Token Verification State
   const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean, verified: boolean, error: string | null }>>({});
+
+  // File Upload State
+  const [uploadStates, setUploadStates] = useState<Record<string, { isUploading: boolean, progress: number, error?: string }>>({});
 
   // Success Screen State
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
@@ -179,6 +182,59 @@ function PublicFormContent() {
     }
   };
 
+  // --- NEW: Handle S3/OSS File Upload via pre-signed URL ---
+  const handleFileUpload = async (dataKey: string, file: File) => {
+    if (!file) return;
+
+    // Validate size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: locale === 'zh' ? '文件大小不可超過10MB。' : 'File size cannot exceed 10MB.' } }));
+      return;
+    }
+
+    setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
+
+    try {
+      // 1. Get pre-signed URL from server
+      const res = await getPresignedUploadUrl(file.name, file.type);
+      if (!res.success || !res.signedUrl || !res.fileKey) {
+        throw new Error(res.error || 'Failed to initialize upload.');
+      }
+
+      // 2. Upload file directly to S3 via XMLHttpRequest to track progress
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', res.signedUrl!, true);
+        xhr.setRequestHeader('Content-Type', file.type);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: percentComplete } }));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(true);
+          } else {
+            reject(new Error('Network error during upload.'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error during upload.'));
+        xhr.send(file);
+      });
+
+      // 3. Save the public URL to answers
+      handleInputChange(dataKey, res.fileKey);
+      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 100 } }));
+
+    } catch (err: any) {
+      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: err.message } }));
+    }
+  };
+
   const shouldShowField = (field: any, activeAnswers: Record<string, any>) => {
     if (!field.condition || !field.condition.rules || field.condition.rules.length === 0) {
       return true;
@@ -245,6 +301,13 @@ function PublicFormContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
+
+    // --- NEW: Prevent submission if any files are currently uploading ---
+    const isAnyFileUploading = Object.values(uploadStates).some(s => s.isUploading);
+    if (isAnyFileUploading) {
+      setErrorMessage(locale === 'zh' ? '請等待所有文件上傳完成。' : 'Please wait for all file uploads to finish.');
+      return;
+    }
 
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
@@ -512,6 +575,70 @@ function PublicFormContent() {
                       onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                     />
+                  </div>
+                ) : field.type === 'file' ? (
+                  <div className="mt-2">
+                    {activeAnswers[field.dataKey] ? (
+                      <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div className="flex items-center truncate">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2 flex-shrink-0" />
+                          <span className="text-sm font-medium text-emerald-700 truncate">
+                            {activeAnswers[field.dataKey].split('/').pop() || 'Uploaded File'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleInputChange(field.dataKey, null);
+                            setUploadStates(prev => {
+                               const next = {...prev};
+                               delete next[field.dataKey];
+                               return next;
+                            });
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0"
+                        >
+                          {locale === 'zh' ? '移除' : 'Remove'}
+                        </button>
+                      </div>
+                    ) : uploadStates[field.dataKey]?.isUploading ? (
+                      <div className="p-4 border border-stone-200 rounded-xl bg-stone-50">
+                        <div className="flex justify-between text-xs font-medium text-stone-500 mb-2">
+                          <span>{locale === 'zh' ? '上傳中...' : 'Uploading...'}</span>
+                          <span>{uploadStates[field.dataKey]?.progress || 0}%</span>
+                        </div>
+                        <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-primary h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${uploadStates[field.dataKey]?.progress || 0}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative border-2 border-dashed border-stone-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-stone-50 hover:bg-stone-100 transition-colors group">
+                        <input
+                          type="file"
+                          required={field.required}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleFileUpload(field.dataKey, e.target.files[0]);
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          accept="image/*,.pdf,.doc,.docx"
+                        />
+                        <UploadCloud className="w-8 h-8 text-stone-400 mb-2 group-hover:text-primary transition-colors" />
+                        <span className="text-sm font-medium text-stone-600 group-hover:text-primary transition-colors">
+                          {locale === 'zh' ? '點擊或拖曳文件上傳' : 'Click or drag file to upload'}
+                        </span>
+                        <span className="text-xs text-stone-400 mt-1">PDF, JPG, PNG (Max 10MB)</span>
+                        {uploadStates[field.dataKey]?.error && (
+                          <p className="text-xs text-red-500 font-medium mt-3 flex items-center justify-center">
+                            <AlertCircle className="w-4 h-4 mr-1.5" /> {uploadStates[field.dataKey]?.error}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : field.type === 'applicant_token' ? (
                   <div className="mt-3 space-y-2.5">
