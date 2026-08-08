@@ -13,7 +13,6 @@ import zhDict from '@/messages/zh.json';
 const parseMobileString = (raw: string) => {
   const digits = raw.replace(/\D/g, '');
   let ccLength = 0;
-  // Standard country code length detection heuristics
   if (['1','7'].includes(digits.substring(0,1))) ccLength = 1;
   else if (/^(2[07]|3[0-469]|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58])/.test(digits)) ccLength = 2;
   else if (digits.length >= 3) ccLength = 3;
@@ -31,7 +30,6 @@ const formatPhoneDisplay = (raw: string) => {
   const cc = digits.substring(0, ccLength);
   const rest = digits.substring(ccLength);
   
-  // Return country code + space + the exact remaining string without extra spaces
   return cc + ' ' + rest;
 };
 
@@ -84,34 +82,24 @@ function PublicFormContent() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Pre-Gate State
   const [manualToken, setManualToken] = useState('');
   const [isPreGateVerifying, setIsPreGateVerifying] = useState(false);
   const [preGateError, setPreGateError] = useState<string | null>(null);
   const [isPreGatePassed, setIsPreGatePassed] = useState(false);
   
-  // URL Token Verification State
   const [validatedToken, setValidatedToken] = useState<string | null>(null);
   const [isUrlTokenVerifying, setIsUrlTokenVerifying] = useState(false);
   const [hasCheckedUrlToken, setHasCheckedUrlToken] = useState(false);
 
-  // Inline Token Verification State
   const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean, verified: boolean, error: string | null }>>({});
-
-  // File Upload State
   const [uploadStates, setUploadStates] = useState<Record<string, { isUploading: boolean, progress: number, error?: string }>>({});
-
-  // Success Screen State
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-
-  // Raw state containing all user interactions
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
   const t = locale === 'zh' ? zhDict.ApplyForm : enDict.ApplyForm;
   const formStorageKey = formId ? `daoji_form_draft_${formId}` : null;
 
-  // --- Early evaluation for Standalone Hack to prevent UI flashing ---
   const isStandalone = form?.schema?.isStandalone || searchParams.get('standalone') === 'true';
 
   useEffect(() => {
@@ -280,6 +268,22 @@ function PublicFormContent() {
       return;
     }
 
+    // --- NEW: Manual Fallback Validation for Checkboxes ---
+    // This catches required checkboxes if the browser bypasses HTML5 validation
+    for (const f of visibleFields) {
+      if (f.required && f.type === 'checkbox') {
+        const currentVals = activeAnswers[f.dataKey] || [];
+        if (currentVals.length === 0) {
+          const fieldLabel = locale === 'zh' 
+            ? (f.labelZh || f.labelEn || f.title || f.dataKey) 
+            : (f.labelEn || f.labelZh || f.title || f.dataKey);
+          setErrorMessage(`${t.required}: ${fieldLabel}`);
+          return;
+        }
+      }
+    }
+    // --------------------------------------------------------
+
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
       const isFilled = !!activeAnswers[f.dataKey];
@@ -317,9 +321,6 @@ function PublicFormContent() {
     }
   };
 
-  // ============================================================================
-  // RENDER SWITCHER (Allows us to wrap the entire flow in the standalone hack)
-  // ============================================================================
   const renderScreen = () => {
     if (!formId) {
       return <div className={`min-h-screen flex items-center justify-center text-red-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.missingId}</div>;
@@ -675,6 +676,8 @@ function PublicFormContent() {
                           <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                             <input
                               type="checkbox"
+                              // --- NEW: HTML5 Native Validation Fallback ---
+                              required={field.required && currentVals.length === 0}
                               checked={isChecked}
                               onChange={(e) => {
                                 let updated = [...currentVals];
@@ -715,10 +718,6 @@ function PublicFormContent() {
     );
   };
 
-  // ============================================================================
-  // MASTER RETURN BLOCK 
-  // Wraps all screens (loading, errors, form) to ensure Standalone Hack is stable
-  // ============================================================================
   return (
     <>
       {isStandalone && (
@@ -733,7 +732,7 @@ function PublicFormContent() {
                 const newLocale = locale === 'en' ? 'zh' : 'en';
                 const newPath = window.location.pathname.replace(`/${locale}`, `/${newLocale}`);
                 const urlParams = new URLSearchParams(window.location.search);
-                urlParams.set('standalone', 'true'); // Lock it into the URL for a synchronous next load
+                urlParams.set('standalone', 'true');
                 window.location.href = newPath + '?' + urlParams.toString();
               }}
               className="px-4 py-2 bg-white/80 backdrop-blur border border-stone-200 shadow-sm rounded-full text-sm font-medium text-stone-700 hover:text-primary transition-colors flex items-center"
