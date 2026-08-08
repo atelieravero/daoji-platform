@@ -59,7 +59,17 @@
     "submissionFailed": "Submission failed.",
     "verifyRequired": "Please verify your access token before submitting.",
     "testModeBanner": "TEST MODE ACTIVE (Submissions will be tagged as test data)",
-    "submitTest": "Submit Form (Test Data)"
+    "submitTest": "Submit Form (Test Data)",
+    "waitFileUpload": "Please wait for all file uploads to finish.",
+    "fileSizeLimit": "File size cannot exceed 10MB.",
+    "uploading": "Uploading...",
+    "remove": "Remove",
+    "clickToUpload": "Click or drag file to upload",
+    "fileTypes": "PDF, JPG, PNG (Max 10MB)",
+    "saveTokenTitle": "Save your Access Token",
+    "saveTokenDesc": "You will need this code to access follow-up forms. Please copy or screenshot it now.",
+    "uploadedFile": "Uploaded File",
+    "testAutoVerified": "Test Mode Auto-Verified"
   },
   "Languages": {
     "cantonese": "Cantonese",

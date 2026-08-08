@@ -335,7 +335,16 @@ function FormBuilderContent() {
           </select>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 transition-colors">
+          <button 
+            onClick={() => {
+              if (currentFormId) {
+                window.open(`/en/form?id=${currentFormId}&test=true`, '_blank');
+              } else {
+                alert('Please save the form first to preview it.');
+              }
+            }}
+            className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 transition-colors"
+          >
             <Eye className="w-4 h-4 mr-2" />
             Preview & Test
           </button>

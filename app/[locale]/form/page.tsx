@@ -9,6 +9,32 @@ import ReactMarkdown from 'react-markdown';
 import enDict from '@/messages/en.json';
 import zhDict from '@/messages/zh.json';
 
+// --- Telephone Parsing & Formatting Utilities ---
+const parseMobileString = (raw: string) => {
+  const digits = raw.replace(/\D/g, '');
+  let ccLength = 0;
+  // Standard country code length detection heuristics
+  if (['1','7'].includes(digits.substring(0,1))) ccLength = 1;
+  else if (/^(2[07]|3[0-469]|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58])/.test(digits)) ccLength = 2;
+  else if (digits.length >= 3) ccLength = 3;
+  else ccLength = digits.length;
+  
+  return { digits, ccLength };
+};
+
+const formatPhoneDisplay = (raw: string) => {
+  if (!raw) return '';
+  const { digits, ccLength } = parseMobileString(raw);
+  if (digits.length === 0) return '';
+  if (digits.length <= ccLength) return digits; 
+  
+  const cc = digits.substring(0, ccLength);
+  const rest = digits.substring(ccLength);
+  
+  // Return country code + space + the exact remaining string without extra spaces
+  return cc + ' ' + rest;
+};
+
 // --- Reusable Markdown Renderer ---
 const MarkdownRenderer = ({ content, className }: { content: string, className?: string }) => (
   <div className={className}>
@@ -111,20 +137,18 @@ function PublicFormContent() {
     });
   }, [formId]);
 
-  // Security Gate: Verify URL token on load if it's a follow-up form
   useEffect(() => {
     let isMounted = true;
     if (form?.is_followup && token && !hasCheckedUrlToken) {
       setIsUrlTokenVerifying(true);
-      // Pass the isTest flag to bypass db checks for previewers
       verifyApplicantToken(token, form.event_id, isTest)
         .then(res => {
           if (!isMounted) return;
           if (res.valid) {
-            setValidatedToken(token); // Lock in the valid token
+            setValidatedToken(token); 
             setIsPreGatePassed(true);
           } else {
-            setPreGateError(t.invalidToken); // Throw them to the manual screen
+            setPreGateError(t.invalidToken); 
           }
         })
         .catch(() => {
@@ -140,7 +164,6 @@ function PublicFormContent() {
     return () => { isMounted = false; };
   }, [form, token, hasCheckedUrlToken, isTest, t.invalidToken]);
 
-  // Handle Follow-up Form Pre-Gate Verification (Manual Entry)
   const handlePreGateVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualToken) return;
@@ -149,10 +172,9 @@ function PublicFormContent() {
     setPreGateError(null);
     
     try {
-      // Pass the isTest flag to bypass db checks for previewers
       const res = await verifyApplicantToken(manualToken, form.event_id, isTest);
       if (res.valid) {
-        setValidatedToken(manualToken); // Lock in the valid token
+        setValidatedToken(manualToken); 
         setIsPreGatePassed(true);
       } else {
         setPreGateError(t.invalidToken); 
@@ -164,7 +186,6 @@ function PublicFormContent() {
     }
   };
 
-  // Handle Inline Field Verification (Still fires if they manually click it)
   const handleInlineVerify = async (dataKey: string, tokenVal: string) => {
     if (!tokenVal) return;
     
@@ -182,26 +203,22 @@ function PublicFormContent() {
     }
   };
 
-  // --- NEW: Handle S3/OSS File Upload via pre-signed URL ---
   const handleFileUpload = async (dataKey: string, file: File) => {
     if (!file) return;
 
-    // Validate size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
-      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: locale === 'zh' ? '文件大小不可超過10MB。' : 'File size cannot exceed 10MB.' } }));
+      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: (t as any).fileSizeLimit } }));
       return;
     }
 
     setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
 
     try {
-      // 1. Get pre-signed URL from server
       const res = await getPresignedUploadUrl(file.name, file.type);
       if (!res.success || !res.signedUrl || !res.fileKey) {
         throw new Error(res.error || 'Failed to initialize upload.');
       }
 
-      // 2. Upload file directly to S3 via XMLHttpRequest to track progress
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', res.signedUrl!, true);
@@ -218,19 +235,29 @@ function PublicFormContent() {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(true);
           } else {
-            reject(new Error('Network error during upload.'));
+            console.error('Upload Failed. Status:', xhr.status, xhr.responseText);
+            let detailedError = `Upload rejected by bucket (Status: ${xhr.status})`;
+            try {
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(xhr.responseText, "text/xml");
+              const msgNode = xmlDoc.getElementsByTagName("Message")[0];
+              if (msgNode && msgNode.textContent) {
+                detailedError = `Error: ${msgNode.textContent}`;
+              }
+            } catch(e) {} 
+            reject(new Error(detailedError));
           }
         };
 
-        xhr.onerror = () => reject(new Error('Network error during upload.'));
+        xhr.onerror = () => reject(new Error('Upload blocked by Network disruption.'));
         xhr.send(file);
       });
 
-      // 3. Save the public URL to answers
       handleInputChange(dataKey, res.fileKey);
       setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 100 } }));
 
     } catch (err: any) {
+      console.error('Upload catch block:', err);
       setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: err.message } }));
     }
   };
@@ -302,18 +329,15 @@ function PublicFormContent() {
     e.preventDefault();
     if (!form) return;
 
-    // --- NEW: Prevent submission if any files are currently uploading ---
     const isAnyFileUploading = Object.values(uploadStates).some(s => s.isUploading);
     if (isAnyFileUploading) {
-      setErrorMessage(locale === 'zh' ? '請等待所有文件上傳完成。' : 'Please wait for all file uploads to finish.');
+      setErrorMessage((t as any).waitFileUpload); 
       return;
     }
 
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
       const isFilled = !!activeAnswers[f.dataKey];
-      
-      // FIX: Bypass the strict click-to-verify requirement if test mode is active
       const isVerified = isTest ? isFilled : inlineTokens[f.dataKey]?.verified;
 
       if ((f.required && !isVerified) || (isFilled && !isVerified)) {
@@ -333,7 +357,6 @@ function PublicFormContent() {
         event_id: form.event_id,
         answers: activeAnswers, 
         is_test: isTest,
-        // Only submit the token if it has been strictly validated
         applicant_token: form.is_followup ? (validatedToken || undefined) : (token || inlineTokenVal || undefined),
       });
       
@@ -375,12 +398,10 @@ function PublicFormContent() {
     return <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.notFound}</div>;
   }
 
-  // 1. BLOCK DRAFTS: If form is draft AND this is NOT a test URL, act like it doesn't exist.
   if (form.status === 'draft' && !isTest) {
     return <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.notFound}</div>;
   }
 
-  // 2. FORM CLOSED CHECK: Use root-level status
   if (form.status === 'closed') {
     return (
       <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
@@ -395,8 +416,6 @@ function PublicFormContent() {
 
   // --- PRE-GATE SCREEN ---
   if (form.is_followup && !isPreGatePassed) {
-    
-    // Show a loading screen while the URL token is silently verified
     if (isUrlTokenVerifying) {
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
@@ -459,7 +478,7 @@ function PublicFormContent() {
           {generatedToken && (
             <div className="mt-8 p-6 bg-stone-50 border border-stone-200 rounded-xl text-left">
               <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
-                {locale === 'zh' ? '請妥善保存您的核驗碼' : 'Save your Access Token'}
+                {(t as any).saveTokenTitle}
               </p>
               <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
                 <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
@@ -475,7 +494,7 @@ function PublicFormContent() {
                 </button>
               </div>
               <p className="text-xs text-stone-400 mt-3 leading-relaxed">
-                {locale === 'zh' ? '此代碼將用於進入後續表單。請務必複製或截圖保存。' : 'You will need this code to access follow-up forms. Please copy or screenshot it now.'}
+                {(t as any).saveTokenDesc}
               </p>
             </div>
           )}
@@ -554,15 +573,27 @@ function PublicFormContent() {
                     placeholder="..."
                   />
                 ) : field.type === 'mobile' ? (
-                  <div className="relative mt-2">
-                    <Smartphone className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+                  <div className="relative mt-2 flex items-center">
+                    <Smartphone className="absolute left-3.5 w-4 h-4 text-stone-400" />
+                    {/* Visual un-deletable + symbol */}
+                    <span className="absolute left-10 text-stone-800 text-sm font-medium pointer-events-none">+</span>
                     <input
                       type="tel"
                       required={field.required}
-                      value={activeAnswers[field.dataKey] || ''}
-                      onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
-                      placeholder="+852 1234 5678"
+                      value={activeAnswers[field.dataKey] ? formatPhoneDisplay(activeAnswers[field.dataKey]) : ''}
+                      onChange={(e) => {
+                        const { digits, ccLength } = parseMobileString(e.target.value);
+                        if (digits.length === 0) {
+                          handleInputChange(field.dataKey, '');
+                        } else if (digits.length > ccLength) {
+                          // Cleanly format to the DB requirement directly on input
+                          handleInputChange(field.dataKey, `${digits.substring(0, ccLength)}-${digits.substring(ccLength)}`);
+                        } else {
+                          handleInputChange(field.dataKey, digits);
+                        }
+                      }}
+                      className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                      placeholder="852 1234 5678"
                     />
                   </div>
                 ) : field.type === 'date' ? (
@@ -583,7 +614,7 @@ function PublicFormContent() {
                         <div className="flex items-center truncate">
                           <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2 flex-shrink-0" />
                           <span className="text-sm font-medium text-emerald-700 truncate">
-                            {activeAnswers[field.dataKey].split('/').pop() || 'Uploaded File'}
+                            {activeAnswers[field.dataKey].split('/').pop() || (t as any).uploadedFile}
                           </span>
                         </div>
                         <button
@@ -598,13 +629,13 @@ function PublicFormContent() {
                           }}
                           className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0"
                         >
-                          {locale === 'zh' ? '移除' : 'Remove'}
+                          {(t as any).remove}
                         </button>
                       </div>
                     ) : uploadStates[field.dataKey]?.isUploading ? (
                       <div className="p-4 border border-stone-200 rounded-xl bg-stone-50">
                         <div className="flex justify-between text-xs font-medium text-stone-500 mb-2">
-                          <span>{locale === 'zh' ? '上傳中...' : 'Uploading...'}</span>
+                          <span>{(t as any).uploading}</span>
                           <span>{uploadStates[field.dataKey]?.progress || 0}%</span>
                         </div>
                         <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
@@ -629,12 +660,12 @@ function PublicFormContent() {
                         />
                         <UploadCloud className="w-8 h-8 text-stone-400 mb-2 group-hover:text-primary transition-colors" />
                         <span className="text-sm font-medium text-stone-600 group-hover:text-primary transition-colors">
-                          {locale === 'zh' ? '點擊或拖曳文件上傳' : 'Click or drag file to upload'}
+                          {(t as any).clickToUpload}
                         </span>
-                        <span className="text-xs text-stone-400 mt-1">PDF, JPG, PNG (Max 10MB)</span>
+                        <span className="text-xs text-stone-400 mt-1">{(t as any).fileTypes}</span>
                         {uploadStates[field.dataKey]?.error && (
-                          <p className="text-xs text-red-500 font-medium mt-3 flex items-center justify-center">
-                            <AlertCircle className="w-4 h-4 mr-1.5" /> {uploadStates[field.dataKey]?.error}
+                          <p className="text-xs text-red-500 font-medium mt-3 flex items-center justify-center text-center">
+                            <AlertCircle className="w-4 h-4 mr-1.5 shrink-0" /> {uploadStates[field.dataKey]?.error}
                           </p>
                         )}
                       </div>
@@ -644,7 +675,6 @@ function PublicFormContent() {
                   <div className="mt-3 space-y-2.5">
                     {(() => {
                       const hasValue = !!activeAnswers[field.dataKey];
-                      // FIX: Instantly mark as verified if in test mode and has any text typed
                       const isFieldVerified = isTest ? hasValue : inlineTokens[field.dataKey]?.verified;
                       const isError = inlineTokens[field.dataKey]?.error;
 
@@ -691,7 +721,7 @@ function PublicFormContent() {
                             <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}</p>
                           )}
                           {isFieldVerified && isTest && (
-                            <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Test Mode Auto-Verified</p>
+                            <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {(t as any).testAutoVerified}</p>
                           )}
                         </>
                       );
