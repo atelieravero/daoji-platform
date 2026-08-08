@@ -17,6 +17,9 @@
   --color-surface-base: #FCFAF8;
   --color-surface-cream: #FAF5F0;
   --color-surface-dark: #F2E8DC;
+  
+  /* --- System States --- */
+  --color-surface-test: #1e1b4b; /* Striking Deep Navy for Test Mode */
 }
 
 @media (prefers-color-scheme: dark) {

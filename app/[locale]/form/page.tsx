@@ -113,7 +113,8 @@ function PublicFormContent() {
     let isMounted = true;
     if (form?.is_followup && token && !hasCheckedUrlToken) {
       setIsUrlTokenVerifying(true);
-      verifyApplicantToken(token, form.event_id)
+      // Pass the isTest flag to bypass db checks for previewers
+      verifyApplicantToken(token, form.event_id, isTest)
         .then(res => {
           if (!isMounted) return;
           if (res.valid) {
@@ -134,7 +135,7 @@ function PublicFormContent() {
         });
     }
     return () => { isMounted = false; };
-  }, [form, token, hasCheckedUrlToken, t.invalidToken]);
+  }, [form, token, hasCheckedUrlToken, isTest, t.invalidToken]);
 
   // Handle Follow-up Form Pre-Gate Verification (Manual Entry)
   const handlePreGateVerify = async (e: React.FormEvent) => {
@@ -145,7 +146,8 @@ function PublicFormContent() {
     setPreGateError(null);
     
     try {
-      const res = await verifyApplicantToken(manualToken, form.event_id);
+      // Pass the isTest flag to bypass db checks for previewers
+      const res = await verifyApplicantToken(manualToken, form.event_id, isTest);
       if (res.valid) {
         setValidatedToken(manualToken); // Lock in the valid token
         setIsPreGatePassed(true);
@@ -159,14 +161,14 @@ function PublicFormContent() {
     }
   };
 
-  // Handle Inline Field Verification
+  // Handle Inline Field Verification (Still fires if they manually click it)
   const handleInlineVerify = async (dataKey: string, tokenVal: string) => {
     if (!tokenVal) return;
     
     setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: true, verified: false, error: null } }));
     
     try {
-      const res = await verifyApplicantToken(tokenVal, form.event_id);
+      const res = await verifyApplicantToken(tokenVal, form.event_id, isTest);
       if (res.valid) {
         setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: true, error: null } }));
       } else {
@@ -247,7 +249,9 @@ function PublicFormContent() {
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
       const isFilled = !!activeAnswers[f.dataKey];
-      const isVerified = inlineTokens[f.dataKey]?.verified;
+      
+      // FIX: Bypass the strict click-to-verify requirement if test mode is active
+      const isVerified = isTest ? isFilled : inlineTokens[f.dataKey]?.verified;
 
       if ((f.required && !isVerified) || (isFilled && !isVerified)) {
         setErrorMessage(t.verifyRequired);
@@ -293,24 +297,30 @@ function PublicFormContent() {
   };
 
   if (!formId) {
-    return <div className="min-h-screen flex items-center justify-center text-red-500 font-medium bg-surface-base">{t.missingId}</div>;
+    return <div className={`min-h-screen flex items-center justify-center text-red-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.missingId}</div>;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-base">
+      <div className={`min-h-screen flex items-center justify-center ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!form) {
-    return <div className="min-h-screen flex items-center justify-center text-stone-500 font-medium bg-surface-base">{t.notFound}</div>;
+    return <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.notFound}</div>;
   }
 
-  if (form.schema?.status === 'closed') {
+  // 1. BLOCK DRAFTS: If form is draft AND this is NOT a test URL, act like it doesn't exist.
+  if (form.status === 'draft' && !isTest) {
+    return <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.notFound}</div>;
+  }
+
+  // 2. FORM CLOSED CHECK: Use root-level status
+  if (form.status === 'closed') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+      <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
         <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-stone-800">{t.formClosed}</h1>
@@ -326,17 +336,17 @@ function PublicFormContent() {
     // Show a loading screen while the URL token is silently verified
     if (isUrlTokenVerifying) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+        <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
           <div className="flex flex-col items-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-            <p className="text-sm font-medium text-stone-500">{t.verifying}</p>
+            <p className={`text-sm font-medium ${isTest ? 'text-indigo-200' : 'text-stone-500'}`}>{t.verifying}</p>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+      <div className={`min-h-screen flex items-center justify-center px-4 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
         <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200">
           <div className="flex items-center justify-center w-14 h-14 bg-primary/10 text-primary rounded-full mb-6 mx-auto">
             <KeyRound className="w-7 h-7" />
@@ -377,7 +387,7 @@ function PublicFormContent() {
   // --- SUCCESS SCREEN ---
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-base px-4">
+      <div className={`min-h-screen flex items-center justify-center px-4 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
         <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200 text-center">
           <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-5" />
           <h1 className="text-2xl font-bold text-stone-800 mb-2">{t.successTitle}</h1>
@@ -420,13 +430,13 @@ function PublicFormContent() {
     : (form.schema?.subtitleEn || form.schema?.subtitleZh || '');
 
   return (
-    <div className="min-h-screen bg-surface-base py-12 px-4 sm:px-6 font-sans">
+    <div className={`min-h-screen py-12 px-4 sm:px-6 font-sans transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
       <div className="max-w-2xl mx-auto">
         
         {isTest && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-xl text-xs font-semibold flex items-center">
-            <AlertCircle className="w-4 h-4 mr-2 text-amber-600" />
-            TEST MODE ACTIVE (Submissions will be tagged as test data)
+          <div className="mb-6 bg-amber-50 border-2 border-amber-300 text-amber-900 px-5 py-4 rounded-xl text-sm font-bold flex items-center shadow-lg">
+            <AlertCircle className="w-6 h-6 mr-3 text-amber-600 flex-shrink-0" />
+            {t.testModeBanner || 'TEST MODE ACTIVE (Submissions will be tagged as test data)'}
           </div>
         )}
 
@@ -505,46 +515,60 @@ function PublicFormContent() {
                   </div>
                 ) : field.type === 'applicant_token' ? (
                   <div className="mt-3 space-y-2.5">
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <KeyRound className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
-                        <input
-                          type="text"
-                          required={field.required}
-                          value={activeAnswers[field.dataKey] || ''}
-                          onChange={(e) => handleInputChange(field.dataKey, e.target.value.toUpperCase())}
-                          disabled={inlineTokens[field.dataKey]?.verified}
-                          placeholder={t.tokenPlaceholder}
-                          className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
-                            inlineTokens[field.dataKey]?.verified
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
-                              : inlineTokens[field.dataKey]?.error
-                              ? 'border-red-300 focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-stone-800 bg-white'
-                              : 'border-stone-300 focus:ring-2 focus:ring-primary/50 focus:border-primary text-stone-800 bg-white'
-                          }`}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleInlineVerify(field.dataKey, activeAnswers[field.dataKey])}
-                        disabled={!activeAnswers[field.dataKey] || inlineTokens[field.dataKey]?.verifying || inlineTokens[field.dataKey]?.verified}
-                        className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
-                      >
-                        {inlineTokens[field.dataKey]?.verifying ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : inlineTokens[field.dataKey]?.verified ? (
-                          <Check className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                          t.verify
-                        )}
-                      </button>
-                    </div>
-                    {inlineTokens[field.dataKey]?.error && (
-                      <p className="text-xs text-red-500 font-medium flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {inlineTokens[field.dataKey]?.error}</p>
-                    )}
-                    {inlineTokens[field.dataKey]?.verified && (
-                      <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}</p>
-                    )}
+                    {(() => {
+                      const hasValue = !!activeAnswers[field.dataKey];
+                      // FIX: Instantly mark as verified if in test mode and has any text typed
+                      const isFieldVerified = isTest ? hasValue : inlineTokens[field.dataKey]?.verified;
+                      const isError = inlineTokens[field.dataKey]?.error;
+
+                      return (
+                        <>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <KeyRound className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+                              <input
+                                type="text"
+                                required={field.required}
+                                value={activeAnswers[field.dataKey] || ''}
+                                onChange={(e) => handleInputChange(field.dataKey, e.target.value.toUpperCase())}
+                                disabled={inlineTokens[field.dataKey]?.verified && !isTest}
+                                placeholder={t.tokenPlaceholder}
+                                className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
+                                  isFieldVerified
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                                    : isError
+                                    ? 'border-red-300 focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-stone-800 bg-white'
+                                    : 'border-stone-300 focus:ring-2 focus:ring-primary/50 focus:border-primary text-stone-800 bg-white'
+                                }`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleInlineVerify(field.dataKey, activeAnswers[field.dataKey])}
+                              disabled={!hasValue || inlineTokens[field.dataKey]?.verifying || isFieldVerified}
+                              className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                            >
+                              {inlineTokens[field.dataKey]?.verifying ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : isFieldVerified ? (
+                                <Check className="w-5 h-5 text-emerald-600" />
+                              ) : (
+                                t.verify
+                              )}
+                            </button>
+                          </div>
+                          {isError && !isTest && (
+                            <p className="text-xs text-red-500 font-medium flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {isError}</p>
+                          )}
+                          {isFieldVerified && !isTest && (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}</p>
+                          )}
+                          {isFieldVerified && isTest && (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Test Mode Auto-Verified</p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : field.type === 'select' ? (
                   <select
@@ -634,7 +658,7 @@ function PublicFormContent() {
             className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            {isSubmitting ? t.submitting : t.submit}
+            {isSubmitting ? t.submitting : (isTest ? (t.submitTest || 'Submit Form (Test Data)') : t.submit)}
           </button>
         </form>
 

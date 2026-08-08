@@ -51,7 +51,7 @@ export default function FormsPage() {
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
       await updateFormStatus(id, newStatus);
-      setForms(forms.map(f => f.id === id ? { ...f, schema: { ...f.schema, status: newStatus } } : f));
+      setForms(forms.map(f => f.id === id ? { ...f, status: newStatus } : f));
     } catch (err) {
       alert('Failed to update status.');
     }
@@ -138,10 +138,15 @@ export default function FormsPage() {
               
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredForms.map((form) => {
-                  const status = form.schema?.status || 'draft';
+                  const status = form.status || 'draft';
                   const isFollowUp = form.is_followup;
-                  // Safely extract count based on common Supabase return shapes
-                  const submissionCount = form.submission_count || 0;
+                  
+                  const realCount = form.real_count || 0;
+                  const testCount = form.test_count || 0;
+                  
+                  const displayCount = testCount > 0 
+                    ? `${realCount} (${testCount})` 
+                    : realCount.toString();
 
                   return (
                     <tr key={form.id} className="hover:bg-gray-50/80 transition-colors group">
@@ -183,14 +188,17 @@ export default function FormsPage() {
                         </select>
                       </td>
                       
-                      {/* New Submissions Count Column */}
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <Link 
                           href={`/admin/forms/${form.id}/submissions`} 
-                          className="inline-flex items-center justify-center min-w-[2.5rem] px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-2 hover:ring-indigo-200 font-semibold text-sm transition-all"
+                          className={`inline-flex items-center justify-center min-w-[2.5rem] px-3 py-1 rounded-full text-sm font-semibold transition-all ${
+                            testCount > 0 
+                              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:ring-2 hover:ring-amber-200' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-2 hover:ring-indigo-200'
+                          }`}
                           title="View Submissions Data"
                         >
-                          {submissionCount}
+                          {displayCount}
                         </Link>
                       </td>
                       
@@ -217,7 +225,8 @@ export default function FormsPage() {
                             <Copy className="w-4 h-4" />
                           </button>                          
                           
-                          {status === 'draft' && (
+                          {/* ONLY render delete button if it's a draft AND there are 0 submissions (real or test) */}
+                          {status === 'draft' && realCount === 0 && testCount === 0 && (
                             <button 
                               onClick={() => handleDelete(form.id)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"

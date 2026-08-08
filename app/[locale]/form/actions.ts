@@ -34,7 +34,12 @@ export async function getPublicForm(formId: string) {
   return data;
 }
 
-export async function verifyApplicantToken(token: string, eventId: string) {
+export async function verifyApplicantToken(token: string, eventId: string, isTest: boolean = false) {
+  // IF TEST MODE: Deem ANY token verified immediately to allow admin previews to pass the gate.
+  if (isTest) {
+    return { valid: true };
+  }
+
   const supabase = getSupabaseAdmin();
   
   if (!token || !eventId) {
@@ -68,15 +73,18 @@ export async function submitPublicForm(payload: {
   // 1. Verify or Create the Magic Token
   if (activeToken) {
     // Follow-up Form: Verify the token exists for this specific EVENT
-    const { data: existingSubmissions, error: tokenError } = await supabase
-      .from('submissions')
-      .select('id')
-      .eq('applicant_token', activeToken)
-      .eq('event_id', payload.event_id)
-      .limit(1);
+    // SKIP this database check if it is a test submission, so we can save the dummy token
+    if (!payload.is_test) {
+      const { data: existingSubmissions, error: tokenError } = await supabase
+        .from('submissions')
+        .select('id')
+        .eq('applicant_token', activeToken)
+        .eq('event_id', payload.event_id)
+        .limit(1);
 
-    if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
-      throw new Error('Invalid or expired access token for this event.');
+      if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
+        throw new Error('Invalid or expired access token for this event.');
+      }
     }
   } else {
     // Initial Application: Generate a new token
@@ -91,6 +99,7 @@ export async function submitPublicForm(payload: {
       event_id: payload.event_id,
       response: payload.answers, // Mapped to your Supabase JSONB column
       applicant_token: activeToken, 
+      is_test: payload.is_test || false, // Explicitly tag test submissions in the DB
     }]);
 
   if (insertError) {

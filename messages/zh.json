@@ -54,10 +54,12 @@
     "invalidToken": "此活動的身份核驗碼無效或已過期。",
     "tokenVerified": "核驗碼驗證成功！",
     "loading": "載入中...",
-    "notFound": "找不到表單或表單無法使用。",
+    "notFound": "該表單未能找到或無法使用。",
     "missingId": "URL 中缺少表單 ID。",
     "submissionFailed": "提交失敗。",
-    "verifyRequired": "請在提交前驗證您的身份核驗碼。"
+    "verifyRequired": "請在提交前驗證您的身份核驗碼。",
+    "testModeBanner": "此表單處於測試模式 (提交的資料將被標記為測試數據)",
+    "submitTest": "提交表單 (測試數據)"
   },
   "Languages": {
     "cantonese": "粵語",

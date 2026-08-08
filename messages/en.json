@@ -57,7 +57,9 @@
     "notFound": "Form not found or unavailable.",
     "missingId": "Missing form ID parameter in URL.",
     "submissionFailed": "Submission failed.",
-    "verifyRequired": "Please verify your access token before submitting."
+    "verifyRequired": "Please verify your access token before submitting.",
+    "testModeBanner": "TEST MODE ACTIVE (Submissions will be tagged as test data)",
+    "submitTest": "Submit Form (Test Data)"
   },
   "Languages": {
     "cantonese": "Cantonese",
