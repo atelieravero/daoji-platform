@@ -109,7 +109,8 @@ function FormBuilderContent() {
     eventId: 'evt_1',
     isFollowUp: false,
     status: 'draft',
-    interimEventCode: 'OCT26'
+    interimEventCode: 'OCT26',
+    isStandalone: false,
   });
   
   const [fields, setFields] = useState<FormField[]>(initialFields);
@@ -134,7 +135,8 @@ function FormBuilderContent() {
         subtitleEn: record.schema?.subtitleEn || '',
         subtitleZh: record.schema?.subtitleZh || '',
         status: record.schema?.status || 'draft',
-        interimEventCode: record.schema?.interimEventCode || 'OCT26'
+        interimEventCode: record.schema?.interimEventCode || 'OCT26',
+        isStandalone: record.schema?.isStandalone || false,
       });
 
       if (record.schema?.fields && Array.isArray(record.schema.fields)) {
@@ -284,6 +286,7 @@ function FormBuilderContent() {
           subtitleZh: formConfig.subtitleZh,
           status: formConfig.status,
           interimEventCode: formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+          isStandalone: formConfig.isStandalone,
           fields: fields
         }
       };
@@ -605,6 +608,26 @@ function FormBuilderContent() {
                     >
                       <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
                         formConfig.isFollowUp ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                    <div>
+                      <span className="text-sm font-bold text-gray-900">Standalone Form</span>
+                      <p className="text-[11px] text-gray-500 leading-tight mt-1">
+                        Hides the website navigation & footer<br/>for a focused landing page.
+                      </p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setFormConfig({ ...formConfig, isStandalone: !formConfig.isStandalone })}
+                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                        formConfig.isStandalone ? 'bg-indigo-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        formConfig.isStandalone ? 'translate-x-4' : 'translate-x-0'
                       }`} />
                     </button>
                   </div>
