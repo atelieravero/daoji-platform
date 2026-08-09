@@ -50,15 +50,21 @@ export async function verifyApplicantToken(token: string, eventId: string, isTes
     return { valid: false, message: 'Token and Event ID are required.' };
   }
 
+  // Fetch the record, bringing back 'is_test' to evaluate in JS
   const { data: existingSubmissions, error } = await supabase
     .from('submissions')
-    .select('id')
+    .select('id, is_test')
     .eq('applicant_token', token.trim())
     .eq('event_id', eventId)
     .limit(1);
 
   if (error || !existingSubmissions || existingSubmissions.length === 0) {
     return { valid: false, message: 'Invalid or expired access token for this event.' };
+  }
+
+  // JS evaluation handles 'null', 'undefined', and 'false' safely
+  if (existingSubmissions[0].is_test === true) {
+    return { valid: false, message: 'Test tokens cannot be used for live applications.' };
   }
 
   return { valid: true };
@@ -82,13 +88,17 @@ export async function submitPublicForm(payload: {
     if (!payload.is_test) {
       const { data: existingSubmissions, error: tokenError } = await supabase
         .from('submissions')
-        .select('id')
-        .eq('applicant_token', activeToken)
+        .select('id, is_test')
+        .eq('applicant_token', activeToken.trim())
         .eq('event_id', payload.event_id)
         .limit(1);
 
       if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
         throw new Error('Invalid or expired access token for this event.');
+      }
+
+      if (existingSubmissions[0].is_test === true) {
+        throw new Error('Test tokens cannot be used for live applications.');
       }
     }
   } else {

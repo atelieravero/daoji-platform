@@ -47,7 +47,7 @@
     "formClosed": "This form is closed.",
     "closedSub": "Applications for this retreat have reached capacity or the deadline has passed.",
     "tokenGateTitle": "Enter Access Token",
-    "tokenGateSubtitle": "Please enter your MMC-XXXX-XXXX token to access this follow-up form.",
+    "tokenGateSubtitle": "Please enter your applicant token to access this follow-up form.",
     "tokenPlaceholder": "MMC-XXXX-XXXX",
     "verify": "Verify",
     "verifying": "Verifying...",

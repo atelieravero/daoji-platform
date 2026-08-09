@@ -47,7 +47,7 @@
     "formClosed": "表單已關閉",
     "closedSub": "此活動的報名名額已滿或已過截止日期。",
     "tokenGateTitle": "輸入身份核驗碼",
-    "tokenGateSubtitle": "請輸入您的 MMC-XXXX-XXXX 核驗碼，以進入後續表單。",
+    "tokenGateSubtitle": "請輸入您的身份核驗碼，以進入後續表單。",
     "tokenPlaceholder": "MMC-XXXX-XXXX",
     "verify": "驗證",
     "verifying": "驗證中...",

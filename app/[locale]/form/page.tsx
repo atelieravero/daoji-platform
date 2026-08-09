@@ -374,7 +374,7 @@ function PublicFormContent() {
                 type="text"
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value.toUpperCase())}
-                placeholder={t.tokenPlaceholder}
+                placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
                 className="w-full px-4 py-3.5 rounded-xl border border-stone-300 text-center font-mono text-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 transition-shadow"
               />
               {preGateError && (
@@ -606,7 +606,7 @@ function PublicFormContent() {
                                   value={activeAnswers[field.dataKey] || ''}
                                   onChange={(e) => handleInputChange(field.dataKey, e.target.value.toUpperCase())}
                                   disabled={inlineTokens[field.dataKey]?.verified && !isTest}
-                                  placeholder={t.tokenPlaceholder}
+                                  placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
                                   className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
                                     isFieldVerified ? 'border-emerald-500 bg-emerald-50 text-emerald-900' : isError ? 'border-red-300 focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-stone-800 bg-white' : 'border-stone-300 focus:ring-2 focus:ring-primary/50 focus:border-primary text-stone-800 bg-white'
                                   }`}
