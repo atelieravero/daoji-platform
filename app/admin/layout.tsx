@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Calendar, 
   FolderOpen, 
@@ -12,6 +13,7 @@ import {
   Leaf,
   History
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 const navGroups = [
   {
@@ -43,20 +45,31 @@ export default function AdminLayout({
 }: {
   children?: React.ReactNode;
 }) {
-  const [pathname, setPathname] = useState('/admin/events');
+  const router = useRouter();
+  const currentPathname = usePathname() || '/admin/events';
+  const isLoginPage = currentPathname === '/admin/login';
+  const activePath = currentPathname === '/' || currentPathname === '/admin' ? '/admin/events' : currentPathname;
 
-  // Safely determine the current path in the browser environment
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname;
-      setPathname(currentPath === '/' || currentPath === '/admin' ? '/admin/events' : currentPath);
-    }
-  }, []);
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/admin/login');
+    router.refresh();
+  };
+
+  // If we are on the login page, render only the children without the sidebar shell
+  if (isLoginPage) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
       
-      {}
+      {/* Sidebar Navigation */}
       <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-800">
           <Leaf className="w-6 h-6 text-indigo-400" />
@@ -72,7 +85,7 @@ export default function AdminLayout({
               <div className="space-y-1">
                 {group.items.map(item => {
                   const Icon = item.icon;
-                  const isActive = pathname.startsWith(item.id);
+                  const isActive = activePath.startsWith(item.id);
                   return (
                     <a
                       key={item.id}
@@ -93,15 +106,18 @@ export default function AdminLayout({
           ))}
         </nav>
 
-        {}
+        {/* User Footer / Sign Out */}
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-              ML
+              AD
             </div>
             <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Master Lin</p>
-              <button className="text-xs text-gray-400 hover:text-white transition-colors flex items-center mt-0.5">
+              <p className="text-sm font-medium text-white truncate">Administrator</p>
+              <button 
+                onClick={handleSignOut}
+                className="text-xs text-gray-400 hover:text-white transition-colors flex items-center mt-0.5 cursor-pointer"
+              >
                 <LogOut className="w-3 h-3 mr-1" />
                 Sign out
               </button>
@@ -110,7 +126,7 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {}
+      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         {children || (
           <div className="flex-1 p-8 flex items-center justify-center text-gray-500">

@@ -4,17 +4,18 @@
 Lock down the admin dashboard, configure Cloudflare routing for GFW mitigation, and deploy the application to production.
 
 ## Context
-The admin dashboard is currently unprotected. We need to lock it down to a single superuser (Gmail). We also need to deploy to Vercel and configure Cloudflare reverse proxy routing across two domains (`maggapatipada.org` and `daoji.info`) to test and mitigate GFW interference in Mainland China.
+The admin dashboard is fortified using Supabase password-based authentication and a unified Next.js `proxy.ts` middleware. Unauthorized visitors trying to access `/admin/*` are automatically intercepted and redirected to `/admin/login`. Additionally, all private Cloudflare R2 file downloads are gated behind an admin session verification check.
 
 ## Technical Constraints
-*   **Auth:** Implement Supabase Auth (OAuth or Magic Link) restricted to the designated superuser.
-*   **Middleware:** Next.js middleware to protect `/admin/*`.
-*   **Routing:** Hook up domains via Cloudflare (orange cloud proxy) to mask Vercel IPs.
-*   **Testing:** Run China firewall latency tests (e.g., ping.pe) on both domains.
+*   **Auth:** Supabase Auth (`signInWithPassword`) restricted to verified admin credentials.
+*   **Proxy/Middleware:** Unified Next.js `proxy.ts` handling both session verification for `/admin` routes and localization routing via `next-intl`.
+*   **Storage Security:** File proxy route (`/admin/file/route.ts`) requires an active admin session before generating temporary signed R2 URLs.
+*   **Routing & Deployment:** Vercel Hosting + Cloudflare Reverse Proxy across `maggapatipada.org` and `daoji.info` for GFW mitigation.
 
 ## Acceptance Criteria
-- [ ] Supabase Auth implemented for the Gmail superuser.
-- [ ] Middleware successfully redirects unauthorized `/admin` visitors.
+- [x] Supabase password-based Auth implemented for admin users.
+- [x] Unified Next.js proxy/middleware successfully intercepts and redirects unauthorized `/admin` visitors.
+- [x] Secure file proxy route configured with strict admin session validation.
 - [ ] App deployed to Vercel.
-- [ ] Cloudflare configured for both domains.
+- [ ] Cloudflare configured for both custom domains.
 - [ ] Latency/GFW testing completed to determine the primary distribution link.
