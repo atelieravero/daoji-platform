@@ -13,9 +13,9 @@ The admin dashboard is fortified using Supabase password-based authentication an
 *   **Routing & Deployment:** Vercel Hosting + Cloudflare Reverse Proxy across `maggapatipada.org` and `daoji.info` for GFW mitigation.
 
 ## Acceptance Criteria
-- [x] Supabase password-based Auth implemented for admin users.
-- [x] Unified Next.js proxy/middleware successfully intercepts and redirects unauthorized `/admin` visitors.
-- [x] Secure file proxy route configured with strict admin session validation.
-- [ ] App deployed to Vercel.
-- [ ] Cloudflare configured for both custom domains.
-- [ ] Latency/GFW testing completed to determine the primary distribution link.
+- [x] Supabase password-based Auth implemented for admin users.[cite: 8]
+- [x] Unified Next.js proxy/middleware successfully intercepts and redirects unauthorized `/admin` visitors.[cite: 8]
+- [x] Secure file proxy route configured with strict admin session validation.[cite: 8]
+- [x] App deployed to Vercel.[cite: 8]
+- [x] Cloudflare configured for both custom domains.[cite: 8]
+- [x] Latency/GFW testing completed to determine the primary distribution link.[cite: 8]
