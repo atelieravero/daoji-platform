@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { getPublicForm, submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
 import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
 import zhDict from '@/messages/zh.json';
@@ -32,25 +32,6 @@ const formatPhoneDisplay = (raw: string) => {
   
   return cc + ' ' + rest;
 };
-
-// --- Reusable Markdown Renderer ---
-const MarkdownRenderer = ({ content, className }: { content: string, className?: string }) => (
-  <div className={className}>
-    <ReactMarkdown
-      components={{
-        p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
-        a: ({ node, ...props }) => (
-          <a className="text-primary hover:text-primary-hover hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
-        ),
-        ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
-        ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
-        strong: ({ node, ...props }) => <strong className="font-semibold text-stone-800" {...props} />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  </div>
-);
 
 export default function PublicFormRoute() {
   return (

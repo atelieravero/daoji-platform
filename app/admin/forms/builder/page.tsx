@@ -9,6 +9,7 @@ import {
   FileText, Calendar, Smartphone, CheckSquare, UploadCloud,
   ChevronUp, ChevronDown, AlignLeft, AlertCircle, Loader2, KeyRound
 } from 'lucide-react';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info' | 'applicant_token';
 
@@ -38,37 +39,6 @@ interface FormField {
     rules: LogicRule[];
   };
 }
-
-const MarkdownPreview = ({ text, className = "" }: { text?: string, className?: string }) => {
-  if (!text) return null;
-  
-  let html = text
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;') 
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-indigo-600 hover:underline" target="_blank">$1</a>') 
-    .replace(/!!(.*?)!!/g, '<span class="text-red-500 font-medium">$1</span>'); 
-
-  const lines = html.split('\n');
-  let inUl = false, inOl = false, result = '';
-
-  lines.forEach(line => {
-    if (line.trim().startsWith('- ')) {
-      if (!inUl) { result += '<ul class="list-disc pl-5 my-1 space-y-1">'; inUl = true; }
-      result += `<li>${line.substring(2)}</li>`;
-    } else if (/^\d+\.\s/.test(line.trim())) {
-      if (!inOl) { result += '<ol class="list-decimal pl-5 my-1 space-y-1">'; inOl = true; }
-      result += `<li>${line.replace(/^\d+\.\s/, '')}</li>`;
-    } else {
-      if (inUl) { result += '</ul>'; inUl = false; }
-      if (inOl) { result += '</ol>'; inOl = false; }
-      result += `${line}<br />`;
-    }
-  });
-  if (inUl) result += '</ul>';
-  if (inOl) result += '</ol>';
-
-  return <div dangerouslySetInnerHTML={{ __html: result }} className={`text-sm text-gray-500 mt-1 ${className}`} />;
-};
 
 // Start with an empty canvas instead of mock data
 const initialFields: FormField[] = [];
@@ -381,8 +351,8 @@ function FormBuilderContent() {
                 </div>
                 {(formConfig.subtitleEn || formConfig.subtitleZh) && (
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <MarkdownPreview text={formConfig.subtitleEn} className="text-gray-600" />
-                    <MarkdownPreview text={formConfig.subtitleZh} className="text-gray-600 mt-2" />
+                    <MarkdownRenderer content={formConfig.subtitleEn} className="text-gray-600 text-sm mt-1" />
+                    <MarkdownRenderer content={formConfig.subtitleZh} className="text-gray-600 text-sm mt-2" />
                   </div>
                 )}
               </div>
@@ -460,8 +430,8 @@ function FormBuilderContent() {
                             )}
                             {field.required && field.type !== 'info' && <span className="text-red-500 ml-1">*</span>}
                           </label>
-                          <MarkdownPreview text={field.descriptionEn} />
-                          <MarkdownPreview text={field.descriptionZh} />
+                          <MarkdownRenderer content={field.descriptionEn} className="text-sm text-gray-500 mt-1" />
+                          <MarkdownRenderer content={field.descriptionZh} className="text-sm text-gray-500 mt-1" />
                         </div>
                         
                         {field.type === 'info' ? null : field.type === 'text' || field.type === 'email' ? (
