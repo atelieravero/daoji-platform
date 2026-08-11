@@ -69,7 +69,8 @@
     "saveTokenTitle": "請妥善保存您的核驗碼",
     "saveTokenDesc": "此核驗碼將用於進入後續表單。請務必複製或截圖保存。",
     "uploadedFile": "已上傳文件",
-    "testAutoVerified": "測試模式下，自動通過驗證"
+    "testAutoVerified": "測試模式下，自動通過驗證",
+    "submitAnother": "提交另一份回覆"
   },
   "Languages": {
     "cantonese": "粵語",

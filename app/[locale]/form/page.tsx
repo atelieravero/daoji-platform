@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { getPublicForm, submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
@@ -62,7 +62,6 @@ function PublicFormContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // REVERTED: Do not pull from URL search parameters anymore
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
 
@@ -326,12 +325,25 @@ function PublicFormContent() {
       // Update local React state to render the success screen
       setIsSubmitted(true);
       if (newToken) setGeneratedToken(newToken);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       
     } catch (err: any) {
       setErrorMessage(err.message?.includes('Invalid or expired') ? t.invalidToken : t.submissionFailed);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // NEW: Wipes state so the user can submit the form again without a page reload
+  const handleStartOver = () => {
+    if (formSuccessKey) sessionStorage.removeItem(formSuccessKey);
+    if (formStorageKey) sessionStorage.removeItem(formStorageKey);
+    setIsSubmitted(false);
+    setGeneratedToken(null);
+    setAnswers({});
+    setInlineTokens({});
+    setUploadStates({});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const TokenUIRenderer = () => {
@@ -454,20 +466,43 @@ function PublicFormContent() {
 
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <div className="max-w-2xl w-full bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-stone-200">
-            <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
-              <CheckSquare className="w-8 h-8" />
-            </div>
+          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
             
-            <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">{successTitle}</h1>
-            
-            <div className="text-left">
-              {messageParts.map((part: string, index: number, array: string[]) => (
-                <React.Fragment key={index}>
-                  <MarkdownRenderer content={part} className="text-sm md:text-base text-stone-600" />
-                  {index < array.length - 1 && <TokenUIRenderer />}
-                </React.Fragment>
-              ))}
+            {/* NEW: Form Banner mirrored on success screen */}
+            {form.schema?.bannerImageUrl && (
+              <img 
+                src={form.schema.bannerImageUrl} 
+                alt="Banner" 
+                className="w-full h-auto max-h-64 object-contain bg-stone-50 border-b border-stone-100" 
+              />
+            )}
+
+            <div className="p-8 md:p-12">
+              <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
+                <CheckSquare className="w-8 h-8" />
+              </div>
+              
+              <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">{successTitle}</h1>
+              
+              <div className="text-left">
+                {messageParts.map((part: string, index: number, array: string[]) => (
+                  <React.Fragment key={index}>
+                    <MarkdownRenderer content={part} className="text-sm md:text-base text-stone-600" />
+                    {index < array.length - 1 && <TokenUIRenderer />}
+                  </React.Fragment>
+                ))}
+              </div>
+
+              {/* NEW: Start Over Button */}
+              <div className="mt-12 pt-6 border-t border-stone-100 text-center">
+                <button
+                  onClick={handleStartOver}
+                  className="inline-flex items-center text-sm font-medium text-stone-400 hover:text-stone-600 transition-colors focus:outline-none"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  {(t as any).submitAnother || 'Submit another response'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

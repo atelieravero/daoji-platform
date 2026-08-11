@@ -69,7 +69,8 @@
     "saveTokenTitle": "Save your Access Token",
     "saveTokenDesc": "You will need this code to access follow-up forms. Please copy or screenshot it now.",
     "uploadedFile": "Uploaded File",
-    "testAutoVerified": "Test Mode Auto-Verified"
+    "testAutoVerified": "Test Mode Auto-Verified",
+    "submitAnother": "Submit another response"
   },
   "Languages": {
     "cantonese": "Cantonese",
