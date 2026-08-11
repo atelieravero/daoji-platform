@@ -41,9 +41,10 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
       setFormConfig(form);
       setSubmissions(submissions);
 
-      // Build the initial column definitions
+      // Build the initial column definitions (Seq Num is injected right before token)
       const initialCols: ColumnDef[] = [
         { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
+        { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
         { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
       ];
 
@@ -129,8 +130,7 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
     const headersArray = ['Event', 'Form', 'Is Test', ...activeCols.map(c => escapeCSV(c.label))];
     const headers = headersArray.join(',');
     
-    // --- NEW: Prepare File Export Base URL ---
-    // Fallback to window origin if the env var isn't set
+    // Prepare File Export Base URL
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
     const fileDataKeys = formConfig?.schema?.fields?.filter((f: any) => f.type === 'file').map((f: any) => f.dataKey) || [];
 
@@ -138,23 +138,22 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
     const selectedSubs = submissions.filter(s => selectedRows.includes(s.id));
     const csvRows = selectedSubs.map(sub => {
       
-      // Read directly from the schema, fallback to event_id
-      const rawEventCode = formConfig?.schema?.interimEventCode || formConfig?.event_id || 'MMC'; // <-- Renamed
+      const rawEventCode = formConfig?.schema?.interimEventCode || formConfig?.event_id || 'MMC';
       const eventIdVal = escapeCSV(rawEventCode);
       const formTitleVal = escapeCSV(formConfig?.title || '');
       const isTestVal = escapeCSV(sub.is_test ? 'TRUE' : 'FALSE');
 
       const rowValues = activeCols.map(c => {
         if (c.id === 'created_at') return escapeCSV(new Date(sub.created_at).toLocaleString());
+        if (c.id === 'applicant_seq_num') return escapeCSV(sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-');
         if (c.id === 'applicant_token') return escapeCSV(sub.applicant_token);
         
         let rawVal = sub.response?.[c.id];
 
-        // --- NEW: Convert raw S3 keys to secure proxy URLs for CSV ---
         if (fileDataKeys.includes(c.id) && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
           rawVal = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
         } else if (Array.isArray(rawVal)) {
-          rawVal = rawVal.join(', '); // Cleanly stringify checkbox arrays
+          rawVal = rawVal.join(', ');
         }
 
         return escapeCSV(rawVal);
@@ -193,8 +192,9 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const tokenMatch = (sub.applicant_token || '').toLowerCase().includes(term);
+      const seqMatch = sub.applicant_seq_num && String(sub.applicant_seq_num).includes(term);
       const dataMatch = JSON.stringify(sub.response || {}).toLowerCase().includes(term);
-      return tokenMatch || dataMatch;
+      return tokenMatch || seqMatch || dataMatch;
     }
     
     return true;
@@ -388,13 +388,14 @@ export default function FormSubmissionsPage({ params }: { params: Promise<{ form
                       
                       if (col.id === 'created_at') {
                         cellValue = new Date(sub.created_at).toLocaleString();
+                      } else if (col.id === 'applicant_seq_num') {
+                        cellValue = sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-';
                       } else if (col.id === 'applicant_token') {
                         cellValue = sub.applicant_token || '-';
                       } else {
                         const rawVal = sub.response?.[col.id];
                         const isFileField = formConfig?.schema?.fields?.find((f: any) => f.dataKey === col.id)?.type === 'file';
 
-                        // --- NEW: Render UI link for files in the admin dashboard ---
                         if (isFileField && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
                           const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
                           const fileUrl = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
