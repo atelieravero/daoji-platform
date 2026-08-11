@@ -286,7 +286,53 @@ function FormBuilderContent() {
                               <MarkdownRenderer content={field.descriptionZh} className="text-sm text-gray-500 mt-1" />
                             </div>
                             
-                            {field.type === 'info' ? null : field.type === 'text' || field.type === 'email' ? <input type={field.type} disabled placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" /> : field.type === 'textarea' ? <textarea disabled rows={3} placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" /> : field.type === 'mobile' ? <div className="relative"><Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" /><input type="tel" disabled placeholder="+852..." className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" /></div> : field.type === 'date' ? <div className="relative"><Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" /><input type="date" disabled className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" /></div> : field.type === 'file' ? <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50"><UploadCloud className="w-8 h-8 text-gray-400 mb-2" /></div> : field.type === 'applicant_token' ? <div className="flex gap-2"><div className="relative flex-1"><KeyRound className="absolute left-3 top-3 w-4 h-4 text-gray-400" /><input type="text" disabled placeholder="MMC-XXXX-XXXX" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white font-mono" /></div><button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg border border-gray-200">Verify</button></div> : field.type === 'select' ? <select disabled className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white appearance-none"><option>Select...</option></select> : (field.type === 'radio' || field.type === 'checkbox') ? <div className="space-y-2">{field.options?.map((opt, i) => <div key={i} className="flex items-center"><input type={field.type} disabled className="w-4 h-4 text-indigo-600 border-gray-300" /><label className="ml-3 text-sm text-gray-700">{opt.labelEn} <span className="text-gray-400">/ {opt.labelZh}</span></label></div>)}</div> : null}
+                            {field.type === 'info' ? null : 
+                             field.type === 'text' || field.type === 'email' ? (
+                              <input type={field.type} disabled placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
+                            ) : field.type === 'textarea' ? (
+                              <textarea disabled rows={3} placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
+                            ) : field.type === 'mobile' ? (
+                              <div className="relative">
+                                <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                <input type="tel" disabled placeholder="+852..." className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
+                              </div>
+                            ) : field.type === 'date' ? (
+                              <div className="relative">
+                                <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                <input type="date" disabled className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
+                              </div>
+                            ) : field.type === 'file' ? (
+                              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50">
+                                <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
+                              </div>
+                            ) : field.type === 'applicant_token' ? (
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <KeyRound className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                                  <input type="text" disabled placeholder="MMC-XXXX-XXXX" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white font-mono" />
+                                </div>
+                                <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg border border-gray-200">Verify</button>
+                              </div>
+                            ) : field.type === 'select' ? (
+                              <select disabled className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white appearance-none">
+                                <option>Select...</option>
+                              </select>
+                            ) : (field.type === 'radio' || field.type === 'checkbox') ? (
+                              <div className="space-y-2">
+                                {field.options?.map((opt, i) => (
+                                  <div key={i} className="flex items-center">
+                                    <input type={field.type} disabled className="w-4 h-4 text-indigo-600 border-gray-300" />
+                                    <label className="ml-3 text-sm text-gray-700">
+                                      {opt.labelEn} <span className="text-gray-400">/ {opt.labelZh}</span>
+                                      {/* The clean value tag pill */}
+                                      <span className="font-mono text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-2 font-normal">
+                                        val: {opt.value}
+                                      </span>
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );
