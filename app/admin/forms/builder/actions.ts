@@ -2,6 +2,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3Client } from '@/lib/s3/client';
 
 const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,4 +64,39 @@ export async function saveFormSchema(payload: {
 
   revalidatePath('/admin/forms');
   return savedId;
+}
+
+export async function getPublicPresignedUploadUrl(fileName: string, fileType: string) {
+  try {
+    // Generate a unique filename to prevent overwriting
+    const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const fileKey = `public/assets/${uniqueFileName}`;
+    
+    // Pull the new public bucket configurations from .env
+    const publicBucket = process.env.S3_PUBLIC_BUCKET_NAME;
+    const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
+
+    if (!publicBucket || !cdnUrl) {
+      throw new Error("Public bucket or CDN URL is not configured in environment variables.");
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: publicBucket,
+      Key: fileKey,
+      ContentType: fileType,
+    });
+
+    // The presigned URL is only for the UPLOAD action (expires in 5 mins)
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+
+    // The finalUrl is the permanent public link we will save to the database and use for display
+    return { 
+      success: true, 
+      signedUrl, 
+      finalUrl: `${cdnUrl}/${fileKey}` 
+    };
+  } catch (error: any) {
+    console.error('Error generating public presigned URL:', error);
+    return { success: false, error: error.message };
+  }
 }

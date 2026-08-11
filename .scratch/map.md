@@ -1,18 +1,19 @@
 # Daoji Platform - Project Map
 
 ## Active Sprint
-*   [ ] `08-forms-public-assets-and-success-message.md` - Public Assets & Success Message Configuration
+*   [ ] `09-applicant-sequence-numbers.md` - Applicant Sequence Numbers (PostgreSQL Trigger)[cite: 8]
 
 ## Backlog
-*(Empty - Preparing for Launch)*
+*(Empty - Preparing for Launch)*[cite: 8]
 
 ## Completed
-*   [x] `07-security-deployment-routing.md` - Security, Deployment, & China Routing[cite: 10]
-*   [x] `06-forms-standalone-and-event-codes.md` - Event Codes & Standalone Form Mode[cite: 10]
-*   [x] `05-forms-file-upload.md` - S3/OSS File Upload Integration[cite: 10]
-*   [x] `04-form-lifecycle-preview-testing.md` - Form Lifecycle, Preview, & Testing Controls[cite: 10]
-*   [x] `03-forms-public-submission.md` - Connect Public Form Engine, Inline Token Verification, and Admin Submissions Data View[cite: 10]
-*   [x] `02-forms-builder-admin-ui.md` - Refactor Admin Form Builder UI (Event Binding, Follow-up Toggle, `applicant_token` field)[cite: 10]
-*   [x] `01-forms-db-schema.md` - Update Supabase Schema for Forms, Submissions, and Magic Tokens[cite: 10]
-*   [x] Project initialized with Next.js, Tailwind, and Supabase.[cite: 10]
-*   [x] Local Markdown issue tracker and Domain Model established.[cite: 10]
+*   [x] `08-forms-public-assets-and-success-message.md` - Public Assets & Success Message Configuration[cite: 8]
+*   [x] `07-security-deployment-routing.md` - Security, Deployment, & China Routing[cite: 8]
+*   [x] `06-forms-standalone-and-event-codes.md` - Event Codes & Standalone Form Mode[cite: 8]
+*   [x] `05-forms-file-upload.md` - S3/OSS File Upload Integration[cite: 8]
+*   [x] `04-form-lifecycle-preview-testing.md` - Form Lifecycle, Preview, & Testing Controls[cite: 8]
+*   [x] `03-forms-public-submission.md` - Connect Public Form Engine, Inline Token Verification, and Admin Submissions Data View[cite: 8]
+*   [x] `02-forms-builder-admin-ui.md` - Refactor Admin Form Builder UI (Event Binding, Follow-up Toggle, `applicant_token` field)[cite: 8]
+*   [x] `01-forms-db-schema.md` - Update Supabase Schema for Forms, Submissions, and Magic Tokens[cite: 8]
+*   [x] Project initialized with Next.js, Tailwind, and Supabase.[cite: 8]
+*   [x] Local Markdown issue tracker and Domain Model established.[cite: 8]

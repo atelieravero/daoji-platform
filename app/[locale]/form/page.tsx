@@ -3,8 +3,8 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { getPublicForm, submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud } from 'lucide-react';
-import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare } from 'lucide-react';
+import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
 import zhDict from '@/messages/zh.json';
@@ -60,8 +60,11 @@ function PublicFormContent() {
   const [form, setForm] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // REVERTED: Do not pull from URL search parameters anymore
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
 
   const [manualToken, setManualToken] = useState('');
   const [isPreGateVerifying, setIsPreGateVerifying] = useState(false);
@@ -74,23 +77,41 @@ function PublicFormContent() {
 
   const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean, verified: boolean, error: string | null }>>({});
   const [uploadStates, setUploadStates] = useState<Record<string, { isUploading: boolean, progress: number, error?: string }>>({});
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
   const t = locale === 'zh' ? zhDict.ApplyForm : enDict.ApplyForm;
+  
+  // Storage Keys
   const formStorageKey = formId ? `daoji_form_draft_${formId}` : null;
+  const formSuccessKey = formId ? `daoji_form_success_${formId}` : null;
 
   const isStandalone = form?.schema?.isStandalone || searchParams.get('standalone') === 'true';
 
+  // SECURE STATE PRESERVATION: Check sessionStorage for success state on load
   useEffect(() => {
-    if (formStorageKey) {
+    if (formSuccessKey) {
+      const savedSuccess = sessionStorage.getItem(formSuccessKey);
+      if (savedSuccess) {
+        try {
+          const parsed = JSON.parse(savedSuccess);
+          if (parsed.submitted) {
+            setIsSubmitted(true);
+            if (parsed.token) setGeneratedToken(parsed.token);
+          }
+        } catch (e) { /* silent fail */ }
+      }
+    }
+  }, [formSuccessKey]);
+
+  useEffect(() => {
+    if (formStorageKey && !isSubmitted) {
       const saved = sessionStorage.getItem(formStorageKey);
       if (saved) {
         try { setAnswers(JSON.parse(saved)); } catch (e) { /* silent fail */ }
       }
     }
-  }, [formStorageKey]);
+  }, [formStorageKey, isSubmitted]);
 
   useEffect(() => {
     if (!formId) {
@@ -249,8 +270,6 @@ function PublicFormContent() {
       return;
     }
 
-    // --- NEW: Manual Fallback Validation for Checkboxes ---
-    // This catches required checkboxes if the browser bypasses HTML5 validation
     for (const f of visibleFields) {
       if (f.required && f.type === 'checkbox') {
         const currentVals = activeAnswers[f.dataKey] || [];
@@ -263,7 +282,6 @@ function PublicFormContent() {
         }
       }
     }
-    // --------------------------------------------------------
 
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
@@ -289,17 +307,58 @@ function PublicFormContent() {
         interim_event_code: form.schema?.interimEventCode || 'MMC'
       });
       
-      setIsSubmitted(true);
+      let newToken = null;
       if (response.applicant_token && !validatedToken && !inlineTokenVal) {
-        setGeneratedToken(response.applicant_token);
+        newToken = response.applicant_token;
       }
+
+      // SECURE STATE PRESERVATION: Save success state to sessionStorage
+      if (formSuccessKey) {
+        sessionStorage.setItem(formSuccessKey, JSON.stringify({
+          submitted: true,
+          token: newToken
+        }));
+      }
+
+      // Clear the draft answers
       if (formStorageKey) sessionStorage.removeItem(formStorageKey);
+      
+      // Update local React state to render the success screen
+      setIsSubmitted(true);
+      if (newToken) setGeneratedToken(newToken);
       
     } catch (err: any) {
       setErrorMessage(err.message?.includes('Invalid or expired') ? t.invalidToken : t.submissionFailed);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const TokenUIRenderer = () => {
+    if (!generatedToken) return null;
+    return (
+      <div className="my-6 p-6 bg-stone-50 border border-stone-200 rounded-xl text-left">
+        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+          {(t as any).saveTokenTitle}
+        </p>
+        <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
+          <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(generatedToken);
+              setIsCopied(true);
+              setTimeout(() => setIsCopied(false), 2000);
+            }}
+            className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none"
+          >
+            {isCopied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+          </button>
+        </div>
+        <p className="text-xs text-stone-400 mt-3 leading-relaxed">
+          {(t as any).saveTokenDesc}
+        </p>
+      </div>
+    );
   };
 
   const renderScreen = () => {
@@ -331,7 +390,7 @@ function PublicFormContent() {
       );
     }
 
-    if (form.is_followup && !isPreGatePassed) {
+    if (form.is_followup && !isPreGatePassed && !isSubmitted) {
       if (isUrlTokenVerifying) {
         return (
           <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
@@ -379,35 +438,37 @@ function PublicFormContent() {
     }
 
     if (isSubmitted) {
+      const successTitle = locale === 'zh' 
+        ? (form.schema?.successTitleZh || form.schema?.successTitleEn || t.successTitle) 
+        : (form.schema?.successTitleEn || form.schema?.successTitleZh || t.successTitle);
+      
+      let successMessage = locale === 'zh' 
+        ? (form.schema?.successMessageZh || form.schema?.successMessageEn || t.successMessage) 
+        : (form.schema?.successMessageEn || form.schema?.successMessageZh || t.successMessage);
+      
+      if (generatedToken && !successMessage.includes('{{TOKEN_BOX}}')) {
+        successMessage += '\n\n{{TOKEN_BOX}}';
+      }
+      
+      const messageParts = successMessage.split('{{TOKEN_BOX}}');
+
       return (
-        <div className={`min-h-screen flex items-center justify-center px-4 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200 text-center">
-            <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-5" />
-            <h1 className="text-2xl font-bold text-stone-800 mb-2">{t.successTitle}</h1>
-            <p className="text-sm text-stone-500">{t.successMessage}</p>
-            {generatedToken && (
-              <div className="mt-8 p-6 bg-stone-50 border border-stone-200 rounded-xl text-left">
-                <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
-                  {(t as any).saveTokenTitle}
-                </p>
-                <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
-                  <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedToken);
-                      setIsCopied(true);
-                      setTimeout(() => setIsCopied(false), 2000);
-                    }}
-                    className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none"
-                  >
-                    {isCopied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
-                  </button>
-                </div>
-                <p className="text-xs text-stone-400 mt-3 leading-relaxed">
-                  {(t as any).saveTokenDesc}
-                </p>
-              </div>
-            )}
+        <div className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
+          <div className="max-w-2xl w-full bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-stone-200">
+            <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
+              <CheckSquare className="w-8 h-8" />
+            </div>
+            
+            <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">{successTitle}</h1>
+            
+            <div className="text-left">
+              {messageParts.map((part: string, index: number, array: string[]) => (
+                <React.Fragment key={index}>
+                  <MarkdownRenderer content={part} className="text-sm md:text-base text-stone-600" />
+                  {index < array.length - 1 && <TokenUIRenderer />}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -430,9 +491,19 @@ function PublicFormContent() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6 p-8">
-            <h1 className="text-2xl font-bold text-stone-800">{formTitle}</h1>
-            {formSubtitle && <MarkdownRenderer content={formSubtitle} className="text-sm text-stone-500 mt-3" />}
+          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6">
+            {form.schema?.bannerImageUrl && (
+              <img 
+                src={form.schema.bannerImageUrl} 
+                alt="Banner" 
+                className="w-full h-auto max-h-64 object-contain bg-stone-50 border-b border-stone-100" 
+              />
+            )}
+            
+            <div className="p-8">
+              <h1 className="text-2xl font-bold text-stone-800">{formTitle}</h1>
+              {formSubtitle && <MarkdownRenderer content={formSubtitle} className="text-sm text-stone-500 mt-3" />}
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -657,7 +728,6 @@ function PublicFormContent() {
                           <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                             <input
                               type="checkbox"
-                              // --- NEW: HTML5 Native Validation Fallback ---
                               required={field.required && currentVals.length === 0}
                               checked={isChecked}
                               onChange={(e) => {
