@@ -29,6 +29,7 @@ export async function getFormSchema(id: string) {
 
 export async function saveFormSchema(payload: {
   event_id: string;
+  slug: string; // <-- NEW: Slug column mapping
   title: string;
   is_followup: boolean;
   schema: any;
@@ -59,7 +60,8 @@ export async function saveFormSchema(payload: {
 
   if (error) {
     console.error('Supabase Error saving form schema:', error);
-    throw new Error('Failed to save form schema.');
+    // Log detailed Supabase constraint errors (like duplicate slugs)
+    throw new Error(error.message || 'Failed to save form schema.');
   }
 
   revalidatePath('/admin/forms');
@@ -68,11 +70,9 @@ export async function saveFormSchema(payload: {
 
 export async function getPublicPresignedUploadUrl(fileName: string, fileType: string) {
   try {
-    // Generate a unique filename to prevent overwriting
     const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const fileKey = `public/assets/${uniqueFileName}`;
     
-    // Pull the new public bucket configurations from .env
     const publicBucket = process.env.S3_PUBLIC_BUCKET_NAME;
     const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
 
@@ -86,10 +86,8 @@ export async function getPublicPresignedUploadUrl(fileName: string, fileType: st
       ContentType: fileType,
     });
 
-    // The presigned URL is only for the UPLOAD action (expires in 5 mins)
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
-    // The finalUrl is the permanent public link we will save to the database and use for display
     return { 
       success: true, 
       signedUrl, 

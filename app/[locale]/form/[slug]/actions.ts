@@ -12,7 +12,6 @@ const getSupabaseAdmin = () => createClient(
 );
 
 // Generates a recognizable but highly secure token (e.g., ZEN26-A4X9-P2M8)
-// Excludes confusing characters (0, O, 1, I) to prevent transcription errors
 function generateMagicToken(prefix: string = 'MMC'): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
   let token = `${prefix}-`;
@@ -23,12 +22,13 @@ function generateMagicToken(prefix: string = 'MMC'): string {
   return token;
 }
 
-export async function getPublicForm(formId: string) {
+// NEW: Fetches the form securely using the URL Slug
+export async function getPublicForm(slug: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('forms')
     .select('*')
-    .eq('id', formId)
+    .eq('slug', slug)
     .single();
 
   if (error || !data) {
@@ -39,7 +39,6 @@ export async function getPublicForm(formId: string) {
 }
 
 export async function verifyApplicantToken(token: string, eventId: string, isTest: boolean = false) {
-  // IF TEST MODE: Deem ANY token verified immediately to allow admin previews to pass the gate.
   if (isTest) {
     return { valid: true };
   }
@@ -50,7 +49,6 @@ export async function verifyApplicantToken(token: string, eventId: string, isTes
     return { valid: false, message: 'Token and Event ID are required.' };
   }
 
-  // Fetch the record, bringing back 'is_test' to evaluate in JS
   const { data: existingSubmissions, error } = await supabase
     .from('submissions')
     .select('id, is_test')
@@ -62,7 +60,6 @@ export async function verifyApplicantToken(token: string, eventId: string, isTes
     return { valid: false, message: 'Invalid or expired access token for this event.' };
   }
 
-  // JS evaluation handles 'null', 'undefined', and 'false' safely
   if (existingSubmissions[0].is_test === true) {
     return { valid: false, message: 'Test tokens cannot be used for live applications.' };
   }
@@ -81,10 +78,7 @@ export async function submitPublicForm(payload: {
   const supabase = getSupabaseAdmin();
   let activeToken = payload.applicant_token;
 
-  // 1. Verify or Create the Magic Token
   if (activeToken) {
-    // Follow-up Form: Verify the token exists for this specific EVENT
-    // SKIP this database check if it is a test submission, so we can save the dummy token
     if (!payload.is_test) {
       const { data: existingSubmissions, error: tokenError } = await supabase
         .from('submissions')
@@ -102,19 +96,17 @@ export async function submitPublicForm(payload: {
       }
     }
   } else {
-    // Initial Application: Generate a new token using the interim event code prefix
     activeToken = generateMagicToken(payload.interim_event_code || 'MMC');
   }
 
-  // 2. Insert the Submission
   const { error: insertError } = await supabase
     .from('submissions')
     .insert([{
       form_id: payload.form_id,
       event_id: payload.event_id,
-      response: payload.answers, // Mapped to your Supabase JSONB column
+      response: payload.answers, 
       applicant_token: activeToken, 
-      is_test: payload.is_test || false, // Explicitly tag test submissions in the DB
+      is_test: payload.is_test || false, 
     }]);
 
   if (insertError) {
@@ -122,7 +114,6 @@ export async function submitPublicForm(payload: {
     throw new Error('Failed to submit form. Please try again.');
   }
 
-  // Return the token to the frontend so it can be displayed to the user
   return { success: true, applicant_token: activeToken };
 }
 
@@ -138,10 +129,8 @@ export async function getPresignedUploadUrl(fileName: string, contentType: strin
       ContentType: contentType,
     });
 
-    // Generate a temporary URL valid for 15 minutes (900 seconds) for UPLOAD only
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
 
-    // RETURN THE RAW KEY, NOT A PUBLIC URL
     return { success: true, signedUrl, fileKey: objectKey };
   } catch (error: any) {
     console.error('Error generating pre-signed URL:', error);

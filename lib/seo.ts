@@ -30,12 +30,12 @@ export function constructMetadata({
   // Set Social locale based on current language
   const ogLocale = locale === 'en' ? 'en_US' : 'zh_HK';
   
-  // Format the path cleanly (handles cases where path might be '/form?id=xxx' or 'form?id=xxx')
+  // Format the path cleanly
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   const canonicalUrl = `${baseUrl}/${locale}${cleanPath}`;
   
-  // Format the browser tab title (e.g., "Retreat Application | 道跡禪院")
-  const formattedTitle = title ? `${title} | 道跡禪院` : defaultTitle;
+  // MOD: Only use the passed title, no appended branding.
+  const formattedTitle = title ? title : defaultTitle;
 
   return {
     title: formattedTitle,
@@ -48,8 +48,6 @@ export function constructMetadata({
       languages: {
         'en': `${baseUrl}/en${cleanPath}`,
         'zh': `${baseUrl}/zh${cleanPath}`,
-        // x-default explicitly tells Google to prioritize the Chinese version 
-        // if a user searches from a locale we don't explicitly support (e.g., Japan, Spain)
         'x-default': `${baseUrl}/zh${cleanPath}`, 
       },
     },
@@ -59,10 +57,9 @@ export function constructMetadata({
       title: title || defaultTitle,
       description: description || defaultDescription,
       url: canonicalUrl,
-      siteName: defaultTitle,
+      // MOD: siteName removed to de-brand the origin
       images: [
         {
-          // Fallback to a generic OG image in your public bucket if none is provided
           url: image || `${baseUrl}/og-default.jpg`,
           width: 1200,
           height: 630,
@@ -75,7 +72,7 @@ export function constructMetadata({
     
     // --- TWITTER / X CARDS ---
     twitter: {
-      card: 'summary_large_image', // Ensures wide banner images span the full tweet width
+      card: 'summary_large_image',
       title: title || defaultTitle,
       description: description || defaultDescription,
       images: [image || `${baseUrl}/og-default.jpg`],

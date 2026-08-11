@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { getPublicForm, submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
 import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
 import zhDict from '@/messages/zh.json';
 
-// --- Telephone Parsing & Formatting Utilities ---
 const parseMobileString = (raw: string) => {
   const digits = raw.replace(/\D/g, '');
   let ccLength = 0;
@@ -17,7 +16,6 @@ const parseMobileString = (raw: string) => {
   else if (/^(2[07]|3[0-469]|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58])/.test(digits)) ccLength = 2;
   else if (digits.length >= 3) ccLength = 3;
   else ccLength = digits.length;
-  
   return { digits, ccLength };
 };
 
@@ -26,39 +24,22 @@ const formatPhoneDisplay = (raw: string) => {
   const { digits, ccLength } = parseMobileString(raw);
   if (digits.length === 0) return '';
   if (digits.length <= ccLength) return digits; 
-  
   const cc = digits.substring(0, ccLength);
   const rest = digits.substring(ccLength);
-  
   return cc + ' ' + rest;
 };
 
-export default function PublicFormRoute() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-surface-base">
-        <div className="flex items-center space-x-2 text-stone-500 text-sm font-medium">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          <span>Loading form...</span>
-        </div>
-      </div>
-    }>
-      <PublicFormContent />
-    </Suspense>
-  );
+interface FormEngineProps {
+  initialForm: any;
+  locale: string;
 }
 
-function PublicFormContent() {
-  const params = useParams();
-  const locale = (params?.locale as string) || 'en';
-  
+export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const searchParams = useSearchParams();
-  const formId = searchParams.get('id');
   const token = searchParams.get('token');
   const isTest = searchParams.get('test') === 'true';
 
-  const [form, setForm] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [form] = useState<any>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -81,13 +62,11 @@ function PublicFormContent() {
 
   const t = locale === 'zh' ? zhDict.ApplyForm : enDict.ApplyForm;
   
-  // Storage Keys
-  const formStorageKey = formId ? `daoji_form_draft_${formId}` : null;
-  const formSuccessKey = formId ? `daoji_form_success_${formId}` : null;
+  const formStorageKey = `daoji_form_draft_${form.id}`;
+  const formSuccessKey = `daoji_form_success_${form.id}`;
 
   const isStandalone = form?.schema?.isStandalone || searchParams.get('standalone') === 'true';
 
-  // SECURE STATE PRESERVATION: Check sessionStorage for success state on load
   useEffect(() => {
     if (formSuccessKey) {
       const savedSuccess = sessionStorage.getItem(formSuccessKey);
@@ -98,7 +77,7 @@ function PublicFormContent() {
             setIsSubmitted(true);
             if (parsed.token) setGeneratedToken(parsed.token);
           }
-        } catch (e) { /* silent fail */ }
+        } catch (e) {}
       }
     }
   }, [formSuccessKey]);
@@ -107,21 +86,10 @@ function PublicFormContent() {
     if (formStorageKey && !isSubmitted) {
       const saved = sessionStorage.getItem(formStorageKey);
       if (saved) {
-        try { setAnswers(JSON.parse(saved)); } catch (e) { /* silent fail */ }
+        try { setAnswers(JSON.parse(saved)); } catch (e) {}
       }
     }
   }, [formStorageKey, isSubmitted]);
-
-  useEffect(() => {
-    if (!formId) {
-      setIsLoading(false);
-      return;
-    }
-    getPublicForm(formId).then((data) => {
-      setForm(data);
-      setIsLoading(false);
-    });
-  }, [formId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -311,7 +279,6 @@ function PublicFormContent() {
         newToken = response.applicant_token;
       }
 
-      // SECURE STATE PRESERVATION: Save success state to sessionStorage
       if (formSuccessKey) {
         sessionStorage.setItem(formSuccessKey, JSON.stringify({
           submitted: true,
@@ -319,10 +286,8 @@ function PublicFormContent() {
         }));
       }
 
-      // Clear the draft answers
       if (formStorageKey) sessionStorage.removeItem(formStorageKey);
       
-      // Update local React state to render the success screen
       setIsSubmitted(true);
       if (newToken) setGeneratedToken(newToken);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -334,7 +299,6 @@ function PublicFormContent() {
     }
   };
 
-  // NEW: Wipes state so the user can submit the form again without a page reload
   const handleStartOver = () => {
     if (formSuccessKey) sessionStorage.removeItem(formSuccessKey);
     if (formStorageKey) sessionStorage.removeItem(formStorageKey);
@@ -374,19 +338,7 @@ function PublicFormContent() {
   };
 
   const renderScreen = () => {
-    if (!formId) {
-      return <div className={`min-h-screen flex items-center justify-center text-red-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.missingId}</div>;
-    }
-
-    if (isLoading) {
-      return (
-        <div className={`min-h-screen flex items-center justify-center ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      );
-    }
-
-    if (!form || (form.status === 'draft' && !isTest)) {
+    if (form.status === 'draft' && !isTest) {
       return <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>{t.notFound}</div>;
     }
 
@@ -467,8 +419,6 @@ function PublicFormContent() {
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
           <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
-            
-            {/* NEW: Form Banner mirrored on success screen */}
             {form.schema?.bannerImageUrl && (
               <img 
                 src={form.schema.bannerImageUrl} 
@@ -476,14 +426,11 @@ function PublicFormContent() {
                 className="w-full h-auto max-h-64 object-contain bg-stone-50 border-b border-stone-100" 
               />
             )}
-
             <div className="p-8 md:p-12">
               <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
                 <CheckSquare className="w-8 h-8" />
               </div>
-              
               <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">{successTitle}</h1>
-              
               <div className="text-left">
                 {messageParts.map((part: string, index: number, array: string[]) => (
                   <React.Fragment key={index}>
@@ -492,8 +439,6 @@ function PublicFormContent() {
                   </React.Fragment>
                 ))}
               </div>
-
-              {/* NEW: Start Over Button */}
               <div className="mt-12 pt-6 border-t border-stone-100 text-center">
                 <button
                   onClick={handleStartOver}

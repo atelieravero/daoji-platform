@@ -5,6 +5,7 @@
 -- 1. Create Forms Table
 CREATE TABLE IF NOT EXISTS forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT UNIQUE, -- NEW: Slug for edge caching and dynamic routing
     event_id TEXT NOT NULL,
     title TEXT NOT NULL,
     is_followup BOOLEAN DEFAULT false,
@@ -27,6 +28,9 @@ CREATE TABLE IF NOT EXISTS submissions (
 );
 
 -- 3. Create Indexes for Performance
+-- Optimizes: Slug lookups for static generation and edge caching
+CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
+
 -- Optimizes: Token verification and Follow-up checks (Instant lookups)
 CREATE INDEX IF NOT EXISTS idx_submissions_event_token 
 ON submissions(event_id, applicant_token);

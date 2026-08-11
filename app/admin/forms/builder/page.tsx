@@ -54,6 +54,7 @@ function FormBuilderContent() {
   
   const [formConfig, setFormConfig] = useState({
     internalName: 'Untitled Form',
+    slug: '', // <-- NEW: Slug State
     titleEn: 'New Form', titleZh: '新表單',
     subtitleEn: '', subtitleZh: '',
     eventId: 'evt_1', isFollowUp: false, status: 'draft',
@@ -76,14 +77,22 @@ function FormBuilderContent() {
       if (!isMounted || !record) return;
       setCurrentFormId(record.id);
       setFormConfig({
-        internalName: record.title || '', eventId: record.event_id || 'evt_1', isFollowUp: record.is_followup || false,
-        titleEn: record.schema?.titleEn || '', titleZh: record.schema?.titleZh || '',
-        subtitleEn: record.schema?.subtitleEn || '', subtitleZh: record.schema?.subtitleZh || '',
-        status: record.schema?.status || 'draft', interimEventCode: record.schema?.interimEventCode || 'OCT26',
-        isStandalone: record.schema?.isStandalone || false, bannerImageUrl: record.schema?.bannerImageUrl || '',
-        successTitleEn: record.schema?.successTitleEn || 'Submission Successful', successTitleZh: record.schema?.successTitleZh || '提交成功',
-        successMessageEn: record.schema?.successMessageEn || 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
-        successMessageZh: record.schema?.successMessageZh || '感謝您。我們已安全收到您的提交。\n\n{{TOKEN_BOX}}',
+        internalName: record.title || '', 
+        slug: record.slug || '', // <-- NEW: Load existing slug
+        eventId: record.event_id || 'evt_1', 
+        isFollowUp: record.is_followup || false,
+        titleEn: record.schema?.titleEn ?? '', 
+        titleZh: record.schema?.titleZh ?? '',
+        subtitleEn: record.schema?.subtitleEn ?? '', 
+        subtitleZh: record.schema?.subtitleZh ?? '',
+        status: record.schema?.status ?? 'draft', 
+        interimEventCode: record.schema?.interimEventCode ?? 'OCT26',
+        isStandalone: record.schema?.isStandalone ?? false, 
+        bannerImageUrl: record.schema?.bannerImageUrl ?? '',
+        successTitleEn: record.schema?.successTitleEn ?? 'Submission Successful', 
+        successTitleZh: record.schema?.successTitleZh ?? '提交成功',
+        successMessageEn: record.schema?.successMessageEn ?? 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
+        successMessageZh: record.schema?.successMessageZh ?? '感謝您。我們已安全收到您的提交。\n\n{{TOKEN_BOX}}',
       });
       if (record.schema?.fields && Array.isArray(record.schema.fields)) setFields(record.schema.fields);
     }).finally(() => { if (isMounted) setIsLoading(false); });
@@ -146,6 +155,15 @@ function FormBuilderContent() {
   };
 
   const handleSave = async () => {
+    // 1. Strict Slug Validation
+    if (!formConfig.slug || formConfig.slug.trim() === '') {
+      alert('Validation Error: URL Slug is required.');
+      return;
+    }
+    
+    // Auto-clean the slug before saving (removes trailing hyphens)
+    const cleanSlug = formConfig.slug.replace(/^-|-$/g, '');
+
     const invalidIds: string[] = [];
     for (const f of fields) {
       if (f.type !== 'info' && (!f.dataKey || f.dataKey.trim() === '')) invalidIds.push(f.id);
@@ -156,7 +174,10 @@ function FormBuilderContent() {
     setInvalidFieldIds([]); setIsSaving(true);
     try {
       const payload = {
-        event_id: formConfig.eventId, title: formConfig.internalName, is_followup: formConfig.isFollowUp,
+        event_id: formConfig.eventId, 
+        slug: cleanSlug, // <-- NEW: Save the cleaned slug
+        title: formConfig.internalName, 
+        is_followup: formConfig.isFollowUp,
         schema: {
           titleEn: formConfig.titleEn, titleZh: formConfig.titleZh, subtitleEn: formConfig.subtitleEn, subtitleZh: formConfig.subtitleZh,
           status: formConfig.status, interimEventCode: formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, ''), isStandalone: formConfig.isStandalone,
@@ -167,7 +188,14 @@ function FormBuilderContent() {
       const savedId = await saveFormSchema(payload, currentFormId);
       if (savedId && !currentFormId) { setCurrentFormId(savedId); window.history.replaceState(null, '', `?id=${savedId}`); }
       alert('Form Schema saved successfully!');
-    } catch (error) { alert('Failed to save Form Schema.'); } finally { setIsSaving(false); }
+    } catch (error: any) { 
+      // Capture duplicate slug errors specifically
+      if (error.message.includes('duplicate key value violates unique constraint')) {
+        alert('Validation Error: This URL Slug is already taken by another form. Please choose a unique slug.');
+      } else {
+        alert('Failed to save Form Schema.'); 
+      }
+    } finally { setIsSaving(false); }
   };
 
   const hasOptions = activeField?.type === 'select' || activeField?.type === 'radio' || activeField?.type === 'checkbox';
@@ -193,7 +221,15 @@ function FormBuilderContent() {
           </select>
         </div>
         <div className="flex items-center space-x-3">
-          <button onClick={() => { if (currentFormId) window.open(`/en/form?id=${currentFormId}&test=true`, '_blank'); else alert('Please save first.'); }} className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 transition-colors"><Eye className="w-4 h-4 mr-2" /> Preview & Test</button>
+          <button 
+            onClick={() => { 
+              if (formConfig.slug) window.open(`/en/form/${formConfig.slug}?test=true`, '_blank'); 
+              else alert('Please set a URL Slug and save before previewing.'); 
+            }} 
+            className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 transition-colors"
+          >
+            <Eye className="w-4 h-4 mr-2" /> Preview & Test
+          </button>
           <button onClick={handleSave} disabled={isSaving} className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"><Save className={`w-4 h-4 mr-2 ${isSaving ? 'animate-pulse' : ''}`} /> {isSaving ? 'Saving...' : 'Save Schema'}</button>
         </div>
       </div>
@@ -338,6 +374,16 @@ function FormBuilderContent() {
                 <hr className="border-gray-100" />
                 <div className="space-y-4">
                   <FormInput label="Internal Reference Name" helperText="Only visible to your admin team in the dashboard." value={formConfig.internalName} onChange={(e) => setFormConfig({...formConfig, internalName: e.target.value})} />
+                  
+                  {/* NEW: URL Slug Configuration */}
+                  <FormInput 
+                    label="URL Slug" 
+                    helperText="The public web address (e.g., /en/form/summer-retreat). Letters, numbers, and hyphens only." 
+                    value={formConfig.slug} 
+                    onChange={(e) => setFormConfig({...formConfig, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')})} 
+                    required
+                  />
+
                   <FormSelect label="Linked Event" value={formConfig.eventId} onChange={(e) => setFormConfig({...formConfig, eventId: e.target.value})}>
                     <option value="evt_1">7-Day Silent Zen Retreat</option>
                     <option value="evt_2">Weekly Wednesday Wisdom</option>
