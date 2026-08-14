@@ -54,7 +54,7 @@
     "invalidToken": "此活動的身份核驗碼無效或已過期",
     "tokenVerified": "核驗碼驗證成功！",
     "loading": "載入中...",
-    "notFound": "未能找到該表單或其無法使用",
+    "notFound": "未能找到該表單或尚未開放",
     "missingId": "URL 中缺少表單 ID。",
     "submissionFailed": "提交失敗。",
     "verifyRequired": "請在提交前驗證您的身份核驗碼",
