@@ -2,8 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server';
 
+
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string;
+  // Strips invisible spaces and enforces lowercase to prevent SPA auth clashes
+  const rawEmail = formData.get('email') as string;
+  const email = rawEmail?.trim().toLowerCase(); 
   const password = formData.get('password') as string;
   
   if (!email || !password) {

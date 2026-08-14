@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { login } from './actions';
 import { Loader2, Lock, Mail, AlertCircle } from 'lucide-react';
 
@@ -55,7 +56,16 @@ export default function AdminLoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <Link 
+                href="/admin/forgot-password" 
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+                tabIndex={-1}
+              >
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <Lock className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
               <input 
