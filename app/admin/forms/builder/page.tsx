@@ -216,9 +216,6 @@ function FormBuilderContent() {
         <div className="flex items-center">
           <a href="/admin/forms" className="p-2 -ml-2 mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"><ArrowLeft className="w-5 h-5" /></a>
           <h1 className="text-lg font-semibold text-gray-900 truncate max-w-sm">{formConfig.internalName}</h1>
-          <select value={formConfig.status} onChange={(e) => setFormConfig({...formConfig, status: e.target.value})} className="ml-4 text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-3 py-1.5 cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none appearance-none border-0 hover:bg-amber-200 transition-colors">
-            <option value="draft">Draft (Private)</option><option value="open">Open (Live)</option><option value="closed">Closed (Locked)</option>
-          </select>
         </div>
         <div className="flex items-center space-x-3">
           <button 

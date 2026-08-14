@@ -302,7 +302,23 @@ export default function FormsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         {/* MOD 5 UX: Removed opacity-0 / group-hover to ensure visible touch access */}
                         <div className="flex items-center justify-end space-x-1.5">
-                          
+
+                          {status === 'draft' && realCount === 0 && testCount === 0 && (
+                            <button 
+                              onClick={() => handleDelete(form.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete Draft Form"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {status === 'draft' && (
+                            <Link href={`/admin/forms/builder?id=${form.id}`} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Schema">
+                              <LayoutTemplate className="w-4 h-4" />
+                            </Link>
+                          )}
+
                           {/* MOD 4: Share & QR Button */}
                           <button 
                             onClick={() => {
@@ -333,10 +349,6 @@ export default function FormsPage() {
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          <Link href={`/admin/forms/builder?id=${form.id}`} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit Schema">
-                            <LayoutTemplate className="w-4 h-4" />
-                          </Link>
-
                           <button 
                             onClick={() => handleDuplicate(form.id)}
                             className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" 
@@ -344,16 +356,6 @@ export default function FormsPage() {
                           >
                             <Copy className="w-4 h-4" />
                           </button>                          
-                          
-                          {status === 'draft' && realCount === 0 && testCount === 0 && (
-                            <button 
-                              onClick={() => handleDelete(form.id)}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete Draft Form"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>

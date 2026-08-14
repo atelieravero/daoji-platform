@@ -29,7 +29,7 @@ export async function getFormSchema(id: string) {
 
 export async function saveFormSchema(payload: {
   event_id: string;
-  slug: string; // <-- NEW: Slug column mapping
+  slug: string; 
   title: string;
   is_followup: boolean;
   schema: any;
@@ -40,12 +40,29 @@ export async function saveFormSchema(payload: {
   let savedId = id;
 
   if (id) {
+    // 1. Verify current status before allowing the update
+    const { data: existingForm, error: fetchError } = await supabaseAdmin
+      .from('forms')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingForm) {
+      throw new Error('Failed to verify form status before saving.');
+    }
+
+    if (existingForm.status !== 'draft') {
+      throw new Error('Action blocked: Form schema cannot be modified while open or closed. Please revert to draft status first.');
+    }
+
+    // 2. Safe to update
     const res = await supabaseAdmin
       .from('forms')
       .update(payload)
       .eq('id', id);
     error = res.error;
   } else {
+    // Handling for brand new forms
     const res = await supabaseAdmin
       .from('forms')
       .insert([payload])
@@ -60,7 +77,6 @@ export async function saveFormSchema(payload: {
 
   if (error) {
     console.error('Supabase Error saving form schema:', error);
-    // Log detailed Supabase constraint errors (like duplicate slugs)
     throw new Error(error.message || 'Failed to save form schema.');
   }
 
