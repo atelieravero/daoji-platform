@@ -7,76 +7,70 @@ export type Role =
   | 'submission_viewer' 
   | 'content_editor';
 
-export type SystemAction = 
-  // Form Builder
-  | 'forms:create'
-  | 'forms:edit'
-  | 'forms:delete'
-  | 'forms:update_status'
+// ============================================================================
+// 1. UI DEFINITIONS: Single source of truth for Role UI Labels
+// ============================================================================
+export const ROLE_DEFINITIONS: { id: Role; label: string }[] = [
+  { id: 'super_admin', label: 'Super Admin' },
+  { id: 'team_manager', label: 'Team Manager' },
+  { id: 'form_editor', label: 'Form Editor' },
+  { id: 'content_editor', label: 'Content Editor' },
+  { id: 'submission_viewer', label: 'Submission Viewer' }
+];
 
-  // Applicant Submissions (Strict Test vs Real Split)
-  | 'submissions:view_real'
-  | 'submissions:view_test'
-  | 'submissions:export_real'
-  | 'submissions:export_test'
-  | 'submissions:manage' 
-  
-  // Content & Web Assets
-  | 'content:create'
-  | 'content:edit'
-  | 'content:delete'
-  
-  // Team & HR Access Split
-  | 'team:view'
-  | 'team:manage_workers'   // Allowed for team_manager
-  | 'team:manage_managers'  // Strictly super_admin only
-  
-  // Root Access
+// ============================================================================
+// 2. HIERARCHY RULES: Single source of truth for Role Assignment Authority
+// Defines which roles are allowed to assign/revoke a specific target role.
+// ============================================================================
+export const ROLE_ASSIGNMENT_AUTHORITY: Record<Role, Role[]> = {
+  // Empty array = No one can assign this via UI (must be done directly in DB)
+  super_admin: [], 
+  // Only Super Admins can promote someone to Team Manager
+  team_manager: ['super_admin'], 
+  // Both Super Admins and Team Managers can assign standard operational roles
+  form_editor: ['super_admin', 'team_manager'],
+  content_editor: ['super_admin', 'team_manager'],
+  submission_viewer: ['super_admin', 'team_manager']
+};
+
+export type SystemAction = 
+  | 'forms:create' | 'forms:edit' | 'forms:delete' | 'forms:update_status'
+  | 'submissions:view_real' | 'submissions:view_test' | 'submissions:export_real' 
+  | 'submissions:export_test' | 'submissions:manage' 
+  | 'content:create' | 'content:edit' | 'content:delete'
+  | 'team:view' | 'team:manage_workers' | 'team:manage_managers'
   | 'system:super_admin';
 
-/**
- * THE MASTER MATRIX
- * Maps roles to their allowed actions. 
- * Note: 'super_admin' is omitted here because it utilizes a wildcard bypass.
- */
 export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
-  team_manager: [
-    'team:view', 'team:manage_workers'
-  ],
+  team_manager: ['team:view', 'team:manage_workers'],
   form_editor: [
     'forms:create', 'forms:edit', 'forms:delete', 'forms:update_status',
     'submissions:view_test', 'submissions:export_test'
   ],
   submission_viewer: [ 
     'submissions:view_real', 'submissions:view_test', 
-    'submissions:export_real', 'submissions:export_test',
-    'submissions:manage'
+    'submissions:export_real', 'submissions:export_test', 'submissions:manage'
   ],
-  content_editor: [
-    'content:create', 'content:edit', 'content:delete'
-  ]
+  content_editor: ['content:create', 'content:edit', 'content:delete']
 };
 
-/**
- * Validates if the provided user roles grant the requested action.
- * Accepts `string[]` to cleanly handle raw Supabase database arrays.
- */
 export function hasPermission(userRoles: string[] | undefined | null, action: SystemAction): boolean {
-  // Fail secure: If user has no roles or invalid data, deny immediately
   if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) return false;
-  
-  // WILDCARD O(1) BYPASS: Super Admin automatically passes all checks
   if (userRoles.includes('super_admin')) return true;
   
-  // Iterate through the user's assigned roles
   for (const roleStr of userRoles) {
     const role = roleStr as Role;
     const permissions = ROLE_PERMISSIONS[role];
-    
-    // If the role exists in the matrix and contains the action, unlock the door
     if (permissions && permissions.includes(action)) return true;
   }
-
-  // If loop finishes without finding a match, access is denied
   return false;
+}
+
+/**
+ * Validates if a user's roles give them authority to assign/revoke a specific target role.
+ */
+export function canAssignRole(assignerRoles: string[], targetRole: Role): boolean {
+  const authorizedRoles = ROLE_ASSIGNMENT_AUTHORITY[targetRole];
+  // If the target role requires authorized roles, check if the assigner possesses any of them
+  return assignerRoles.some(role => authorizedRoles.includes(role as Role));
 }

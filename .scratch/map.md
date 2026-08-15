@@ -1,10 +1,11 @@
 # Daoji Platform - Project Map
 
 ## Active Sprint
-*   [ ] `12-team-rbac-matrix.md` - Team RBAC, Action Matrix, Hybrid Auth Flow & Activation Triggers
+*   [ ] `12-team-rbac-matrix.md` - Team RBAC, Hybrid Auth, & Form State Immutability
 
 ## Backlog
 *   [ ] `13-strict-file-privacy.md` - Segregate test/real submission file uploads via folder paths (`submissions/test/` vs `submissions/real/`) and enforce strict RBAC routing on document downloads.
+*   [ ] `14-system-audit-logs.md` - Create `logs` DB table and implement comprehensive platform-wide event tracking for mutations and auth events, restricted to top-level admins.
 
 ## Completed
 *   [x] `11-form-slug-routing.md` - Form Slug Routing & Edge Caching[cite: 9]
