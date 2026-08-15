@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { Role, canAssignRole } from '@/lib/permissions';
 import { withPermission } from '@/lib/auth-guards';
 
-// SECURITY: Helper to reliably fetch the user executing the server action
+// Helper to fetch the user executing the server action
 async function getCurrentUser() {
   const supabase = await createClient(); 
   
@@ -37,7 +37,6 @@ export const getTeamMembers = withPermission('team:manage_workers', async () => 
 export const inviteTeamMember = withPermission('team:manage_workers', async (email: string, displayName: string, roles: Role[]) => {
   const currentUser = await getCurrentUser();
   
-  // Dynamic Role Authority Check
   for (const newRole of roles) {
     if (!canAssignRole(currentUser.roles, newRole)) {
       throw new Error(`Security Exception: You do not have authority to grant the '${newRole}' role.`);
@@ -75,7 +74,6 @@ export const inviteTeamMember = withPermission('team:manage_workers', async (ema
 export const updateTeamMemberRoles = withPermission('team:manage_workers', async (targetId: string, newRoles: Role[]) => {
   const currentUser = await getCurrentUser();
 
-  // SELF-EDIT BLOCK
   if (currentUser.id === targetId) {
     throw new Error("Security Exception: You cannot modify your own access level.");
   }
@@ -84,21 +82,21 @@ export const updateTeamMemberRoles = withPermission('team:manage_workers', async
   const { data: targetProfile } = await supabase.from('team_members').select('roles').eq('id', targetId).single();
   const currentTargetRoles = (targetProfile?.roles || []) as Role[];
 
-  // 1. Verify authority over the roles being REMOVED
+  // 1. Verify authority over removed roles
   for (const oldRole of currentTargetRoles) {
     if (!newRoles.includes(oldRole) && !canAssignRole(currentUser.roles, oldRole)) {
       throw new Error(`Security Exception: You do not have authority to revoke the '${oldRole}' role.`);
     }
   }
 
-  // 2. Verify authority over the roles being ADDED
+  // 2. Verify authority over added roles
   for (const newRole of newRoles) {
     if (!currentTargetRoles.includes(newRole) && !canAssignRole(currentUser.roles, newRole)) {
       throw new Error(`Security Exception: You do not have authority to grant the '${newRole}' role.`);
     }
   }
 
-  // 3. Prevent modifying a Super Admin's account entirely (if you aren't one)
+  // 3. Super admin protection
   if (currentTargetRoles.includes('super_admin') && !currentUser.roles.includes('super_admin')) {
       throw new Error("Security Exception: You cannot modify a Super Admin's profile.");
   }
@@ -116,7 +114,6 @@ export const updateTeamMemberRoles = withPermission('team:manage_workers', async
 export const updateTeamMemberStatus = withPermission('team:manage_workers', async (targetId: string, newStatus: 'invited' | 'active' | 'suspended') => {
   const currentUser = await getCurrentUser();
 
-  // SELF-EDIT BLOCK
   if (currentUser.id === targetId) {
     throw new Error("Security Exception: You cannot modify your own status.");
   }
@@ -126,7 +123,6 @@ export const updateTeamMemberStatus = withPermission('team:manage_workers', asyn
   const { data: targetProfile } = await supabase.from('team_members').select('roles').eq('id', targetId).single();
   const currentTargetRoles = (targetProfile?.roles || []) as Role[];
   
-  // Prevent lower-tier managers from suspending Super Admins
   if (currentTargetRoles.includes('super_admin') && !currentUser.roles.includes('super_admin')) {
      throw new Error("Security Exception: You cannot suspend a Super Admin.");
   }
@@ -139,3 +135,22 @@ export const updateTeamMemberStatus = withPermission('team:manage_workers', asyn
   if (error) throw new Error(`Failed to update status: ${error.message}`);
   revalidatePath('/admin/team');
 });
+
+// 🔓 ONBOARDING ACTION: Activates invited user upon password completion
+export async function completePasswordSetup(userId: string) {
+  const supabase = getSupabaseAdmin();
+  
+  const { error } = await supabase
+    .from('team_members')
+    .update({ 
+      status: 'active', 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('id', userId)
+    .eq('status', 'invited');
+
+  if (error) {
+    console.error('Failed to activate team member:', error.message);
+  }
+  return { success: true };
+}

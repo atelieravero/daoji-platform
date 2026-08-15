@@ -17,7 +17,6 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Role, SystemAction, hasPermission } from '@/lib/permissions';
 
-// Add required permissions to each navigation item
 const NAV_GROUPS: { title: string, items: { id: string, label: string, icon: any, requiredActions: SystemAction[] }[] }[] = [
   {
     title: "Content",
@@ -30,7 +29,6 @@ const NAV_GROUPS: { title: string, items: { id: string, label: string, icon: any
   {
     title: "Applications",
     items: [
-      // Visible if the user can either build forms OR view submissions
       { id: '/admin/forms', label: 'Forms & Data', icon: LayoutList, requiredActions: ['forms:edit', 'submissions:view_test', 'submissions:view_real'] },
     ]
   },
@@ -51,7 +49,13 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const currentPathname = usePathname() || '/admin/events';
-  const isLoginPage = currentPathname === '/admin/login';
+  
+  // Whitelist all standalone onboarding and authentication screens
+  const isAuthPage = 
+    currentPathname.startsWith('/admin/login') ||
+    currentPathname.startsWith('/admin/setup-password') ||
+    currentPathname.startsWith('/admin/forgot-password');
+
   const activePath = currentPathname === '/' || currentPathname === '/admin' ? '/admin/events' : currentPathname;
 
   const [userRoles, setUserRoles] = useState<Role[]>([]);
@@ -59,7 +63,8 @@ export default function AdminLayout({
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
-    if (isLoginPage) {
+    // If on an auth/onboarding page, skip profile fetching and redirect guards
+    if (isAuthPage) {
       setIsLoadingAuth(false);
       return;
     }
@@ -74,18 +79,17 @@ export default function AdminLayout({
           setUserRoles((data.roles || []) as Role[]);
           
           const name = data.display_name || 'Administrator';
-          // Extract first two letters for the avatar circle
           const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
           setUserProfile({ name, initials });
         }
       } else {
-        router.push('/admin/login'); // Fallback protection
+        router.push('/admin/login');
       }
       setIsLoadingAuth(false);
     }
     
     fetchUserAccess();
-  }, [isLoginPage, router]);
+  }, [isAuthPage, router]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -94,7 +98,8 @@ export default function AdminLayout({
     router.refresh();
   };
 
-  if (isLoginPage) {
+  // Render standalone auth routes without the sidebar wrapper
+  if (isAuthPage) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {children}
@@ -102,7 +107,6 @@ export default function AdminLayout({
     );
   }
 
-  // Prevent UI flash by waiting for roles to load
   if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex h-screen items-center justify-center bg-gray-100">
@@ -111,12 +115,10 @@ export default function AdminLayout({
     );
   }
 
-  // SILENT DENIAL: Filter the navigation based on user permissions
   const visibleGroups = NAV_GROUPS.map(group => ({
     ...group,
-    // A user can see the link if they have AT LEAST ONE of the required actions for that module
     items: group.items.filter(item => item.requiredActions.some(action => hasPermission(userRoles, action)))
-  })).filter(group => group.items.length > 0); // Hide empty section headers
+  })).filter(group => group.items.length > 0);
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
