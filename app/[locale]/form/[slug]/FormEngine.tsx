@@ -683,14 +683,25 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                     <div className="space-y-2.5 mt-2">
                       {field.options?.map((opt: any, idx: number) => {
                         const optionLabel = locale === 'zh' ? (opt.labelZh || opt.labelEn || opt.value || '') : (opt.labelEn || opt.labelZh || opt.value || '');
+                        const isChecked = activeAnswers[field.dataKey] === opt.value;
+                        
                         return (
                           <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
                             <input
                               type="radio"
                               name={field.dataKey}
                               required={field.required && !activeAnswers[field.dataKey]}
-                              checked={activeAnswers[field.dataKey] === opt.value}
+                              checked={isChecked}
                               onChange={() => handleInputChange(field.dataKey, opt.value)}
+                              onClick={(e) => {
+                                // If the field is optional and it's already the active answer
+                                if (!field.required && isChecked) {
+                                  // Force the DOM to uncheck instantly to prevent React sync lag
+                                  e.currentTarget.checked = false;
+                                  // Clear the value from our state
+                                  handleInputChange(field.dataKey, ''); 
+                                }
+                              }}
                               className="w-4 h-4 text-primary border-stone-300 focus:ring-primary"
                             />
                             <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
