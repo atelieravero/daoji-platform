@@ -50,7 +50,6 @@ export default function AdminLayout({
   const router = useRouter();
   const currentPathname = usePathname() || '/admin/events';
   
-  // Whitelist all standalone onboarding and authentication screens
   const isAuthPage = 
     currentPathname.startsWith('/admin/login') ||
     currentPathname.startsWith('/admin/setup-password') ||
@@ -63,7 +62,6 @@ export default function AdminLayout({
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
-    // If on an auth/onboarding page, skip profile fetching and redirect guards
     if (isAuthPage) {
       setIsLoadingAuth(false);
       return;
@@ -74,14 +72,23 @@ export default function AdminLayout({
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        const { data } = await supabase.from('team_members').select('roles, display_name').eq('id', user.id).single();
-        if (data) {
-          setUserRoles((data.roles || []) as Role[]);
-          
-          const name = data.display_name || 'Administrator';
-          const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
-          setUserProfile({ name, initials });
+        const { data } = await supabase
+          .from('team_members')
+          .select('roles, display_name, status')
+          .eq('id', user.id)
+          .single();
+
+        // Hard kick if status is not active
+        if (!data || data.status !== 'active') {
+          await supabase.auth.signOut();
+          router.push('/admin/login?error=account_suspended');
+          return;
         }
+
+        setUserRoles((data.roles || []) as Role[]);
+        const name = data.display_name || 'Administrator';
+        const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
+        setUserProfile({ name, initials });
       } else {
         router.push('/admin/login');
       }
@@ -98,7 +105,6 @@ export default function AdminLayout({
     router.refresh();
   };
 
-  // Render standalone auth routes without the sidebar wrapper
   if (isAuthPage) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -122,8 +128,6 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
-      
-      {/* Sidebar Navigation */}
       <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-800">
           <Leaf className="w-6 h-6 text-indigo-400" />
@@ -160,7 +164,6 @@ export default function AdminLayout({
           ))}
         </nav>
 
-        {/* User Footer / Sign Out */}
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
@@ -180,7 +183,6 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         {children || (
           <div className="flex-1 p-8 flex items-center justify-center text-gray-500">
@@ -188,7 +190,6 @@ export default function AdminLayout({
           </div>
         )}
       </main>
-      
     </div>
   );
 }

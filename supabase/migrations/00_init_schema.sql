@@ -1,11 +1,11 @@
 -- ==========================================
--- DAOJI PLATFORM - INITIAL DATABASE SCHEMA
+-- DAOJI PLATFORM - COMPLETE DATABASE SCHEMA
 -- ==========================================
 
 -- 1. Create Forms Table
 CREATE TABLE IF NOT EXISTS forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    slug TEXT UNIQUE, -- NEW: Slug for edge caching and dynamic routing
+    slug TEXT UNIQUE,
     event_id TEXT NOT NULL,
     title TEXT NOT NULL,
     is_followup BOOLEAN DEFAULT false,
@@ -27,35 +27,68 @@ CREATE TABLE IF NOT EXISTS submissions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Create Indexes for Performance
+-- 3. Create Team Members Table (RBAC / Auth Profile)
+CREATE TABLE IF NOT EXISTS team_members (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    roles TEXT[] NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'invited',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ==========================================
+-- INDEXES FOR PERFORMANCE & LOOKUPS
+-- ==========================================
+
 -- Optimizes: Slug lookups for static generation and edge caching
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
 
--- Optimizes: Token verification and Follow-up checks (Instant lookups)
+-- Optimizes: Token verification and follow-up checks
 CREATE INDEX IF NOT EXISTS idx_submissions_event_token 
 ON submissions(event_id, applicant_token);
 
--- Optimizes: Admin Dashboard loading (Prevents memory sorting)
+-- Optimizes: Admin submissions dashboard sorting
 CREATE INDEX IF NOT EXISTS idx_submissions_form_date 
 ON submissions(form_id, created_at DESC);
 
--- Optimizes: The Sequence Trigger (Instant MAX() calculation to prevent lock-ups)
+-- Optimizes: Sequence Trigger MAX() lookup
 CREATE INDEX IF NOT EXISTS idx_submissions_event_seq 
 ON submissions(event_id, applicant_seq_num DESC);
 
+-- Optimizes: RBAC role array checks
+CREATE INDEX IF NOT EXISTS idx_team_members_roles 
+ON team_members USING GIN (roles);
+
+-- Optimizes: User lookups by email
+CREATE INDEX IF NOT EXISTS idx_team_members_email 
+ON team_members(email);
+
+-- ==========================================
+-- ROW LEVEL SECURITY (RLS)
+-- ==========================================
+
+ALTER TABLE forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+
+-- Team Members Policies
+CREATE POLICY "Users can read own profile" 
+ON team_members FOR SELECT 
+USING (auth.uid() = id);
 
 -- ==========================================
 -- AUTOMATED APPLICANT SEQUENCE TRIGGER
 -- ==========================================
 
--- 4. Create the sequence generation function
 CREATE OR REPLACE FUNCTION set_applicant_seq_num()
 RETURNS TRIGGER AS $$
 DECLARE
     existing_seq INTEGER;
     next_seq INTEGER;
 BEGIN
-    -- STEP A: Check if this applicant_token already has a sequence number for this specific event
+    -- Check if applicant_token already has a sequence number for this event
     SELECT applicant_seq_num INTO existing_seq
     FROM submissions
     WHERE event_id = NEW.event_id 
@@ -63,13 +96,11 @@ BEGIN
       AND applicant_seq_num IS NOT NULL
     LIMIT 1;
 
-    -- If a sequence number exists, this is a follow-up form. Reuse their human-readable ID.
+    -- If sequence exists, inherit existing number (follow-up form)
     IF existing_seq IS NOT NULL THEN
         NEW.applicant_seq_num := existing_seq;
     ELSE
-        -- STEP B: This is a brand new applicant. 
-        -- Find the highest existing sequence number for this event and add 1.
-        -- COALESCE ensures that if this is the very first applicant (NULL), it defaults to 0 + 1 = 1.
+        -- Brand new applicant: MAX(applicant_seq_num) + 1
         SELECT COALESCE(MAX(applicant_seq_num), 0) + 1 INTO next_seq
         FROM submissions
         WHERE event_id = NEW.event_id;
@@ -81,7 +112,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5. Bind the function to a Trigger on the submissions table
 DROP TRIGGER IF EXISTS trigger_set_applicant_seq ON submissions;
 
 CREATE TRIGGER trigger_set_applicant_seq

@@ -1,5 +1,3 @@
-// lib/permissions.ts
-
 export type Role = 
   | 'super_admin' 
   | 'team_manager' 
@@ -8,14 +6,34 @@ export type Role =
   | 'content_editor';
 
 // ============================================================================
-// 1. UI DEFINITIONS: Single source of truth for Role UI Labels
+// 1. UI DEFINITIONS: Single source of truth for Role UI Labels & Descriptions
 // ============================================================================
-export const ROLE_DEFINITIONS: { id: Role; label: string }[] = [
-  { id: 'super_admin', label: 'Super Admin' },
-  { id: 'team_manager', label: 'Team Manager' },
-  { id: 'form_editor', label: 'Form Editor' },
-  { id: 'content_editor', label: 'Content Editor' },
-  { id: 'submission_viewer', label: 'Submission Viewer' }
+export const ROLE_DEFINITIONS: { id: Role; label: string; description: string }[] = [
+  { 
+    id: 'super_admin', 
+    label: 'Super Admin',
+    description: 'Full system oversight, manager management, and platform administration.'
+  },
+  { 
+    id: 'team_manager', 
+    label: 'Team Manager',
+    description: 'Manage team members, update role assignments, and review audit logs.'
+  },
+  { 
+    id: 'form_editor', 
+    label: 'Form Editor',
+    description: 'Create, edit, and publish dynamic forms.'
+  },
+  { 
+    id: 'content_editor', 
+    label: 'Content Editor',
+    description: 'Create and update events, resources, and site pages.'
+  },
+  { 
+    id: 'submission_viewer', 
+    label: 'Submission Viewer',
+    description: 'View and export form submission data.'
+  }
 ];
 
 // ============================================================================
@@ -71,6 +89,5 @@ export function hasPermission(userRoles: string[] | undefined | null, action: Sy
  */
 export function canAssignRole(assignerRoles: string[], targetRole: Role): boolean {
   const authorizedRoles = ROLE_ASSIGNMENT_AUTHORITY[targetRole];
-  // If the target role requires authorized roles, check if the assigner possesses any of them
   return assignerRoles.some(role => authorizedRoles.includes(role as Role));
 }

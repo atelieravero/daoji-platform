@@ -71,6 +71,32 @@ export const inviteTeamMember = withPermission('team:manage_workers', async (ema
 });
 
 // 🛡️ WRAPPED: Strictly Managers
+export const resendInvite = withPermission('team:manage_workers', async (memberId: string) => {
+  const supabase = getSupabaseAdmin();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+  const { data: targetProfile, error: profileError } = await supabase
+    .from('team_members')
+    .select('email, status')
+    .eq('id', memberId)
+    .single();
+
+  if (profileError || !targetProfile) throw new Error("Team member not found.");
+  if (targetProfile.status !== 'invited') {
+    throw new Error("Cannot resend invite to an already active or suspended account.");
+  }
+
+  const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(targetProfile.email, {
+    redirectTo: `${siteUrl}/admin/setup-password`
+  });
+
+  if (inviteError) throw new Error(`Failed to resend invite: ${inviteError.message}`);
+
+  revalidatePath('/admin/team');
+  return { success: true };
+});
+
+// 🛡️ WRAPPED: Strictly Managers
 export const updateTeamMemberRoles = withPermission('team:manage_workers', async (targetId: string, newRoles: Role[]) => {
   const currentUser = await getCurrentUser();
 
@@ -110,8 +136,8 @@ export const updateTeamMemberRoles = withPermission('team:manage_workers', async
   revalidatePath('/admin/team');
 });
 
-// 🛡️ WRAPPED: Strictly Managers
-export const updateTeamMemberStatus = withPermission('team:manage_workers', async (targetId: string, newStatus: 'invited' | 'active' | 'suspended') => {
+// 🛡️ WRAPPED: Strictly Managers (Only allows active <-> suspended transitions)
+export const updateTeamMemberStatus = withPermission('team:manage_workers', async (targetId: string, newStatus: 'active' | 'suspended') => {
   const currentUser = await getCurrentUser();
 
   if (currentUser.id === targetId) {
@@ -120,8 +146,10 @@ export const updateTeamMemberStatus = withPermission('team:manage_workers', asyn
 
   const supabase = getSupabaseAdmin();
   
-  const { data: targetProfile } = await supabase.from('team_members').select('roles').eq('id', targetId).single();
-  const currentTargetRoles = (targetProfile?.roles || []) as Role[];
+  const { data: targetProfile } = await supabase.from('team_members').select('roles, status').eq('id', targetId).single();
+  if (!targetProfile) throw new Error("Team member not found.");
+
+  const currentTargetRoles = (targetProfile.roles || []) as Role[];
   
   if (currentTargetRoles.includes('super_admin') && !currentUser.roles.includes('super_admin')) {
      throw new Error("Security Exception: You cannot suspend a Super Admin.");

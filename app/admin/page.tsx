@@ -10,17 +10,26 @@ export default async function AdminRootRedirect() {
     redirect('/admin/login');
   }
 
-  // Fetch the user's roles
+  // Fetch status and roles directly via admin client
   const adminDb = getSupabaseAdmin();
-  const { data: profile } = await adminDb.from('team_members').select('roles').eq('id', user.id).single();
-  const userRoles = (profile?.roles || []) as Role[];
+  const { data: profile } = await adminDb
+    .from('team_members')
+    .select('roles, status')
+    .eq('id', user.id)
+    .single();
 
-  // 1. Check for Content capabilities
+  // Eject immediately if inactive or suspended
+  if (!profile || profile.status !== 'active') {
+    await supabase.auth.signOut();
+    redirect('/admin/login?error=account_suspended');
+  }
+
+  const userRoles = (profile.roles || []) as Role[];
+
   if (hasPermission(userRoles, 'content:edit')) {
     redirect('/admin/events');
   }
   
-  // 2. Check for Form/Submission capabilities
   if (
     hasPermission(userRoles, 'forms:edit') || 
     hasPermission(userRoles, 'submissions:view_real') || 
@@ -29,12 +38,10 @@ export default async function AdminRootRedirect() {
     redirect('/admin/forms');
   }
 
-  // 3. Check for Team Management capabilities
   if (hasPermission(userRoles, 'team:manage_workers')) {
     redirect('/admin/team');
   }
 
-  // Fallback: If they have no recognized roles for the main navigation, log them out
-  const { error: signOutError } = await supabase.auth.signOut();
+  await supabase.auth.signOut();
   redirect('/admin/login?error=unauthorized');
 }
