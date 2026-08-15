@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
+import { requirePermission } from '@/lib/auth-guards'; // <-- NEW IMPORT
 
 export async function GET(request: NextRequest) {
   // =====================================================================
-  // SECURITY GATE (To be implemented in Ticket 07)
-  // We will add Supabase Auth checks here to ensure ONLY the logged-in 
-  // admin can execute the rest of this code.
+  // 🛡️ SECURITY GATE: Implemented via Ticket 12 RBAC
+  // We use 'submissions:view_test' as the minimum baseline here so both 
+  // Form Editors (test only) and Submission Viewers (all) can access files.
   // =====================================================================
+  await requirePermission('submissions:view_test');
 
   const searchParams = request.nextUrl.searchParams;
   const path = searchParams.get('path');

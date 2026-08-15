@@ -1,15 +1,47 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { createClient, getSupabaseAdmin } from '@/lib/supabase/server';
+import { Role, hasPermission } from '@/lib/permissions';
 
-import { useEffect } from 'react';
+export default async function AdminRootRedirect() {
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-export default function AdminRootRedirect() {
-  useEffect(() => {
-    window.location.replace('/admin/events');
-  }, []);
+  if (error || !user) {
+    redirect('/admin/login');
+  }
 
-  return (
-    <div className="flex h-screen items-center justify-center bg-gray-100 text-gray-500 font-sans">
-      <p>Redirecting to Daoji Admin Portal...</p>
-    </div>
-  );
+  // Fetch status and roles directly via admin client
+  const adminDb = getSupabaseAdmin();
+  const { data: profile } = await adminDb
+    .from('team_members')
+    .select('roles, status')
+    .eq('id', user.id)
+    .single();
+
+  // Eject immediately if inactive or suspended
+  if (!profile || profile.status !== 'active') {
+    await supabase.auth.signOut();
+    redirect('/admin/login?error=account_suspended');
+  }
+
+  const userRoles = (profile.roles || []) as Role[];
+
+  if (hasPermission(userRoles, 'content:edit')) {
+    redirect('/admin/events');
+  }
+  
+  if (
+    hasPermission(userRoles, 'forms:edit') || 
+    hasPermission(userRoles, 'submissions:view_real') || 
+    hasPermission(userRoles, 'submissions:view_test')
+  ) {
+    redirect('/admin/forms');
+  }
+
+  if (hasPermission(userRoles, 'team:manage_workers')) {
+    redirect('/admin/team');
+  }
+
+  await supabase.auth.signOut();
+  redirect('/admin/login?error=unauthorized');
 }

@@ -5,13 +5,15 @@ import { revalidatePath } from 'next/cache';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
+import { withPermission } from '@/lib/auth-guards'; // <-- NEW IMPORT
 
 const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function getFormSchema(id: string) {
+// 🛡️ WRAPPED: Strictly Form Editors
+export const getFormSchema = withPermission('forms:edit', async (id: string) => {
   const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from('forms')
@@ -25,22 +27,23 @@ export async function getFormSchema(id: string) {
   }
 
   return data;
-}
+});
 
-export async function saveFormSchema(payload: {
+// 🛡️ WRAPPED: Strictly Form Editors (SBAC guard remains intact inside)
+export const saveFormSchema = withPermission('forms:edit', async (payload: {
   event_id: string;
   slug: string; 
   title: string;
   is_followup: boolean;
   schema: any;
-}, id?: string | null) {
+}, id?: string | null) => {
   const supabaseAdmin = getSupabaseAdmin();
 
   let error;
   let savedId = id;
 
   if (id) {
-    // 1. Verify current status before allowing the update
+    // 1. Verify current status before allowing the update (State-Based Guard)
     const { data: existingForm, error: fetchError } = await supabaseAdmin
       .from('forms')
       .select('status')
@@ -82,9 +85,10 @@ export async function saveFormSchema(payload: {
 
   revalidatePath('/admin/forms');
   return savedId;
-}
+});
 
-export async function getPublicPresignedUploadUrl(fileName: string, fileType: string) {
+// 🛡️ WRAPPED: Strictly Form Editors
+export const getPublicPresignedUploadUrl = withPermission('forms:edit', async (fileName: string, fileType: string) => {
   try {
     const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const fileKey = `public/assets/${uniqueFileName}`;
@@ -113,4 +117,4 @@ export async function getPublicPresignedUploadUrl(fileName: string, fileType: st
     console.error('Error generating public presigned URL:', error);
     return { success: false, error: error.message };
   }
-}
+});

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       forms: {
@@ -46,6 +21,7 @@ export type Database = {
           id: string
           is_followup: boolean
           schema: Json
+          slug: string | null
           status: string
           title: string
         }
@@ -55,6 +31,7 @@ export type Database = {
           id?: string
           is_followup?: boolean
           schema?: Json
+          slug?: string | null
           status?: string
           title: string
         }
@@ -64,6 +41,7 @@ export type Database = {
           id?: string
           is_followup?: boolean
           schema?: Json
+          slug?: string | null
           status?: string
           title?: string
         }
@@ -71,6 +49,7 @@ export type Database = {
       }
       submissions: {
         Row: {
+          applicant_seq_num: number | null
           applicant_token: string
           created_at: string
           event_id: string
@@ -81,6 +60,7 @@ export type Database = {
           response: Json
         }
         Insert: {
+          applicant_seq_num?: number | null
           applicant_token: string
           created_at?: string
           event_id: string
@@ -91,6 +71,7 @@ export type Database = {
           response?: Json
         }
         Update: {
+          applicant_seq_num?: number | null
           applicant_token?: string
           created_at?: string
           event_id?: string
@@ -109,6 +90,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          display_name: string
+          email: string
+          id: string
+          roles: string[] | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_name: string
+          email: string
+          id: string
+          roles?: string[] | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string
+          email?: string
+          id?: string
+          roles?: string[] | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -244,9 +255,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

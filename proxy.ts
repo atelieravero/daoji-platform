@@ -6,7 +6,6 @@ import { routing } from './i18n/routing';
 const handleIntl = createMiddleware(routing);
 
 export async function proxy(request: NextRequest) {
-  // Pass current pathname down to server components/layouts
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', request.nextUrl.pathname);
 
@@ -16,7 +15,6 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // 1. Initialize Supabase client for session validation & cookie management
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -38,40 +36,40 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Fetch the current user session securely
   const { data: { user } } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
   const isAdminRoute = pathname.startsWith('/admin')
   const isLoginRoute = pathname === '/admin/login'
 
-  // 2. Protect Admin Routes (Redirect unauthenticated users to login)
-  if (isAdminRoute && !isLoginRoute && !user) {
+  // UPDATE: Whitelist setup-password so the client component can read the hash
+  const isPublicAdminRoute = 
+    pathname.startsWith('/admin/login') ||
+    pathname.startsWith('/admin/auth/callback') ||
+    pathname.startsWith('/admin/forgot-password') ||
+    pathname.startsWith('/admin/setup-password');
+
+  if (isAdminRoute && !isPublicAdminRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/admin/login'
     return NextResponse.redirect(url)
   }
 
-  // 3. Redirect logged-in users away from the login page
   if (isLoginRoute && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/admin/forms'
     return NextResponse.redirect(url)
   }
 
-  // 4. CRITICAL: If it is an admin route, stop here and return. 
-  // This prevents next-intl from breaking admin URLs with 404s.
   if (isAdminRoute) {
     return supabaseResponse
   }
 
-  // 5. For all public routes, delegate to next-intl localization middleware
   return handleIntl(request)
 }
 
 export const config = {
   matcher: [
-    // Match admin and public routes, excluding static assets and internals
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
