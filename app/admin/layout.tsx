@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   Calendar, 
@@ -11,31 +11,35 @@ import {
   Users, 
   LogOut,
   Leaf,
-  History
+  History,
+  Loader2
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Role, SystemAction, hasPermission } from '@/lib/permissions';
 
-const navGroups = [
+// Add required permissions to each navigation item
+const NAV_GROUPS: { title: string, items: { id: string, label: string, icon: any, requiredActions: SystemAction[] }[] }[] = [
   {
     title: "Content",
     items: [
-      { id: '/admin/events', label: 'Events', icon: Calendar },
-      { id: '/admin/resources', label: 'Resources', icon: FolderOpen },
-      { id: '/admin/pages', label: 'Pages (About)', icon: Globe },
+      { id: '/admin/events', label: 'Events', icon: Calendar, requiredActions: ['content:edit'] },
+      { id: '/admin/resources', label: 'Resources', icon: FolderOpen, requiredActions: ['content:edit'] },
+      { id: '/admin/pages', label: 'Pages (About)', icon: Globe, requiredActions: ['content:edit'] },
     ]
   },
   {
     title: "Applications",
     items: [
-      { id: '/admin/forms', label: 'Forms & Data', icon: LayoutList },
+      // Visible if the user can either build forms OR view submissions
+      { id: '/admin/forms', label: 'Forms & Data', icon: LayoutList, requiredActions: ['forms:edit', 'submissions:view_test', 'submissions:view_real'] },
     ]
   },
   {
     title: "Settings",
     items: [
-      { id: '/admin/tags', label: 'Tags & Filters', icon: Tags },
-      { id: '/admin/team', label: 'Team Roles', icon: Users },
-      { id: '/admin/logs', label: 'Audit Logs', icon: History },
+      { id: '/admin/tags', label: 'Tags & Filters', icon: Tags, requiredActions: ['content:edit'] },
+      { id: '/admin/team', label: 'Team Roles', icon: Users, requiredActions: ['team:manage_workers'] },
+      { id: '/admin/logs', label: 'Audit Logs', icon: History, requiredActions: ['team:manage_workers'] },
     ]
   }
 ];
@@ -50,6 +54,39 @@ export default function AdminLayout({
   const isLoginPage = currentPathname === '/admin/login';
   const activePath = currentPathname === '/' || currentPathname === '/admin' ? '/admin/events' : currentPathname;
 
+  const [userRoles, setUserRoles] = useState<Role[]>([]);
+  const [userProfile, setUserProfile] = useState<{ name: string, initials: string }>({ name: 'Administrator', initials: 'AD' });
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+
+  useEffect(() => {
+    if (isLoginPage) {
+      setIsLoadingAuth(false);
+      return;
+    }
+    
+    async function fetchUserAccess() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data } = await supabase.from('team_members').select('roles, display_name').eq('id', user.id).single();
+        if (data) {
+          setUserRoles((data.roles || []) as Role[]);
+          
+          const name = data.display_name || 'Administrator';
+          // Extract first two letters for the avatar circle
+          const initials = name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
+          setUserProfile({ name, initials });
+        }
+      } else {
+        router.push('/admin/login'); // Fallback protection
+      }
+      setIsLoadingAuth(false);
+    }
+    
+    fetchUserAccess();
+  }, [isLoginPage, router]);
+
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -57,7 +94,6 @@ export default function AdminLayout({
     router.refresh();
   };
 
-  // If we are on the login page, render only the children without the sidebar shell
   if (isLoginPage) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -65,6 +101,22 @@ export default function AdminLayout({
       </div>
     );
   }
+
+  // Prevent UI flash by waiting for roles to load
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen flex h-screen items-center justify-center bg-gray-100">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  // SILENT DENIAL: Filter the navigation based on user permissions
+  const visibleGroups = NAV_GROUPS.map(group => ({
+    ...group,
+    // A user can see the link if they have AT LEAST ONE of the required actions for that module
+    items: group.items.filter(item => item.requiredActions.some(action => hasPermission(userRoles, action)))
+  })).filter(group => group.items.length > 0); // Hide empty section headers
 
   return (
     <div className="min-h-screen flex h-screen overflow-hidden bg-gray-100">
@@ -77,7 +129,7 @@ export default function AdminLayout({
         </div>
         
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6 hide-scrollbar">
-          {navGroups.map((group, idx) => (
+          {visibleGroups.map((group, idx) => (
             <div key={idx}>
               <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 {group.title}
@@ -110,10 +162,10 @@ export default function AdminLayout({
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-              AD
+              {userProfile.initials}
             </div>
             <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Administrator</p>
+              <p className="text-sm font-medium text-white truncate">{userProfile.name}</p>
               <button 
                 onClick={handleSignOut}
                 className="text-xs text-gray-400 hover:text-white transition-colors flex items-center mt-0.5 cursor-pointer"
