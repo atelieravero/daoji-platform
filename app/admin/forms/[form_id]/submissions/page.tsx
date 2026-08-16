@@ -2,17 +2,29 @@ import { requirePermission } from '@/lib/auth-guards';
 import { hasPermission } from '@/lib/permissions';
 import SubmissionsClient from './SubmissionsClient';
 
-export default async function FormSubmissionsPage({ params }: { params: Promise<{ form_id: string }> }) {
-  const { form_id } = await params;
+interface PageProps {
+  params: Promise<{ form_id?: string; id?: string }> | { form_id?: string; id?: string };
+}
 
-  // 1. PAGE GUARD: Baseline access is view_test (Form Editors and Submission Viewers pass)
+export default async function SubmissionsPage(props: PageProps) {
+  // Support both Next.js 15 (Promise params) and Next.js 14 (object params)
+  const resolvedParams = await Promise.resolve(props.params);
+  const formId = resolvedParams.form_id || resolvedParams.id;
+
+  if (!formId) {
+    throw new Error('Route Error: Missing form ID parameter in URL.');
+  }
+
+  // 1. PAGE GUARD: Minimum requirement to access this route
   const { profile } = await requirePermission('submissions:view_test');
 
-  // 2. UI RBAC: Calculate granular permissions
+  // 2. UI RBAC Permissions
   const permissions = {
-    canManage: hasPermission(profile.roles, 'submissions:manage'),
+    canViewTest: hasPermission(profile.roles, 'submissions:view_test'),
+    canViewReal: hasPermission(profile.roles, 'submissions:view_real'),
     canExport: hasPermission(profile.roles, 'submissions:export_real') || hasPermission(profile.roles, 'submissions:export_test'),
+    canManage: hasPermission(profile.roles, 'submissions:manage'),
   };
 
-  return <SubmissionsClient form_id={form_id} permissions={permissions} />;
+  return <SubmissionsClient form_id={formId} permissions={permissions} />;
 }

@@ -2,16 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
-import { requirePermission } from '@/lib/auth-guards'; // <-- NEW IMPORT
+import { requirePermission } from '@/lib/auth-guards';
 
 export async function GET(request: NextRequest) {
-  // =====================================================================
-  // 🛡️ SECURITY GATE: Implemented via Ticket 12 RBAC
-  // We use 'submissions:view_test' as the minimum baseline here so both 
-  // Form Editors (test only) and Submission Viewers (all) can access files.
-  // =====================================================================
-  await requirePermission('submissions:view_test');
-
   const searchParams = request.nextUrl.searchParams;
   const path = searchParams.get('path');
 
@@ -19,9 +12,19 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Bad Request: Missing file path', { status: 400 });
   }
 
-  // Basic validation to ensure they are only requesting submission files
-  if (!path.startsWith('submissions/')) {
+  // Prevent directory traversal and enforce strict partition prefixes
+  if (
+    path.includes('..') || 
+    (!path.startsWith('submissions/test/') && !path.startsWith('submissions/real/'))
+  ) {
     return new NextResponse('Forbidden: Invalid file path', { status: 403 });
+  }
+
+  // 🛡️ Granular Action Guard based on dataset sensitivity
+  if (path.startsWith('submissions/real/')) {
+    await requirePermission('submissions:view_real');
+  } else {
+    await requirePermission('submissions:view_test');
   }
 
   try {
@@ -30,10 +33,7 @@ export async function GET(request: NextRequest) {
       Key: path,
     });
 
-    // Generate a secure, temporary download URL valid for only 60 seconds
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 });
-
-    // Instantly redirect the admin's browser to the secure Cloudflare R2 file
     return NextResponse.redirect(signedUrl);
 
   } catch (error) {

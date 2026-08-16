@@ -31,41 +31,50 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
   const [showColManager, setShowColManager] = useState(false);
 
   // Initialize Data
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   useEffect(() => {
     let isMounted = true;
+    if (!form_id) {
+      setFetchError('Invalid form ID provided.');
+      setIsLoading(false);
+      return;
+    }
     
-    getFormAndSubmissions(form_id).then(({ form, submissions }) => {
-      if (!isMounted) return;
-      
-      setFormConfig(form);
-      setSubmissions(submissions);
+    getFormAndSubmissions(form_id)
+      .then(({ form, submissions }) => {
+        if (!isMounted) return;
+        setFormConfig(form);
+        setSubmissions(submissions || []);
 
-      // Build the initial column definitions (Seq Num is injected right before token)
-      const initialCols: ColumnDef[] = [
-        { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
-        { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
-        { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
-      ];
+        const initialCols: ColumnDef[] = [
+          { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
+          { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
+          { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
+        ];
 
-      // Extract dynamic fields from schema
-      const fields = form.schema?.fields || [];
-      fields.forEach((field: any) => {
-        if (field.type !== 'info' && field.dataKey) {
-          initialCols.push({ 
-            id: field.dataKey, 
-            label: field.dataKey, 
-            visible: true, 
-            isMeta: false 
-          });
+        const fields = form?.schema?.fields || [];
+        fields.forEach((field: any) => {
+          if (field.type !== 'info' && field.dataKey) {
+            initialCols.push({ 
+              id: field.dataKey, 
+              label: field.dataKey, 
+              visible: true, 
+              isMeta: false 
+            });
+          }
+        });
+
+        setColumns(initialCols);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load submissions:', err);
+        if (isMounted) {
+          setFetchError(err.message || 'Failed to load form submissions.');
+          setIsLoading(false);
         }
       });
-
-      setColumns(initialCols);
-      setIsLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setIsLoading(false);
-    });
 
     return () => { isMounted = false; };
   }, [form_id]);
@@ -342,7 +351,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
               </tr>
             </thead>
             
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {filteredSubmissions.length === 0 ? (
                 <tr>
                   <td colSpan={columns.filter(c => c.visible).length + (hasTestData ? 3 : 2)} className="px-6 py-12 text-center text-gray-500 text-sm">
@@ -406,11 +415,25 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
                         if (isFileField && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
                           const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
                           const fileUrl = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
-                          
-                          cellValue = (
-                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium">
+                          const canViewThisFile = sub.is_test ? permissions?.canViewTest !== false : permissions?.canViewReal;
+
+                          cellValue = canViewThisFile ? (
+                            <a 
+                              href={fileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium truncate block"
+                              title="Open secure file"
+                            >
                               {rawVal.split('/').pop()}
                             </a>
+                          ) : (
+                            <span 
+                              className="text-gray-400 italic cursor-not-allowed truncate block select-none" 
+                              title="Restricted: Requires production submission view permissions"
+                            >
+                              {rawVal.split('/').pop()}
+                            </span>
                           );
                         } else {
                           cellValue = Array.isArray(rawVal) ? rawVal.join(', ') : (rawVal || '-');

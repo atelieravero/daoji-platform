@@ -159,7 +159,8 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
 
     try {
-      const res = await getPresignedUploadUrl(file.name, file.type);
+      // Pass isTest to partition storage between submissions/test/ and submissions/real/
+      const res = await getPresignedUploadUrl(file.name, file.type, isTest);
       if (!res.success || !res.signedUrl || !res.fileKey) {
         throw new Error(res.error || 'Failed to initialize upload.');
       }

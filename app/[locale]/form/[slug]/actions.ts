@@ -117,11 +117,16 @@ export async function submitPublicForm(payload: {
   return { success: true, applicant_token: activeToken };
 }
 
-export async function getPresignedUploadUrl(fileName: string, contentType: string) {
+export async function getPresignedUploadUrl(
+  fileName: string, 
+  contentType: string, 
+  isTest: boolean = false
+) {
   try {
     const uniqueId = randomUUID();
     const extension = fileName.split('.').pop() || 'file';
-    const objectKey = `submissions/${uniqueId}.${extension}`;
+    const folder = isTest ? 'submissions/test' : 'submissions/real';
+    const objectKey = `${folder}/${uniqueId}.${extension}`;
 
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME!,
