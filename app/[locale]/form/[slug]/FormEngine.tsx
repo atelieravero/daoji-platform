@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
 import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
@@ -35,6 +35,7 @@ interface FormEngineProps {
 }
 
 export default function FormEngine({ initialForm, locale }: FormEngineProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const isTest = searchParams.get('test') === 'true';
@@ -301,13 +302,34 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   };
 
   const handleStartOver = () => {
+    // 1. Clear session storage keys
     if (formSuccessKey) sessionStorage.removeItem(formSuccessKey);
     if (formStorageKey) sessionStorage.removeItem(formStorageKey);
+
+    // 2. If token exists in URL, strip it and replace URL cleanly
+    if (typeof window !== 'undefined') {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.has('token')) {
+        currentUrl.searchParams.delete('token');
+        window.location.replace(currentUrl.toString());
+        return;
+      }
+    }
+
+    // 3. For manually entered tokens (no token in URL), reset all pre-gate and form states
     setIsSubmitted(false);
     setGeneratedToken(null);
+    setManualToken('');
+    setValidatedToken(null);
+    setIsPreGatePassed(false);
+    setHasCheckedUrlToken(true);
+    setIsUrlTokenVerifying(false);
+    setPreGateError(null);
+    setErrorMessage(null);
     setAnswers({});
     setInlineTokens({});
     setUploadStates({});
+    setIsCopied(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
