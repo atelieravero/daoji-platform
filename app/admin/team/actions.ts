@@ -25,7 +25,6 @@ export async function getTeamMembers() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    // Fallback to admin client if RLS is still propagating
     const admin = getSupabaseAdmin();
     const { data: adminData, error: adminError } = await admin
       .from('team_members')
@@ -41,7 +40,6 @@ export async function getTeamMembers() {
 
 /**
  * Invites a new team member.
- * Supports both object payload and positional arguments.
  */
 export async function inviteTeamMember(
   emailOrData: string | { email: string; displayName: string; roles: string[] },
@@ -64,7 +62,6 @@ export async function inviteTeamMember(
     roles = rolesArg || [];
   }
   
-  // 1. Supabase Auth Admin API (Requires Service Role Key)
   const supabaseAdmin = getSupabaseAdmin();
   const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
     email.trim(),
@@ -78,7 +75,6 @@ export async function inviteTeamMember(
     throw new Error(inviteError?.message || 'Failed to send invite');
   }
 
-  // 2. User Client for DB Table Insert (Triggers process_audit_log_cdc with auth.uid())
   const supabase = await createClient();
   const { error: dbError } = await supabase
     .from('team_members')
@@ -98,8 +94,68 @@ export async function inviteTeamMember(
 }
 
 /**
+ * Completes user password setup and marks the account active upon initial onboarding.
+ */
+export async function completePasswordSetup(
+  payload?: { userId?: string; displayName?: string } | string,
+  displayNameArg?: string
+) {
+  const supabase = await createClient();
+  let targetUserId: string | undefined;
+  let targetDisplayName: string | undefined;
+
+  if (typeof payload === 'object' && payload !== null) {
+    targetUserId = payload.userId;
+    targetDisplayName = payload.displayName;
+  } else if (typeof payload === 'string') {
+    targetUserId = payload;
+    targetDisplayName = displayNameArg;
+  }
+
+  if (!targetUserId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    targetUserId = user?.id;
+  }
+
+  if (!targetUserId) {
+    throw new Error('User ID is required to complete password setup.');
+  }
+
+  const updates: {
+    status: string;
+    updated_at: string;
+    display_name?: string;
+  } = {
+    status: 'active',
+    updated_at: new Date().toISOString(),
+  };
+
+  if (targetDisplayName && targetDisplayName.trim()) {
+    updates.display_name = targetDisplayName.trim();
+  }
+
+  const { error: dbError } = await supabase
+    .from('team_members')
+    .update(updates)
+    .eq('id', targetUserId);
+
+  if (dbError) {
+    const admin = getSupabaseAdmin();
+    const { error: adminError } = await admin
+      .from('team_members')
+      .update(updates)
+      .eq('id', targetUserId);
+
+    if (adminError) throw new Error(adminError.message || 'Failed to activate team member.');
+  }
+
+  revalidatePath('/admin/team');
+  revalidatePath('/admin/logs');
+  return { success: true };
+}
+
+/**
  * Updates roles for an existing worker.
- * Prevents self-modification to guard against privilege escalation.
  */
 export async function updateTeamMemberRoles(targetUserId: string, newRoles: string[]) {
   await requirePermission('team:manage_workers');
@@ -124,7 +180,6 @@ export async function updateTeamMemberRoles(targetUserId: string, newRoles: stri
 
 /**
  * Updates account status (active | suspended).
- * Prevents self-suspension.
  */
 export async function updateTeamMemberStatus(targetUserId: string, newStatus: 'active' | 'suspended') {
   await requirePermission('team:manage_workers');
@@ -149,7 +204,6 @@ export async function updateTeamMemberStatus(targetUserId: string, newStatus: 'a
 
 /**
  * Resends the onboarding invite email.
- * Accepts either a member ID (UUID) or an email address.
  */
 export async function resendInvite(targetIdOrEmail: string) {
   await requirePermission('team:manage_workers');
@@ -179,8 +233,7 @@ export async function resendInvite(targetIdOrEmail: string) {
 export const resendTeamInvite = resendInvite;
 
 /**
- * Deletes a team member from the team_members table (triggering CDC DELETE)
- * and purges the auth user record.
+ * Deletes a team member from team_members table and auth users.
  */
 export async function deleteTeamMember(targetUserId: string) {
   await requirePermission('team:manage_workers');
