@@ -160,7 +160,6 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
 
     try {
-      // Pass isTest to partition storage between submissions/test/ and submissions/real/
       const res = await getPresignedUploadUrl(file.name, file.type, isTest);
       if (!res.success || !res.signedUrl || !res.fileKey) {
         throw new Error(res.error || 'Failed to initialize upload.');
@@ -192,26 +191,82 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const shouldShowField = (field: any, activeAnswers: Record<string, any>) => {
     if (!field.condition || !field.condition.rules || field.condition.rules.length === 0) return true;
     const { match, rules } = field.condition;
+    
+    const normalize = (val: any): any => {
+      if (typeof val !== 'string') return val;
+      const s = val.trim();
+      const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        const [, d, m, y] = dmyMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return s;
+    };
+
     const evaluations = rules.map((rule: any) => {
       const dependentVal = activeAnswers[rule.dependsOn];
+      const isEmpty = dependentVal === undefined || dependentVal === null || dependentVal === '' || (Array.isArray(dependentVal) && dependentVal.length === 0);
+
+      if (rule.operator === 'is_blank') return isEmpty;
+      if (rule.operator === 'is_not_blank') return !isEmpty;
+
+      if (isEmpty) return false;
+
+      const normDependentVal = Array.isArray(dependentVal) ? dependentVal.map(normalize) : normalize(dependentVal);
+      const normRuleVal = normalize(rule.value);
+
       switch (rule.operator) {
-        case 'equals': return Array.isArray(dependentVal) ? dependentVal.length === 1 && dependentVal[0] === rule.value : dependentVal === rule.value;
-        case 'not_equals': return Array.isArray(dependentVal) ? dependentVal.length !== 1 || dependentVal[0] !== rule.value : dependentVal !== rule.value;
-        case 'contains': return Array.isArray(dependentVal) ? dependentVal.includes(rule.value) : (typeof dependentVal === 'string' ? dependentVal.includes(rule.value) : false);
-        case 'not_contains': return Array.isArray(dependentVal) ? !dependentVal.includes(rule.value) : (typeof dependentVal === 'string' ? !dependentVal.includes(rule.value) : true);
+        case 'equals': 
+          return Array.isArray(normDependentVal) 
+            ? normDependentVal.length === 1 && normDependentVal[0] === normRuleVal 
+            : normDependentVal === normRuleVal;
+
+        case 'not_equals': 
+          return Array.isArray(normDependentVal) 
+            ? normDependentVal.length !== 1 || normDependentVal[0] !== normRuleVal 
+            : normDependentVal !== normRuleVal;
+
+        case 'contains': 
+          return Array.isArray(normDependentVal) 
+            ? normDependentVal.includes(normRuleVal) 
+            : (typeof normDependentVal === 'string' ? normDependentVal.toLowerCase().includes(normRuleVal.toLowerCase()) : false);
+
+        case 'not_contains': 
+          return Array.isArray(normDependentVal) 
+            ? !normDependentVal.includes(normRuleVal) 
+            : (typeof normDependentVal === 'string' ? !normDependentVal.toLowerCase().includes(normRuleVal.toLowerCase()) : false);
+
         case 'is_one_of': {
-          const allowedValues = Array.isArray(rule.value) ? rule.value : typeof rule.value === 'string' ? rule.value.split(',').map((v: string) => v.trim()) : [];
-          return Array.isArray(dependentVal) ? dependentVal.some((val: string) => allowedValues.includes(val)) : allowedValues.includes(dependentVal);
+          const allowed = (Array.isArray(rule.value) ? rule.value : (typeof rule.value === 'string' ? rule.value.split(',') : [])).map((v: string) => normalize(v.trim()));
+          return Array.isArray(normDependentVal) 
+            ? normDependentVal.some((val: string) => allowed.includes(val)) 
+            : allowed.includes(normDependentVal);
         }
+
         case 'is_not_one_of': {
-          const disallowedValues = Array.isArray(rule.value) ? rule.value : typeof rule.value === 'string' ? rule.value.split(',').map((v: string) => v.trim()) : [];
-          return Array.isArray(dependentVal) ? !dependentVal.some((val: string) => disallowedValues.includes(val)) : !disallowedValues.includes(dependentVal);
+          const disallowed = (Array.isArray(rule.value) ? rule.value : (typeof rule.value === 'string' ? rule.value.split(',') : [])).map((v: string) => normalize(v.trim()));
+          return Array.isArray(normDependentVal) 
+            ? !normDependentVal.some((val: string) => disallowed.includes(val)) 
+            : !disallowed.includes(normDependentVal);
         }
-        case 'is_blank': return !dependentVal || dependentVal.length === 0;
-        case 'is_not_blank': return !!dependentVal && dependentVal.length > 0;
-        default: return true;
+
+        case 'within_range': {
+          const [start, end] = normRuleVal.split('..').map((s: string) => s.trim());
+          if (!start || !end) return false;
+          return normDependentVal >= start && normDependentVal <= end;
+        }
+
+        case 'not_within_range': {
+          const [start, end] = normRuleVal.split('..').map((s: string) => s.trim());
+          if (!start || !end) return true;
+          return normDependentVal < start || normDependentVal > end;
+        }
+
+        default: 
+          return true;
       }
     });
+
     return match === 'OR' ? evaluations.some(Boolean) : evaluations.every(Boolean);
   };
 
@@ -240,6 +295,16 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     }
 
     for (const f of visibleFields) {
+      if (f.required && f.type === 'checkbox') {
+        const currentVals = activeAnswers[f.dataKey] || [];
+        if (currentVals.length === 0) {
+          const fieldLabel = locale === 'zh' 
+            ? (f.labelZh || f.labelEn || f.title || f.dataKey) 
+            : (f.labelEn || f.labelZh || f.title || f.dataKey);
+          setErrorMessage(`${t.required}: ${fieldLabel}`);
+          return;
+        }
+      }
       if (f.required && f.type === 'time') {
         const val = activeAnswers[f.dataKey] || '';
         const [h, m] = val.split(':');
@@ -303,11 +368,9 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   };
 
   const handleStartOver = () => {
-    // 1. Clear session storage keys
     if (formSuccessKey) sessionStorage.removeItem(formSuccessKey);
     if (formStorageKey) sessionStorage.removeItem(formStorageKey);
 
-    // 2. If token exists in URL, strip it and replace URL cleanly
     if (typeof window !== 'undefined') {
       const currentUrl = new URL(window.location.href);
       if (currentUrl.searchParams.has('token')) {
@@ -317,7 +380,6 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       }
     }
 
-    // 3. For manually entered tokens (no token in URL), reset all pre-gate and form states
     setIsSubmitted(false);
     setGeneratedToken(null);
     setManualToken('');
@@ -771,11 +833,8 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                               checked={isChecked}
                               onChange={() => handleInputChange(field.dataKey, opt.value)}
                               onClick={(e) => {
-                                // If the field is optional and it's already the active answer
                                 if (!field.required && isChecked) {
-                                  // Force the DOM to uncheck instantly to prevent React sync lag
                                   e.currentTarget.checked = false;
-                                  // Clear the value from our state
                                   handleInputChange(field.dataKey, ''); 
                                 }
                               }}

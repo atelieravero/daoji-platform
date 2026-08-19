@@ -15,7 +15,17 @@ import { FormInput, FormSelect } from '@/components/ui/FormControls';
 
 type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'time' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info' | 'applicant_token';
 type FieldOption = { value: string; labelEn: string; labelZh: string };
-type LogicOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'is_blank' | 'is_not_blank' | 'is_one_of' | 'is_not_one_of';
+type LogicOperator = 
+  | 'is_blank' 
+  | 'is_not_blank' 
+  | 'equals' 
+  | 'not_equals' 
+  | 'contains' 
+  | 'not_contains' 
+  | 'is_one_of' 
+  | 'is_not_one_of' 
+  | 'within_range' 
+  | 'not_within_range';
 
 interface LogicRule { id: string; dependsOn: string; operator: LogicOperator; value: string; }
 interface FormField {
@@ -54,7 +64,7 @@ function FormBuilderContent() {
   
   const [formConfig, setFormConfig] = useState({
     internalName: 'Untitled Form',
-    slug: '', // <-- NEW: Slug State
+    slug: '',
     titleEn: 'New Form', titleZh: '新表單',
     subtitleEn: '', subtitleZh: '',
     eventId: 'evt_1', isFollowUp: false, status: 'draft',
@@ -78,7 +88,7 @@ function FormBuilderContent() {
       setCurrentFormId(record.id);
       setFormConfig({
         internalName: record.title || '', 
-        slug: record.slug || '', // <-- NEW: Load existing slug
+        slug: record.slug || '',
         eventId: record.event_id || 'evt_1', 
         isFollowUp: record.is_followup || false,
         titleEn: record.schema?.titleEn ?? '', 
@@ -101,7 +111,9 @@ function FormBuilderContent() {
 
   const activeField = fields.find(f => f.id === activeFieldId);
   const activeFieldIndex = fields.findIndex(f => f.id === activeFieldId);
-  const previousFields = fields.slice(0, activeFieldIndex > -1 ? activeFieldIndex : 0);
+  const previousFields = fields
+    .slice(0, activeFieldIndex > -1 ? activeFieldIndex : 0)
+    .filter(f => f.type !== 'info');
 
   const updateActiveField = (updates: Partial<FormField>) => setFields(fields.map(f => f.id === activeFieldId ? { ...f, ...updates } : f));
 
@@ -137,7 +149,16 @@ function FormBuilderContent() {
   const handleAddOption = () => { if (activeField) updateActiveField({ options: [...(activeField.options || []), { value: `opt_${(activeField.options?.length || 0) + 1}`, labelEn: `Option`, labelZh: `選項` }] }); };
   const handleUpdateOption = (index: number, key: keyof FieldOption, value: string) => { if (activeField?.options) { const newOpts = [...activeField.options]; newOpts[index] = { ...newOpts[index], [key]: value }; updateActiveField({ options: newOpts }); } };
   const handleRemoveOption = (index: number) => { if (activeField?.options) updateActiveField({ options: activeField.options.filter((_, i) => i !== index) }); };
-  const handleAddRule = () => { if (activeField) updateActiveField({ condition: { match: activeField.condition?.match || 'AND', rules: [...(activeField.condition?.rules || []), { id: `rule_${Date.now()}`, dependsOn: '', operator: 'equals', value: '' }] } }); };
+  const handleAddRule = () => { 
+    if (activeField) {
+      updateActiveField({ 
+        condition: { 
+          match: activeField.condition?.match || 'AND', 
+          rules: [...(activeField.condition?.rules || []), { id: `rule_${Date.now()}`, dependsOn: '', operator: 'equals', value: '' }] 
+        } 
+      }); 
+    }
+  };
   const handleUpdateRule = (ruleId: string, updates: Partial<LogicRule>) => { if (activeField?.condition) updateActiveField({ condition: { ...activeField.condition, rules: activeField.condition.rules.map(r => r.id === ruleId ? { ...r, ...updates } : r) } }); };
   const handleRemoveRule = (ruleId: string) => { if (activeField?.condition) { const rem = activeField.condition.rules.filter(r => r.id !== ruleId); updateActiveField({ condition: rem.length ? { ...activeField.condition, rules: rem } : undefined }); } };
 
@@ -155,13 +176,11 @@ function FormBuilderContent() {
   };
 
   const handleSave = async () => {
-    // 1. Strict Slug Validation
     if (!formConfig.slug || formConfig.slug.trim() === '') {
       alert('Validation Error: URL Slug is required.');
       return;
     }
     
-    // Auto-clean the slug before saving (removes trailing hyphens)
     const cleanSlug = formConfig.slug.replace(/^-|-$/g, '');
 
     const invalidIds: string[] = [];
@@ -175,7 +194,7 @@ function FormBuilderContent() {
     try {
       const payload = {
         event_id: formConfig.eventId, 
-        slug: cleanSlug, // <-- NEW: Save the cleaned slug
+        slug: cleanSlug,
         title: formConfig.internalName, 
         is_followup: formConfig.isFollowUp,
         schema: {
@@ -189,7 +208,6 @@ function FormBuilderContent() {
       if (savedId && !currentFormId) { setCurrentFormId(savedId); window.history.replaceState(null, '', `?id=${savedId}`); }
       alert('Form Schema saved successfully!');
     } catch (error: any) { 
-      // Capture duplicate slug errors specifically
       if (error.message.includes('duplicate key value violates unique constraint')) {
         alert('Validation Error: This URL Slug is already taken by another form. Please choose a unique slug.');
       } else {
@@ -332,7 +350,6 @@ function FormBuilderContent() {
                                     <input type={field.type} disabled className="w-4 h-4 text-indigo-600 border-gray-300" />
                                     <label className="ml-3 text-sm text-gray-700">
                                       {opt.labelEn} <span className="text-gray-400">/ {opt.labelZh}</span>
-                                      {/* The clean value tag pill */}
                                       <span className="font-mono text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-2 font-normal">
                                         val: {opt.value}
                                       </span>
@@ -349,7 +366,6 @@ function FormBuilderContent() {
                   </div>
                 </>
               ) : (
-                /* NEW: SUCCESS SCREEN PREVIEW */
                 <div className="p-12 bg-white text-center">
                   <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckSquare className="w-8 h-8" />
@@ -361,7 +377,6 @@ function FormBuilderContent() {
                     <hr className="mb-6 border-gray-200" />
                     
                     <div className="space-y-8">
-                      {/* English Preview */}
                       <div className="space-y-6">
                         {formConfig.successMessageEn.split('{{TOKEN_BOX}}').map((part, index, array) => (
                           <React.Fragment key={`en-${index}`}>
@@ -373,7 +388,6 @@ function FormBuilderContent() {
   
                       <hr className="border-gray-200 border-dashed" />
   
-                      {/* Chinese Preview */}
                       <div className="space-y-6">
                         {formConfig.successMessageZh.split('{{TOKEN_BOX}}').map((part, index, array) => (
                           <React.Fragment key={`zh-${index}`}>
@@ -429,7 +443,6 @@ function FormBuilderContent() {
                 <div className="space-y-4">
                   <FormInput label="Internal Reference Name" helperText="Only visible to your admin team in the dashboard." value={formConfig.internalName} onChange={(e) => setFormConfig({...formConfig, internalName: e.target.value})} />
                   
-                  {/* NEW: URL Slug Configuration */}
                   <FormInput 
                     label="URL Slug" 
                     helperText="The public web address (e.g., /en/form/summer-retreat). Letters, numbers, and hyphens only." 
@@ -536,53 +549,209 @@ function FormBuilderContent() {
                       </div>
 
                       <div className="space-y-3 border-l-2 border-amber-200 pl-3">
-                        {activeField.condition.rules.map((rule, idx) => {
+                        {activeField.condition.rules.map((rule) => {
                           const dependentField = previousFields.find(f => f.dataKey === rule.dependsOn);
-                          const dependentOptions = dependentField?.options;
-                          const showValueDropdown = dependentOptions && dependentOptions.length > 0;
-                          const isMultiValueOp = rule.operator === 'contains' || rule.operator === 'not_contains' || rule.operator === 'is_one_of' || rule.operator === 'is_not_one_of';
+                          const depType = dependentField?.type;
+
+                          const renderOperatorOptions = () => {
+                            if (!depType) return null;
+
+                            if (['text', 'email', 'mobile', 'textarea'].includes(depType)) {
+                              return (
+                                <>
+                                  <option value="equals">Equals</option>
+                                  <option value="not_equals">Does Not Equal</option>
+                                  <option value="contains">Contains</option>
+                                  <option value="not_contains">Does Not Contain</option>
+                                  <option value="is_blank">Is Blank</option>
+                                  <option value="is_not_blank">Is Not Blank</option>
+                                </>
+                              );
+                            }
+
+                            if (['radio', 'select', 'checkbox'].includes(depType)) {
+                              return (
+                                <>
+                                  <option value="is_one_of">Is One Of (Any)</option>
+                                  <option value="is_not_one_of">Is Not One Of (None)</option>
+                                  <option value="is_blank">Is Blank</option>
+                                  <option value="is_not_blank">Is Not Blank</option>
+                                </>
+                              );
+                            }
+
+                            if (depType === 'date' || depType === 'time') {
+                              return (
+                                <>
+                                  <option value="equals">Equals</option>
+                                  <option value="not_equals">Does Not Equal</option>
+                                  <option value="within_range">Within Range (Between)</option>
+                                  <option value="not_within_range">Not Within Range</option>
+                                  <option value="is_blank">Is Blank</option>
+                                  <option value="is_not_blank">Is Not Blank</option>
+                                </>
+                              );
+                            }
+
+                            if (depType === 'file' || depType === 'applicant_token') {
+                              return (
+                                <>
+                                  <option value="is_blank">Is Blank</option>
+                                  <option value="is_not_blank">Is Not Blank</option>
+                                </>
+                              );
+                            }
+
+                            return null;
+                          };
+
+                          const isBlankOp = rule.operator === 'is_blank' || rule.operator === 'is_not_blank';
+                          const isRangeOp = rule.operator === 'within_range' || rule.operator === 'not_within_range';
 
                           return (
                             <div key={rule.id} className="space-y-2 bg-white p-3 rounded-lg border border-amber-200 shadow-sm relative group/rule">
-                              <button onClick={() => handleRemoveRule(rule.id)} className="absolute -right-2 -top-2 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full p-0.5 shadow-sm opacity-0 group-hover/rule:opacity-100"><X className="w-3 h-3" /></button>
+                              <button onClick={() => handleRemoveRule(rule.id)} className="absolute -right-2 -top-2 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full p-0.5 shadow-sm opacity-0 group-hover/rule:opacity-100">
+                                <X className="w-3 h-3" />
+                              </button>
                               
-                              <select value={rule.dependsOn} onChange={(e) => handleUpdateRule(rule.id, { dependsOn: e.target.value, value: '' })} className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-950">
+                              <select 
+                                value={rule.dependsOn} 
+                                onChange={(e) => {
+                                  const newTarget = previousFields.find(f => f.dataKey === e.target.value);
+                                  const defaultOp: LogicOperator = ['radio', 'select', 'checkbox'].includes(newTarget?.type || '') 
+                                    ? 'is_one_of' 
+                                    : ['file', 'applicant_token'].includes(newTarget?.type || '') 
+                                    ? 'is_not_blank' 
+                                    : 'equals';
+
+                                  handleUpdateRule(rule.id, { dependsOn: e.target.value, operator: defaultOp, value: '' });
+                                }} 
+                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-950"
+                              >
                                 <option value="">Select previous field...</option>
-                                {previousFields.map(f => <option key={f.id} value={f.dataKey}>{f.labelEn} (Key: {f.dataKey})</option>)}
+                                {previousFields.map(f => (
+                                  <option key={f.id} value={f.dataKey}>
+                                    {f.labelEn} ({f.labelZh}) [Key: {f.dataKey}]
+                                  </option>
+                                ))}
                               </select>
 
-                              <div className="flex flex-col gap-2">
-                                <select value={rule.operator} onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator, value: '' })} className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-950">
-                                  <option value="equals">Equals</option><option value="not_equals">Does Not Equal</option><option value="contains">Contains</option><option value="not_contains">Does Not Contain</option><option value="is_one_of">Is One Of (Multiple)</option><option value="is_not_one_of">Is Not One Of (Multiple)</option><option value="is_blank">Is Blank</option><option value="is_not_blank">Is Not Blank</option>
-                                </select>
+                              {dependentField && (
+                                <div className="flex flex-col gap-2">
+                                  <select 
+                                    value={rule.operator} 
+                                    onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value as LogicOperator, value: '' })} 
+                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-950 font-medium"
+                                  >
+                                    {renderOperatorOptions()}
+                                  </select>
 
-                                {rule.operator !== 'is_blank' && rule.operator !== 'is_not_blank' && (
-                                  showValueDropdown ? (
-                                    isMultiValueOp ? (
+                                  {!isBlankOp && (
+                                    ['radio', 'select', 'checkbox'].includes(depType || '') ? (
                                       <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200 max-h-36 overflow-y-auto">
                                         <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Select matching options:</span>
-                                        {dependentOptions.map((opt, optIdx) => {
+                                        {dependentField?.options?.map((opt, optIdx) => {
                                           const currentValues = rule.value ? rule.value.split(',').map(s => s.trim()).filter(Boolean) : [];
                                           const isChecked = currentValues.includes(opt.value);
                                           return (
                                             <label key={optIdx} className="flex items-center text-xs text-gray-800 cursor-pointer hover:bg-gray-100 p-1 rounded">
-                                              <input type="checkbox" checked={isChecked} onChange={(e) => { let updated = [...currentValues]; if (e.target.checked) updated.push(opt.value); else updated = updated.filter(v => v !== opt.value); handleUpdateRule(rule.id, { value: updated.join(',') }); }} className="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded mr-2" />
-                                              <span className="font-mono text-[11px] text-indigo-700 mr-1.5">[{opt.value}]</span><span>{opt.labelEn || opt.labelZh}</span>
+                                              <input 
+                                                type="checkbox" 
+                                                checked={isChecked} 
+                                                onChange={(e) => { 
+                                                  let updated = [...currentValues]; 
+                                                  if (e.target.checked) updated.push(opt.value); 
+                                                  else updated = updated.filter(v => v !== opt.value); 
+                                                  handleUpdateRule(rule.id, { value: updated.join(',') }); 
+                                                }} 
+                                                className="w-3.5 h-3.5 text-indigo-600 border-gray-300 rounded mr-2" 
+                                              />
+                                              <span className="font-mono text-[11px] text-indigo-700 mr-1.5">[{opt.value}]</span>
+                                              <span>{opt.labelEn || opt.labelZh}</span>
                                             </label>
                                           );
                                         })}
                                       </div>
+                                    ) : depType === 'date' ? (
+                                      isRangeOp ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <input 
+                                            type="date" 
+                                            value={rule.value.split('..')[0] || ''} 
+                                            onChange={(e) => {
+                                              const to = rule.value.split('..')[1] || '';
+                                              handleUpdateRule(rule.id, { value: `${e.target.value}..${to}` });
+                                            }} 
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono" 
+                                          />
+                                          <span className="text-xs text-gray-400 font-bold">to</span>
+                                          <input 
+                                            type="date" 
+                                            value={rule.value.split('..')[1] || ''} 
+                                            onChange={(e) => {
+                                              const from = rule.value.split('..')[0] || '';
+                                              handleUpdateRule(rule.id, { value: `${from}..${e.target.value}` });
+                                            }} 
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono" 
+                                          />
+                                        </div>
+                                      ) : (
+                                        <input 
+                                          type="date" 
+                                          value={rule.value} 
+                                          onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })} 
+                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white font-mono text-gray-950" 
+                                        />
+                                      )
+                                    ) : depType === 'time' ? (
+                                      isRangeOp ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <input 
+                                            type="text" 
+                                            placeholder="HH:mm" 
+                                            maxLength={5}
+                                            value={rule.value.split('..')[0] || ''} 
+                                            onChange={(e) => {
+                                              const to = rule.value.split('..')[1] || '';
+                                              handleUpdateRule(rule.id, { value: `${e.target.value}..${to}` });
+                                            }} 
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono text-center" 
+                                          />
+                                          <span className="text-xs text-gray-400 font-bold">to</span>
+                                          <input 
+                                            type="text" 
+                                            placeholder="HH:mm" 
+                                            maxLength={5}
+                                            value={rule.value.split('..')[1] || ''} 
+                                            onChange={(e) => {
+                                              const from = rule.value.split('..')[0] || '';
+                                              handleUpdateRule(rule.id, { value: `${from}..${e.target.value}` });
+                                            }} 
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono text-center" 
+                                          />
+                                        </div>
+                                      ) : (
+                                        <input 
+                                          type="text" 
+                                          placeholder="HH:mm (e.g. 14:30)" 
+                                          maxLength={5}
+                                          value={rule.value} 
+                                          onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })} 
+                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white font-mono text-gray-950" 
+                                        />
+                                      )
                                     ) : (
-                                      <select value={rule.value} onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })} className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded bg-white focus:ring-amber-500 text-gray-950">
-                                        <option value="">Select option value...</option>
-                                        {dependentOptions.map((opt, optIdx) => <option key={optIdx} value={opt.value}>[{opt.value}] {opt.labelEn || opt.labelZh}</option>)}
-                                      </select>
+                                      <input 
+                                        type="text" 
+                                        value={rule.value} 
+                                        onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })} 
+                                        placeholder="Value..." 
+                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 text-gray-950 bg-white" 
+                                      />
                                     )
-                                  ) : (
-                                    <input type="text" value={rule.value} onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })} placeholder="Value (separate multiple with commas)..." className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 font-mono text-gray-950 bg-white" />
-                                  )
-                                )}
-                              </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
