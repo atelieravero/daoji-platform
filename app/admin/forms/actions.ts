@@ -1,16 +1,21 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/auth-guards';
 import { revalidatePath } from 'next/cache';
-import { withPermission } from '@/lib/auth-guards'; // <-- NEW IMPORT
 
-const getSupabaseAdmin = () => createClient(
+const getSupabaseAdmin = () => createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// 🛡️ WRAPPED: Baseline access shared by Editors and Viewers
-export const getForms = withPermission('submissions:view_test', async () => {
+/**
+ * Fetches all forms with submission counts.
+ * Uses admin client to aggregate submission counts across RLS barriers.
+ */
+export async function getForms() {
+  await requirePermission('submissions:view_test');
   const supabase = getSupabaseAdmin(); 
 
   const { data, error } = await supabase
@@ -31,11 +36,15 @@ export const getForms = withPermission('submissions:view_test', async () => {
       test_count: testCount
     };
   });
-});
+}
 
-// 🛡️ WRAPPED: Strictly Editors
-export const deleteForm = withPermission('forms:delete', async (id: string) => {
-  const supabase = getSupabaseAdmin();
+/**
+ * Deletes a draft form with no submissions.
+ * Uses authenticated User Client so CDC triggers capture auth.uid().
+ */
+export async function deleteForm(id: string) {
+  await requirePermission('forms:delete');
+  const supabase = await createClient();
 
   const { data: form, error: fetchError } = await supabase
     .from('forms')
@@ -44,7 +53,9 @@ export const deleteForm = withPermission('forms:delete', async (id: string) => {
     .single();
 
   if (fetchError || !form) throw new Error('Form not found.');
-  if (form.status !== 'draft') throw new Error('Action blocked: Only draft forms can be deleted. Close the form instead.');
+  if (form.status !== 'draft') {
+    throw new Error('Action blocked: Only draft forms can be deleted. Close the form instead.');
+  }
 
   const { count, error: countError } = await supabase
     .from('submissions')
@@ -52,7 +63,9 @@ export const deleteForm = withPermission('forms:delete', async (id: string) => {
     .eq('form_id', id);
 
   if (countError) throw new Error('Failed to verify form data.');
-  if (count && count > 0) throw new Error('Action blocked: Cannot delete a form that has existing submissions. Please clear the submissions first.');
+  if (count && count > 0) {
+    throw new Error('Action blocked: Cannot delete a form that has existing submissions. Please clear the submissions first.');
+  }
 
   const { error: deleteError } = await supabase
     .from('forms')
@@ -60,12 +73,18 @@ export const deleteForm = withPermission('forms:delete', async (id: string) => {
     .eq('id', id);
 
   if (deleteError) throw new Error('Failed to delete form from database.');
+  
   revalidatePath('/admin/forms');
-});
+  revalidatePath('/admin/logs');
+}
 
-// 🛡️ WRAPPED: Strictly Editors
-export const updateFormStatus = withPermission('forms:update_status', async (id: string, newStatus: string) => {
-  const supabase = getSupabaseAdmin();
+/**
+ * Updates status (draft | open | closed).
+ * Uses authenticated User Client so CDC triggers capture auth.uid().
+ */
+export async function updateFormStatus(id: string, newStatus: string) {
+  await requirePermission('forms:update_status');
+  const supabase = await createClient();
   
   const { error: updateError } = await supabase
     .from('forms')
@@ -73,12 +92,18 @@ export const updateFormStatus = withPermission('forms:update_status', async (id:
     .eq('id', id);
 
   if (updateError) throw new Error('Failed to update form status.');
+  
   revalidatePath('/admin/forms');
-});
+  revalidatePath('/admin/logs');
+}
 
-// 🛡️ WRAPPED: Strictly Editors
-export const duplicateForm = withPermission('forms:create', async (id: string) => {
-  const supabase = getSupabaseAdmin();
+/**
+ * Duplicates a form.
+ * Uses authenticated User Client so CDC triggers capture auth.uid().
+ */
+export async function duplicateForm(id: string) {
+  await requirePermission('forms:create');
+  const supabase = await createClient();
 
   const { data: original, error: fetchError } = await supabase
     .from('forms')
@@ -88,15 +113,26 @@ export const duplicateForm = withPermission('forms:create', async (id: string) =
 
   if (fetchError || !original) throw new Error('Form not found for duplication.');
 
+  const originalSchema = (
+    original.schema && typeof original.schema === 'object' && !Array.isArray(original.schema)
+      ? (original.schema as Record<string, any>)
+      : {}
+  );
+
+  const uniqueSlug = original.slug 
+    ? `${original.slug}-copy-${Date.now().toString().slice(-4)}` 
+    : `form-${Date.now()}`;
+
   const duplicatedPayload = {
     event_id: original.event_id,
+    slug: uniqueSlug,
     title: `${original.title} (Copy)`,
     is_followup: original.is_followup,
     status: 'draft', 
     schema: {
-      ...original.schema,
-      titleEn: original.schema?.titleEn ? `${original.schema.titleEn} (Copy)` : '',
-      titleZh: original.schema?.titleZh ? `${original.schema.titleZh} (複製)` : '',
+      ...originalSchema,
+      titleEn: originalSchema.titleEn ? `${originalSchema.titleEn} (Copy)` : '',
+      titleZh: originalSchema.titleZh ? `${originalSchema.titleZh} (複製)` : '',
     }
   };
 
@@ -106,8 +142,12 @@ export const duplicateForm = withPermission('forms:create', async (id: string) =
     .select('id')
     .single();
 
-  if (insertError || !inserted) throw new Error('Failed to duplicate form.');
+  if (insertError || !inserted) {
+    console.error('Insert error during duplication:', insertError);
+    throw new Error(insertError?.message || 'Failed to duplicate form.');
+  }
 
   revalidatePath('/admin/forms');
+  revalidatePath('/admin/logs');
   return inserted.id;
-});
+}

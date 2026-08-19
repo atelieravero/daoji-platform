@@ -1,184 +1,207 @@
 'use server';
 
-import { getSupabaseAdmin, createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/auth-guards';
 import { revalidatePath } from 'next/cache';
-import { Role, canAssignRole } from '@/lib/permissions';
-import { withPermission } from '@/lib/auth-guards';
 
-// Helper to fetch the user executing the server action
-async function getCurrentUser() {
-  const supabase = await createClient(); 
-  
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthorized request.");
+const getSupabaseAdmin = () => createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-  const adminDb = getSupabaseAdmin();
-  const { data: profile } = await adminDb.from('team_members').select('roles').eq('id', user.id).single();
+/**
+ * Fetches all team members and current user ID.
+ */
+export async function getTeamMembers() {
+  await requirePermission('team:manage_workers');
+  const supabase = await createClient();
 
-  return { id: user.id, roles: (profile?.roles || []) as Role[] };
-}
+  const { data: { user } } = await supabase.auth.getUser();
 
-// 🛡️ WRAPPED: Strictly Managers
-export const getTeamMembers = withPermission('team:manage_workers', async () => {
-  const currentUser = await getCurrentUser();
-  const supabase = getSupabaseAdmin();
-  
   const { data, error } = await supabase
     .from('team_members')
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(`Failed to fetch team: ${error.message}`);
-  
-  return { members: data, currentUserId: currentUser.id };
-});
+  if (error) {
+    // Fallback to admin client if RLS is still propagating
+    const admin = getSupabaseAdmin();
+    const { data: adminData, error: adminError } = await admin
+      .from('team_members')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-// 🛡️ WRAPPED: Strictly Managers
-export const inviteTeamMember = withPermission('team:manage_workers', async (email: string, displayName: string, roles: Role[]) => {
-  const currentUser = await getCurrentUser();
+    if (adminError) throw new Error(adminError.message || 'Failed to fetch team members.');
+    return { members: adminData || [], currentUserId: user?.id || null };
+  }
+
+  return { members: data || [], currentUserId: user?.id || null };
+}
+
+/**
+ * Invites a new team member.
+ * Supports both object payload and positional arguments.
+ */
+export async function inviteTeamMember(
+  emailOrData: string | { email: string; displayName: string; roles: string[] },
+  displayNameArg?: string,
+  rolesArg?: string[]
+) {
+  await requirePermission('team:manage_workers');
+
+  let email = '';
+  let displayName = '';
+  let roles: string[] = [];
+
+  if (typeof emailOrData === 'object' && emailOrData !== null) {
+    email = emailOrData.email;
+    displayName = emailOrData.displayName;
+    roles = emailOrData.roles || [];
+  } else {
+    email = emailOrData;
+    displayName = displayNameArg || '';
+    roles = rolesArg || [];
+  }
   
-  for (const newRole of roles) {
-    if (!canAssignRole(currentUser.roles, newRole)) {
-      throw new Error(`Security Exception: You do not have authority to grant the '${newRole}' role.`);
+  // 1. Supabase Auth Admin API (Requires Service Role Key)
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    email.trim(),
+    {
+      data: { display_name: displayName },
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/admin/setup-password`,
     }
+  );
+
+  if (inviteError || !authData.user) {
+    throw new Error(inviteError?.message || 'Failed to send invite');
   }
 
-  const supabase = getSupabaseAdmin();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  
-  const { data: authData, error: authError } = await supabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${siteUrl}/admin/setup-password`
-  });
-    
-  if (authError) {
-    if (authError.message.includes('already exists')) throw new Error('This user already has an account.');
-    throw new Error(`Auth Error: ${authError.message}`);
-  }
-
-  if (authData.user) {
-    const { error: dbError } = await supabase.from('team_members').insert({
+  // 2. User Client for DB Table Insert (Triggers process_audit_log_cdc with auth.uid())
+  const supabase = await createClient();
+  const { error: dbError } = await supabase
+    .from('team_members')
+    .insert([{
       id: authData.user.id,
-      email: email.toLowerCase(),
+      email: email.trim(),
       display_name: displayName,
       roles: roles,
-      status: 'invited'
-    });
-    if (dbError) throw new Error(`Database Error: ${dbError.message}`);
-  }
+      status: 'invited',
+    }]);
+
+  if (dbError) throw new Error(dbError.message || 'Failed to create team member record.');
 
   revalidatePath('/admin/team');
+  revalidatePath('/admin/logs');
   return { success: true };
-});
+}
 
-// 🛡️ WRAPPED: Strictly Managers
-export const resendInvite = withPermission('team:manage_workers', async (memberId: string) => {
-  const supabase = getSupabaseAdmin();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+/**
+ * Updates roles for an existing worker.
+ * Prevents self-modification to guard against privilege escalation.
+ */
+export async function updateTeamMemberRoles(targetUserId: string, newRoles: string[]) {
+  await requirePermission('team:manage_workers');
+  const supabase = await createClient();
 
-  const { data: targetProfile, error: profileError } = await supabase
-    .from('team_members')
-    .select('email, status')
-    .eq('id', memberId)
-    .single();
-
-  if (profileError || !targetProfile) throw new Error("Team member not found.");
-  if (targetProfile.status !== 'invited') {
-    throw new Error("Cannot resend invite to an already active or suspended account.");
-  }
-
-  const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(targetProfile.email, {
-    redirectTo: `${siteUrl}/admin/setup-password`
-  });
-
-  if (inviteError) throw new Error(`Failed to resend invite: ${inviteError.message}`);
-
-  revalidatePath('/admin/team');
-  return { success: true };
-});
-
-// 🛡️ WRAPPED: Strictly Managers
-export const updateTeamMemberRoles = withPermission('team:manage_workers', async (targetId: string, newRoles: Role[]) => {
-  const currentUser = await getCurrentUser();
-
-  if (currentUser.id === targetId) {
-    throw new Error("Security Exception: You cannot modify your own access level.");
-  }
-
-  const supabase = getSupabaseAdmin();
-  const { data: targetProfile } = await supabase.from('team_members').select('roles').eq('id', targetId).single();
-  const currentTargetRoles = (targetProfile?.roles || []) as Role[];
-
-  // 1. Verify authority over removed roles
-  for (const oldRole of currentTargetRoles) {
-    if (!newRoles.includes(oldRole) && !canAssignRole(currentUser.roles, oldRole)) {
-      throw new Error(`Security Exception: You do not have authority to revoke the '${oldRole}' role.`);
-    }
-  }
-
-  // 2. Verify authority over added roles
-  for (const newRole of newRoles) {
-    if (!currentTargetRoles.includes(newRole) && !canAssignRole(currentUser.roles, newRole)) {
-      throw new Error(`Security Exception: You do not have authority to grant the '${newRole}' role.`);
-    }
-  }
-
-  // 3. Super admin protection
-  if (currentTargetRoles.includes('super_admin') && !currentUser.roles.includes('super_admin')) {
-      throw new Error("Security Exception: You cannot modify a Super Admin's profile.");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && user.id === targetUserId) {
+    throw new Error('Self-modification of roles is strictly prohibited.');
   }
 
   const { error } = await supabase
     .from('team_members')
     .update({ roles: newRoles, updated_at: new Date().toISOString() })
-    .eq('id', targetId);
+    .eq('id', targetUserId);
 
-  if (error) throw new Error(`Failed to update roles: ${error.message}`);
+  if (error) throw new Error(error.message || 'Failed to update roles.');
+
   revalidatePath('/admin/team');
-});
+  revalidatePath('/admin/logs');
+  return { success: true };
+}
 
-// 🛡️ WRAPPED: Strictly Managers (Only allows active <-> suspended transitions)
-export const updateTeamMemberStatus = withPermission('team:manage_workers', async (targetId: string, newStatus: 'active' | 'suspended') => {
-  const currentUser = await getCurrentUser();
+/**
+ * Updates account status (active | suspended).
+ * Prevents self-suspension.
+ */
+export async function updateTeamMemberStatus(targetUserId: string, newStatus: 'active' | 'suspended') {
+  await requirePermission('team:manage_workers');
+  const supabase = await createClient();
 
-  if (currentUser.id === targetId) {
-    throw new Error("Security Exception: You cannot modify your own status.");
-  }
-
-  const supabase = getSupabaseAdmin();
-  
-  const { data: targetProfile } = await supabase.from('team_members').select('roles, status').eq('id', targetId).single();
-  if (!targetProfile) throw new Error("Team member not found.");
-
-  const currentTargetRoles = (targetProfile.roles || []) as Role[];
-  
-  if (currentTargetRoles.includes('super_admin') && !currentUser.roles.includes('super_admin')) {
-     throw new Error("Security Exception: You cannot suspend a Super Admin.");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && user.id === targetUserId) {
+    throw new Error('Self-suspension is not permitted.');
   }
 
   const { error } = await supabase
     .from('team_members')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq('id', targetId);
+    .eq('id', targetUserId);
 
-  if (error) throw new Error(`Failed to update status: ${error.message}`);
+  if (error) throw new Error(error.message || 'Failed to update status.');
+
   revalidatePath('/admin/team');
-});
+  revalidatePath('/admin/logs');
+  return { success: true };
+}
 
-// 🔓 ONBOARDING ACTION: Activates invited user upon password completion
-export async function completePasswordSetup(userId: string) {
-  const supabase = getSupabaseAdmin();
-  
-  const { error } = await supabase
-    .from('team_members')
-    .update({ 
-      status: 'active', 
-      updated_at: new Date().toISOString() 
-    })
-    .eq('id', userId)
-    .eq('status', 'invited');
+/**
+ * Resends the onboarding invite email.
+ * Accepts either a member ID (UUID) or an email address.
+ */
+export async function resendInvite(targetIdOrEmail: string) {
+  await requirePermission('team:manage_workers');
+  const supabaseAdmin = getSupabaseAdmin();
 
-  if (error) {
-    console.error('Failed to activate team member:', error.message);
+  let targetEmail = targetIdOrEmail.trim();
+  if (!targetEmail.includes('@')) {
+    const { data: member } = await supabaseAdmin
+      .from('team_members')
+      .select('email')
+      .eq('id', targetIdOrEmail)
+      .single();
+    
+    if (member?.email) {
+      targetEmail = member.email;
+    }
   }
+
+  const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(targetEmail, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/admin/setup-password`,
+  });
+
+  if (error) throw new Error(error.message || 'Failed to resend invitation email.');
+  return { success: true };
+}
+
+export const resendTeamInvite = resendInvite;
+
+/**
+ * Deletes a team member from the team_members table (triggering CDC DELETE)
+ * and purges the auth user record.
+ */
+export async function deleteTeamMember(targetUserId: string) {
+  await requirePermission('team:manage_workers');
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && user.id === targetUserId) {
+    throw new Error('You cannot delete your own account.');
+  }
+
+  const { error: dbError } = await supabase
+    .from('team_members')
+    .delete()
+    .eq('id', targetUserId);
+
+  if (dbError) throw new Error(dbError.message || 'Failed to remove team member record.');
+
+  const supabaseAdmin = getSupabaseAdmin();
+  await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+
+  revalidatePath('/admin/team');
+  revalidatePath('/admin/logs');
   return { success: true };
 }

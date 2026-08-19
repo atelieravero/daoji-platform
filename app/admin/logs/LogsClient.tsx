@@ -1,106 +1,550 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { getAuditLogs } from './actions';
 import { 
   Search, 
-  Filter, 
-  History,
-  Activity,
-  FileEdit,
-  Trash2,
-  LogIn,
-  Power
+  History, 
+  ChevronRight, 
+  ChevronDown, 
+  RefreshCw, 
+  Loader2,
+  Copy,
+  Check,
+  Columns,
+  AlignJustify,
+  Maximize2,
+  Minimize2,
+  FileText,
+  Users
 } from 'lucide-react';
 
-const mockLogs = [
-  {
-    id: 'log_1',
-    timestamp: '2026-08-04 16:45:12',
-    admin_name: 'Master Lin',
-    admin_email: 'director@daoji.org',
-    action: 'UPDATE',
-    module: 'admins',
-    target: 'Alex Former',
-    details: 'Suspended user account',
-    ip_address: '192.168.1.104'
-  },
-  {
-    id: 'log_2',
-    timestamp: '2026-08-04 14:20:05',
-    admin_name: 'Sarah Chen',
-    admin_email: 'sarah.chen@daoji.org',
-    action: 'UPDATE',
-    module: 'forms',
-    target: 'Standard Retreat Application',
-    details: 'Changed status from draft to open',
-    ip_address: '203.0.113.42'
-  },
-  {
-    id: 'log_3',
-    timestamp: '2026-08-03 10:15:00',
-    admin_name: 'Sarah Chen',
-    admin_email: 'sarah.chen@daoji.org',
-    action: 'CREATE',
-    module: 'forms',
-    target: 'Standard Retreat Application',
-    details: 'Created new form schema',
-    ip_address: '203.0.113.42'
-  },
-  {
-    id: 'log_4',
-    timestamp: '2026-08-03 09:00:22',
-    admin_name: 'Master Lin',
-    admin_email: 'director@daoji.org',
-    action: 'LOGIN',
-    module: 'auth',
-    target: 'System',
-    details: 'Logged in via Magic Link',
-    ip_address: '192.168.1.104'
-  },
-  {
-    id: 'log_5',
-    timestamp: '2026-08-02 16:30:00',
-    admin_name: 'John Writer',
-    admin_email: 'volunteer_copy@daoji.org',
-    action: 'UPDATE',
-    module: 'posts',
-    target: '7-Day Silent Zen Retreat',
-    details: 'Updated English description content',
-    ip_address: '198.51.100.7'
+// ==========================================
+// PURE DIFF COMPUTATION ENGINE (LCS)
+// ==========================================
+type DiffType = 'equal' | 'add' | 'delete';
+
+interface DiffLine {
+  type: DiffType;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  content: string;
+}
+
+interface SplitDiffRow {
+  oldLine?: { number: number; content: string; type: 'delete' | 'equal' };
+  newLine?: { number: number; content: string; type: 'add' | 'equal' };
+  isChange: boolean;
+}
+
+function computeLineDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText ? oldText.split('\n') : [];
+  const newLines = newText ? newText.split('\n') : [];
+
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  if (m === 0) {
+    return newLines.map((line, i) => ({
+      type: 'add',
+      newLineNumber: i + 1,
+      content: line,
+    }));
   }
-];
 
-export default function AuditLogsPage() {
+  if (n === 0) {
+    return oldLines.map((line, i) => ({
+      type: 'delete',
+      oldLineNumber: i + 1,
+      content: line,
+    }));
+  }
+
+  const maxLines = 1200;
+  const oldSlice = oldLines.slice(0, maxLines);
+  const newSlice = newLines.slice(0, maxLines);
+  const mS = oldSlice.length;
+  const nS = newSlice.length;
+
+  const dp: number[][] = Array.from({ length: mS + 1 }, () => new Array(nS + 1).fill(0));
+
+  for (let i = 0; i < mS; i++) {
+    for (let j = 0; j < nS; j++) {
+      if (oldSlice[i] === newSlice[j]) {
+        dp[i + 1][j + 1] = dp[i][j] + 1;
+      } else {
+        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  let i = mS;
+  let j = nS;
+  const diff: DiffLine[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldSlice[i - 1] === newSlice[j - 1]) {
+      diff.unshift({
+        type: 'equal',
+        oldLineNumber: i,
+        newLineNumber: j,
+        content: oldSlice[i - 1],
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      diff.unshift({
+        type: 'add',
+        newLineNumber: j,
+        content: newSlice[j - 1],
+      });
+      j--;
+    } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+      diff.unshift({
+        type: 'delete',
+        oldLineNumber: i,
+        content: oldSlice[i - 1],
+      });
+      i--;
+    }
+  }
+
+  return diff;
+}
+
+function buildSplitDiff(diff: DiffLine[]): SplitDiffRow[] {
+  const rows: SplitDiffRow[] = [];
+  let i = 0;
+
+  while (i < diff.length) {
+    const item = diff[i];
+
+    if (item.type === 'equal') {
+      rows.push({
+        oldLine: { number: item.oldLineNumber!, content: item.content, type: 'equal' },
+        newLine: { number: item.newLineNumber!, content: item.content, type: 'equal' },
+        isChange: false,
+      });
+      i++;
+    } else {
+      const deletes: DiffLine[] = [];
+      const adds: DiffLine[] = [];
+
+      while (i < diff.length && diff[i].type !== 'equal') {
+        if (diff[i].type === 'delete') deletes.push(diff[i]);
+        else if (diff[i].type === 'add') adds.push(diff[i]);
+        i++;
+      }
+
+      const count = Math.max(deletes.length, adds.length);
+      for (let k = 0; k < count; k++) {
+        rows.push({
+          oldLine: deletes[k]
+            ? { number: deletes[k].oldLineNumber!, content: deletes[k].content, type: 'delete' }
+            : undefined,
+          newLine: adds[k]
+            ? { number: adds[k].newLineNumber!, content: adds[k].content, type: 'add' }
+            : undefined,
+          isChange: true,
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+// ==========================================
+// GITHUB-STYLE DIFF VIEWER COMPONENT
+// ==========================================
+interface DiffViewerProps {
+  oldValues: any;
+  newValues: any;
+  operation: string;
+  logId: string;
+}
+
+function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) {
+  const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
+  const [showOnlyChanges, setShowOnlyChanges] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const oldJsonStr = useMemo(() => {
+    if (operation === 'CREATE' || !oldValues) return '';
+    return JSON.stringify(oldValues, null, 2);
+  }, [oldValues, operation]);
+
+  const newJsonStr = useMemo(() => {
+    if (operation === 'DELETE' || !newValues) return '';
+    return JSON.stringify(newValues, null, 2);
+  }, [newValues, operation]);
+
+  const unifiedDiff = useMemo(() => computeLineDiff(oldJsonStr, newJsonStr), [oldJsonStr, newJsonStr]);
+  const splitDiff = useMemo(() => buildSplitDiff(unifiedDiff), [unifiedDiff]);
+
+  const stats = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    unifiedDiff.forEach((d) => {
+      if (d.type === 'add') additions++;
+      if (d.type === 'delete') deletions++;
+    });
+    return { additions, deletions };
+  }, [unifiedDiff]);
+
+  const filteredSplitRows = useMemo(() => {
+    if (!showOnlyChanges) return splitDiff;
+    
+    const keepIndices = new Set<number>();
+    splitDiff.forEach((row, idx) => {
+      if (row.isChange) {
+        for (let offset = -3; offset <= 3; offset++) {
+          const target = idx + offset;
+          if (target >= 0 && target < splitDiff.length) {
+            keepIndices.add(target);
+          }
+        }
+      }
+    });
+
+    if (keepIndices.size === 0) return splitDiff;
+    return splitDiff.filter((_, idx) => keepIndices.has(idx));
+  }, [splitDiff, showOnlyChanges]);
+
+  const filteredUnifiedRows = useMemo(() => {
+    if (!showOnlyChanges) return unifiedDiff;
+
+    const keepIndices = new Set<number>();
+    unifiedDiff.forEach((line, idx) => {
+      if (line.type !== 'equal') {
+        for (let offset = -3; offset <= 3; offset++) {
+          const target = idx + offset;
+          if (target >= 0 && target < unifiedDiff.length) {
+            keepIndices.add(target);
+          }
+        }
+      }
+    });
+
+    if (keepIndices.size === 0) return unifiedDiff;
+    return unifiedDiff.filter((_, idx) => keepIndices.has(idx));
+  }, [unifiedDiff, showOnlyChanges]);
+
+  const copyDiff = () => {
+    const payload = JSON.stringify({ old_values: oldValues, new_values: newValues }, null, 2);
+    navigator.clipboard.writeText(payload);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-[#0d1117] text-[#c9d1d9] rounded-xl border border-[#30363d] overflow-hidden text-xs font-mono shadow-2xl">
+      <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-[#161b22] border-b border-[#30363d] gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            Delta Changes
+          </span>
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span className="px-1.5 py-0.5 rounded bg-[#238636]/20 text-[#3fb950] font-bold border border-[#238636]/40">
+              +{stats.additions}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-[#da3633]/20 text-[#f85149] font-bold border border-[#da3633]/40">
+              -{stats.deletions}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowOnlyChanges(!showOnlyChanges)}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+              showOnlyChanges
+                ? 'bg-[#1f6feb]/20 text-[#58a6ff] border-[#1f6feb]/40'
+                : 'bg-[#21262d] text-gray-300 border-[#30363d] hover:bg-[#30363d]'
+            }`}
+          >
+            {showOnlyChanges ? (
+              <span className="flex items-center gap-1">
+                <Minimize2 className="w-3 h-3" /> Changed Hunks
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <Maximize2 className="w-3 h-3" /> Full File
+              </span>
+            )}
+          </button>
+
+          <div className="inline-flex rounded-md border border-[#30363d] bg-[#21262d] p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('split')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                viewMode === 'split' ? 'bg-[#30363d] text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Columns className="w-3 h-3" /> Split
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('unified')}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                viewMode === 'unified' ? 'bg-[#30363d] text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <AlignJustify className="w-3 h-3" /> Unified
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={copyDiff}
+            className="flex items-center px-2.5 py-1 bg-[#21262d] hover:bg-[#30363d] text-gray-300 border border-[#30363d] rounded text-[11px] transition-colors"
+          >
+            {copied ? <Check className="w-3 h-3 text-[#3fb950] mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+            {copied ? 'Copied' : 'Copy JSON'}
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto leading-5 text-[11.5px] select-text">
+        {viewMode === 'split' ? (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-[#161b22] text-[#8b949e] border-b border-[#30363d] text-[10px] uppercase font-bold">
+                <th className="w-10 px-2 py-1 text-right border-r border-[#30363d]">#</th>
+                <th className="px-3 py-1 text-left border-r border-[#30363d]">Original Value</th>
+                <th className="w-10 px-2 py-1 text-right border-r border-[#30363d]">#</th>
+                <th className="px-3 py-1 text-left">Modified Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSplitRows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-8 text-gray-500 font-sans">
+                    No field modifications detected.
+                  </td>
+                </tr>
+              ) : (
+                filteredSplitRows.map((row, idx) => {
+                  const isOldDel = row.oldLine?.type === 'delete';
+                  const isNewAdd = row.newLine?.type === 'add';
+
+                  return (
+                    <tr key={idx} className="border-b border-[#21262d]/40">
+                      {row.oldLine ? (
+                        <>
+                          <td
+                            className={`w-10 px-2 py-0.5 text-right select-none font-mono text-[10px] border-r border-[#30363d] ${
+                              isOldDel ? 'bg-[#da3633]/25 text-[#f85149] font-bold' : 'text-[#484f58] bg-[#0d1117]'
+                            }`}
+                          >
+                            {row.oldLine.number}
+                          </td>
+                          <td
+                            className={`px-3 py-0.5 font-mono whitespace-pre-wrap break-all border-r border-[#30363d] ${
+                              isOldDel ? 'bg-[#da3633]/15 text-[#ff7b72]' : 'text-[#8b949e]'
+                            }`}
+                          >
+                            {isOldDel && <span className="inline-block w-3 select-none text-[#f85149] font-bold">-</span>}
+                            {row.oldLine.content}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="w-10 bg-[#161b22]/70 border-r border-[#30363d]" />
+                          <td className="px-3 py-0.5 border-r border-[#30363d] bg-[repeating-linear-gradient(45deg,#161b22_0,#161b22_10px,#0d1117_10px,#0d1117_20px)]" />
+                        </>
+                      )}
+
+                      {row.newLine ? (
+                        <>
+                          <td
+                            className={`w-10 px-2 py-0.5 text-right select-none font-mono text-[10px] border-r border-[#30363d] ${
+                              isNewAdd ? 'bg-[#238636]/25 text-[#3fb950] font-bold' : 'text-[#484f58] bg-[#0d1117]'
+                            }`}
+                          >
+                            {row.newLine.number}
+                          </td>
+                          <td
+                            className={`px-3 py-0.5 font-mono whitespace-pre-wrap break-all ${
+                              isNewAdd ? 'bg-[#238636]/15 text-[#7ee787]' : 'text-[#c9d1d9]'
+                            }`}
+                          >
+                            {isNewAdd && <span className="inline-block w-3 select-none text-[#3fb950] font-bold">+</span>}
+                            {row.newLine.content}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="w-10 bg-[#161b22]/70 border-r border-[#30363d]" />
+                          <td className="px-3 py-0.5 bg-[repeating-linear-gradient(45deg,#161b22_0,#161b22_10px,#0d1117_10px,#0d1117_20px)]" />
+                        </>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full border-collapse">
+            <tbody>
+              {filteredUnifiedRows.map((line, idx) => {
+                const isDel = line.type === 'delete';
+                const isAdd = line.type === 'add';
+
+                return (
+                  <tr
+                    key={idx}
+                    className={`border-b border-[#21262d]/40 ${
+                      isDel
+                        ? 'bg-[#da3633]/15 text-[#ff7b72]'
+                        : isAdd
+                        ? 'bg-[#238636]/15 text-[#7ee787]'
+                        : 'text-[#8b949e]'
+                    }`}
+                  >
+                    <td className="w-10 px-2 py-0.5 text-right select-none font-mono text-[10px] text-[#484f58] border-r border-[#30363d]">
+                      {line.oldLineNumber || ''}
+                    </td>
+                    <td className="w-10 px-2 py-0.5 text-right select-none font-mono text-[10px] text-[#484f58] border-r border-[#30363d]">
+                      {line.newLineNumber || ''}
+                    </td>
+                    <td className="w-6 px-1.5 py-0.5 text-center font-bold select-none">
+                      {isDel ? '-' : isAdd ? '+' : ' '}
+                    </td>
+                    <td className="px-3 py-0.5 font-mono whitespace-pre-wrap break-all">
+                      {line.content}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// HELPER: FORMAT ENTITY DISPLAY
+// ==========================================
+function formatEntityDisplay(log: any) {
+  const isForm = log.table_name === 'forms';
+  const isTeam = log.table_name === 'team_members';
+
+  // Primary Title Resolution
+  let primaryTitle = log.record_label;
+
+  if (!primaryTitle || primaryTitle === log.record_id) {
+    const val = log.new_values || log.old_values || {};
+    if (isForm) {
+      primaryTitle = val.title || val.slug || `Form (${log.record_id.slice(0, 8)})`;
+    } else if (isTeam) {
+      primaryTitle = val.display_name 
+        ? `${val.display_name} (${val.email || ''})` 
+        : val.email || `Member (${log.record_id.slice(0, 8)})`;
+    } else {
+      primaryTitle = log.record_id;
+    }
+  }
+
+  // Secondary Context Resolution
+  const val = log.new_values || log.old_values || {};
+  let subContext = '';
+  if (isForm && val.slug) {
+    subContext = `slug: /${val.slug}`;
+  } else {
+    subContext = `id: ${log.record_id.slice(0, 8)}...`;
+  }
+
+  return {
+    icon: isForm ? FileText : Users,
+    primaryTitle,
+    subContext,
+  };
+}
+
+// ==========================================
+// MAIN AUDIT LOGS CLIENT EXPLORER
+// ==========================================
+interface LogsClientProps {
+  initialLogs: any[];
+}
+
+export default function LogsClient({ initialLogs }: LogsClientProps) {
+  const [logs, setLogs] = useState<any[]>(initialLogs);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOp, setSelectedOp] = useState<string>('all');
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-  const getActionIcon = (action: string) => {
-    switch(action) {
-      case 'CREATE': return <PlusIcon className="w-4 h-4 text-emerald-600" />;
-      case 'UPDATE': return <FileEdit className="w-4 h-4 text-blue-600" />;
-      case 'DELETE': return <Trash2 className="w-4 h-4 text-red-600" />;
-      case 'LOGIN': return <LogIn className="w-4 h-4 text-purple-600" />;
-      default: return <Activity className="w-4 h-4 text-gray-600" />;
+  const fetchLogs = async (search = searchTerm, op = selectedOp) => {
+    setIsLoading(true);
+    try {
+      const data = await getAuditLogs({ search, operation: op });
+      setLogs(data);
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
-  
-  // Local simple icon for CREATE to avoid lucide import issues if Plus isn't imported
-  const PlusIcon = ({ className }: { className: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    fetchLogs(val, selectedOp);
+  };
+
+  const handleOpChange = (op: string) => {
+    setSelectedOp(op);
+    fetchLogs(searchTerm, op);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedLogId((prev) => (prev === id ? null : id));
+  };
+
+  const getOperationBadge = (op: string) => {
+    switch (op?.toUpperCase()) {
+      case 'CREATE':
+        return <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-emerald-100 text-emerald-700 border border-emerald-200">CREATE</span>;
+      case 'UPDATE':
+        return <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-100 text-blue-700 border border-blue-200">UPDATE</span>;
+      case 'DELETE':
+        return <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-red-100 text-red-700 border border-red-200">DELETE</span>;
+      default:
+        return <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-gray-100 text-gray-700">{op}</span>;
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full">
-      
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center">
             <History className="w-6 h-6 mr-2 text-indigo-600" />
-            Audit Logs
+            Audit Logs Explorer
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Read-only, immutable history of all critical admin actions across the platform.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Read-only, automated Change Data Capture (CDC) audit trail for forms and team members.
+          </p>
         </div>
+        <button
+          onClick={() => fetchLogs()}
+          disabled={isLoading}
+          className="inline-flex items-center px-3.5 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 text-gray-500 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
+      {/* FILTER TOOLBAR */}
       <div className="bg-white p-4 rounded-t-xl border border-gray-200 border-b-0 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -108,90 +552,130 @@ export default function AuditLogsPage() {
           </div>
           <input
             type="text"
-            placeholder="Search logs by admin, module, or details..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors text-gray-900 placeholder-gray-400"
+            placeholder="Search form name, team member, email..."
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors text-gray-900 placeholder-gray-400 font-mono text-xs"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
           />
         </div>
-        <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-          <Filter className="w-4 h-4 mr-2 text-gray-500" />
-          Filter by Action
-        </button>
+
+        {/* OPERATION FILTER CHIPS */}
+        <div className="flex items-center space-x-1.5 w-full sm:w-auto">
+          {['all', 'CREATE', 'UPDATE', 'DELETE'].map((op) => (
+            <button
+              key={op}
+              onClick={() => handleOpChange(op)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors ${
+                selectedOp === op
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {op}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden">
+      {/* CDC AUDIT TABLE */}
+      <div className="bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden font-mono text-xs">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/50">
+            <thead className="bg-gray-50/75">
               <tr>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Timestamp
-                </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Admin User
-                </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/3">
-                  Target & Details
-                </th>
-                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  IP Address
-                </th>
+                <th scope="col" className="w-8 px-4 py-3"></th>
+                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Actor</th>
+                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Timestamp</th>
+                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Operation</th>
+                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Target Entity</th>
               </tr>
             </thead>
-            
-            <tbody className="bg-white divide-y divide-gray-200 text-sm">
-              {mockLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs">
-                    {log.timestamp}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-900">{log.admin_name}</div>
-                    <div className="text-xs text-gray-500">{log.admin_email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className={`p-1.5 rounded-md mr-2 ${
-                        log.action === 'CREATE' ? 'bg-emerald-50' :
-                        log.action === 'UPDATE' ? 'bg-blue-50' :
-                        log.action === 'DELETE' ? 'bg-red-50' : 'bg-purple-50'
-                      }`}>
-                        {getActionIcon(log.action)}
-                      </div>
-                      <span className="font-semibold text-gray-700">{log.action}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center mb-1">
-                      <span className="px-2 py-0.5 rounded text-xs font-mono bg-gray-100 text-gray-600 mr-2">
-                        {log.module}
-                      </span>
-                      <span className="font-medium text-gray-900">{log.target}</span>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1 truncate max-w-sm" title={log.details}>
-                      {log.details}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400 font-mono text-xs">
-                    {log.ip_address}
+
+            <tbody className="bg-white divide-y divide-gray-100">
+              {isLoading && logs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-sans">
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto mb-2" />
+                    Loading mutation events...
                   </td>
                 </tr>
-              ))}
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-sans">
+                    No CDC log records found.
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => {
+                  const isExpanded = expandedLogId === log.id;
+                  const actorDisplay =
+                    log.actor_name && log.actor_name !== 'system'
+                      ? `${log.actor_name} (${log.actor_email})`
+                      : log.actor_email || 'system';
+
+                  const entity = formatEntityDisplay(log);
+                  const Icon = entity.icon;
+
+                  return (
+                    <React.Fragment key={log.id}>
+                      <tr
+                        onClick={() => toggleExpand(log.id)}
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                          isExpanded ? 'bg-indigo-50/40' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-gray-400">
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-indigo-600" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium font-sans">
+                          {actorDisplay}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-500">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {getOperationBadge(log.operation)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 text-gray-400 shrink-0" />
+                            <div>
+                              <div className="font-semibold text-gray-900 font-sans truncate max-w-sm">
+                                {entity.primaryTitle}
+                              </div>
+                              <div className="text-[11px] text-gray-400 font-mono">
+                                {log.table_name} • {entity.subContext}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* EXPANDED GITHUB-STYLE DIFF DRAWER */}
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-5 bg-gray-900 border-y border-gray-800">
+                            <GitHubDiffViewer
+                              oldValues={log.old_values}
+                              newValues={log.new_values}
+                              operation={log.operation}
+                              logId={log.id}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-
-        <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-          <p className="text-sm text-gray-500">
-            Audit logs are retained permanently and cannot be altered or deleted.
-          </p>
-        </div>
       </div>
-      
     </div>
   );
 }

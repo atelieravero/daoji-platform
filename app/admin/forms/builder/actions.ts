@@ -1,21 +1,21 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/auth-guards';
 import { revalidatePath } from 'next/cache';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
-import { withPermission } from '@/lib/auth-guards'; // <-- NEW IMPORT
 
-const getSupabaseAdmin = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+/**
+ * Fetches form schema by ID.
+ * Strictly restricted to Form Editors.
+ */
+export async function getFormSchema(id: string) {
+  await requirePermission('forms:edit');
+  const supabase = await createClient();
 
-// 🛡️ WRAPPED: Strictly Form Editors
-export const getFormSchema = withPermission('forms:edit', async (id: string) => {
-  const supabaseAdmin = getSupabaseAdmin();
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from('forms')
     .select('*')
     .eq('id', id)
@@ -27,24 +27,28 @@ export const getFormSchema = withPermission('forms:edit', async (id: string) => 
   }
 
   return data;
-});
+}
 
-// 🛡️ WRAPPED: Strictly Form Editors (SBAC guard remains intact inside)
-export const saveFormSchema = withPermission('forms:edit', async (payload: {
+/**
+ * Saves or updates form schema.
+ * Direct async declaration preserves session cookies for auth.uid() CDC triggers.
+ */
+export async function saveFormSchema(payload: {
   event_id: string;
   slug: string; 
   title: string;
   is_followup: boolean;
   schema: any;
-}, id?: string | null) => {
-  const supabaseAdmin = getSupabaseAdmin();
+}, id?: string | null) {
+  await requirePermission('forms:edit');
+  const supabase = await createClient();
 
   let error;
   let savedId = id;
 
   if (id) {
-    // 1. Verify current status before allowing the update (State-Based Guard)
-    const { data: existingForm, error: fetchError } = await supabaseAdmin
+    // 1. Verify current status before allowing update (State-Based Guard)
+    const { data: existingForm, error: fetchError } = await supabase
       .from('forms')
       .select('status')
       .eq('id', id)
@@ -58,15 +62,15 @@ export const saveFormSchema = withPermission('forms:edit', async (payload: {
       throw new Error('Action blocked: Form schema cannot be modified while open or closed. Please revert to draft status first.');
     }
 
-    // 2. Safe to update
-    const res = await supabaseAdmin
+    // 2. Update with active auth.uid() context for PostgreSQL CDC trigger
+    const res = await supabase
       .from('forms')
       .update(payload)
       .eq('id', id);
     error = res.error;
   } else {
     // Handling for brand new forms
-    const res = await supabaseAdmin
+    const res = await supabase
       .from('forms')
       .insert([payload])
       .select('id')
@@ -84,11 +88,16 @@ export const saveFormSchema = withPermission('forms:edit', async (payload: {
   }
 
   revalidatePath('/admin/forms');
+  revalidatePath('/admin/logs');
   return savedId;
-});
+}
 
-// 🛡️ WRAPPED: Strictly Form Editors
-export const getPublicPresignedUploadUrl = withPermission('forms:edit', async (fileName: string, fileType: string) => {
+/**
+ * Generates presigned URL for public form assets.
+ */
+export async function getPublicPresignedUploadUrl(fileName: string, fileType: string) {
+  await requirePermission('forms:edit');
+
   try {
     const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const fileKey = `public/assets/${uniqueFileName}`;
@@ -97,7 +106,7 @@ export const getPublicPresignedUploadUrl = withPermission('forms:edit', async (f
     const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
 
     if (!publicBucket || !cdnUrl) {
-      throw new Error("Public bucket or CDN URL is not configured in environment variables.");
+      throw new Error('Public bucket or CDN URL is not configured in environment variables.');
     }
 
     const command = new PutObjectCommand({
@@ -117,4 +126,4 @@ export const getPublicPresignedUploadUrl = withPermission('forms:edit', async (f
     console.error('Error generating public presigned URL:', error);
     return { success: false, error: error.message };
   }
-});
+}

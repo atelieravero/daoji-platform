@@ -86,25 +86,32 @@ function FormBuilderContent() {
     getFormSchema(formIdParam).then((record) => {
       if (!isMounted || !record) return;
       setCurrentFormId(record.id);
+
+      const schema = (
+        record.schema && typeof record.schema === 'object' && !Array.isArray(record.schema)
+          ? (record.schema as Record<string, any>)
+          : {}
+      );
+
       setFormConfig({
         internalName: record.title || '', 
         slug: record.slug || '',
         eventId: record.event_id || 'evt_1', 
         isFollowUp: record.is_followup || false,
-        titleEn: record.schema?.titleEn ?? '', 
-        titleZh: record.schema?.titleZh ?? '',
-        subtitleEn: record.schema?.subtitleEn ?? '', 
-        subtitleZh: record.schema?.subtitleZh ?? '',
-        status: record.schema?.status ?? 'draft', 
-        interimEventCode: record.schema?.interimEventCode ?? 'OCT26',
-        isStandalone: record.schema?.isStandalone ?? false, 
-        bannerImageUrl: record.schema?.bannerImageUrl ?? '',
-        successTitleEn: record.schema?.successTitleEn ?? 'Submission Successful', 
-        successTitleZh: record.schema?.successTitleZh ?? '提交成功',
-        successMessageEn: record.schema?.successMessageEn ?? 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
-        successMessageZh: record.schema?.successMessageZh ?? '感謝您。我們已安全收到您的提交。\n\n{{TOKEN_BOX}}',
+        titleEn: schema.titleEn ?? '', 
+        titleZh: schema.titleZh ?? '',
+        subtitleEn: schema.subtitleEn ?? '', 
+        subtitleZh: schema.subtitleZh ?? '',
+        status: schema.status ?? 'draft', 
+        interimEventCode: schema.interimEventCode ?? 'OCT26',
+        isStandalone: schema.isStandalone ?? false, 
+        bannerImageUrl: schema.bannerImageUrl ?? '',
+        successTitleEn: schema.successTitleEn ?? 'Submission Successful', 
+        successTitleZh: schema.successTitleZh ?? '提交成功',
+        successMessageEn: schema.successMessageEn ?? 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
+        successMessageZh: schema.successMessageZh ?? '感謝您。我們已安全收到您的提交。\n\n{{TOKEN_BOX}}',
       });
-      if (record.schema?.fields && Array.isArray(record.schema.fields)) setFields(record.schema.fields);
+      if (schema.fields && Array.isArray(schema.fields)) setFields(schema.fields);
     }).finally(() => { if (isMounted) setIsLoading(false); });
     return () => { isMounted = false; };
   }, [formIdParam]);
