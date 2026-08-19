@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
@@ -240,9 +240,10 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     }
 
     for (const f of visibleFields) {
-      if (f.required && f.type === 'checkbox') {
-        const currentVals = activeAnswers[f.dataKey] || [];
-        if (currentVals.length === 0) {
+      if (f.required && f.type === 'time') {
+        const val = activeAnswers[f.dataKey] || '';
+        const [h, m] = val.split(':');
+        if (!h || !m || h.trim() === '' || m.trim() === '') {
           const fieldLabel = locale === 'zh' 
             ? (f.labelZh || f.labelEn || f.title || f.dataKey) 
             : (f.labelEn || f.labelZh || f.title || f.dataKey);
@@ -580,6 +581,59 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                         onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
                       />
+                    </div>
+                  ) : field.type === 'time' ? (
+                    <div className="mt-2 flex items-center gap-2 max-w-[200px]">
+                      <div className="relative flex-1">
+                        <Clock className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          placeholder="HH"
+                          value={(activeAnswers[field.dataKey] || '').split(':')[0] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                            if (val !== '' && parseInt(val, 10) > 23) return;
+                            const currentMm = (activeAnswers[field.dataKey] || '').split(':')[1] || '';
+                            handleInputChange(field.dataKey, val || currentMm ? `${val}:${currentMm}` : '');
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            if (val) {
+                              const padded = val.padStart(2, '0');
+                              const currentMm = (activeAnswers[field.dataKey] || '').split(':')[1] || '';
+                              handleInputChange(field.dataKey, `${padded}:${currentMm}`);
+                            }
+                          }}
+                          className="w-full pl-10 pr-2 py-2.5 rounded-xl border border-stone-300 text-sm font-mono text-center focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                        />
+                      </div>
+                      <span className="text-stone-400 font-bold select-none">:</span>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={2}
+                          placeholder="MM"
+                          value={(activeAnswers[field.dataKey] || '').split(':')[1] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                            if (val !== '' && parseInt(val, 10) > 59) return;
+                            const currentHh = (activeAnswers[field.dataKey] || '').split(':')[0] || '';
+                            handleInputChange(field.dataKey, currentHh || val ? `${currentHh}:${val}` : '');
+                          }}
+                          onBlur={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            if (val) {
+                              const padded = val.padStart(2, '0');
+                              const currentHh = (activeAnswers[field.dataKey] || '').split(':')[0] || '';
+                              handleInputChange(field.dataKey, `${currentHh}:${padded}`);
+                            }
+                          }}
+                          className="w-full px-2 py-2.5 rounded-xl border border-stone-300 text-sm font-mono text-center focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                        />
+                      </div>
                     </div>
                   ) : field.type === 'file' ? (
                     <div className="mt-2">

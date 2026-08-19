@@ -6,14 +6,14 @@ import { saveFormSchema, getFormSchema, getPublicPresignedUploadUrl } from './ac
 import { 
   ArrowLeft, Save, GripVertical, Settings2, Type, ListOrdered, 
   PlusCircle, Trash2, LayoutTemplate, X, GitBranch, Eye,
-  FileText, Calendar, Smartphone, CheckSquare, UploadCloud,
+  FileText, Calendar, Clock, Smartphone, CheckSquare, UploadCloud,
   ChevronUp, ChevronDown, AlignLeft, AlertCircle, Loader2, KeyRound, ImageIcon, Image as ImageIconOutline
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import MarkdownEditor from '@/components/shared/MarkdownEditor';
 import { FormInput, FormSelect } from '@/components/ui/FormControls';
 
-type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info' | 'applicant_token';
+type FieldType = 'text' | 'email' | 'mobile' | 'date' | 'time' | 'select' | 'radio' | 'checkbox' | 'textarea' | 'file' | 'info' | 'applicant_token';
 type FieldOption = { value: string; labelEn: string; labelZh: string };
 type LogicOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'is_blank' | 'is_not_blank' | 'is_one_of' | 'is_not_one_of';
 
@@ -298,6 +298,17 @@ function FormBuilderContent() {
                                 <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                                 <input type="date" disabled className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
                               </div>
+                            ) : field.type === 'time' ? (
+                              <div className="flex items-center gap-2 max-w-[200px]">
+                                <div className="relative flex-1">
+                                  <Clock className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                                  <input type="text" disabled placeholder="HH" className="w-full pl-9 pr-2 py-2.5 rounded-lg border border-gray-300 bg-white text-center font-mono text-sm" />
+                                </div>
+                                <span className="text-gray-400 font-bold">:</span>
+                                <div className="flex-1">
+                                  <input type="text" disabled placeholder="MM" className="w-full px-2 py-2.5 rounded-lg border border-gray-300 bg-white text-center font-mono text-sm" />
+                                </div>
+                              </div>
                             ) : field.type === 'file' ? (
                               <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50">
                                 <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
@@ -473,7 +484,7 @@ function FormBuilderContent() {
                     <optgroup label="Text"><option value="text">Short Text</option><option value="textarea">Long Paragraph</option><option value="email">Email Address</option><option value="mobile">Mobile Number</option></optgroup>
                     <optgroup label="Choices"><option value="select">Dropdown Menu</option><option value="radio">Single Choice (Radio)</option><option value="checkbox">Multiple Choice (Checkboxes)</option></optgroup>
                     <optgroup label="Verification"><option value="applicant_token">Applicant Token (Verify)</option></optgroup>
-                    <optgroup label="Other"><option value="date">Date Picker</option><option value="file">File Upload</option></optgroup>
+                    <optgroup label="Other"><option value="date">Date Picker</option><option value="time">Time</option><option value="file">File Upload</option></optgroup>
                     <optgroup label="Layout"><option value="info">Informational Text Block</option></optgroup>
                   </FormSelect>
 
