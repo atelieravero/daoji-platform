@@ -73,11 +73,16 @@ export default function MediaPicker({
 
     try {
       // 1. Get presigned upload URL from Server Action
-      const { uploadUrl, s3Key, fileUrl } = await getAssetPresignedUploadUrlAction({
+      const { uploadUrl, s3Key, fileUrl, error: presignError } = await getAssetPresignedUploadUrlAction({
         fileName: file.name,
         fileType: file.type || 'application/octet-stream',
         fileSize: file.size,
       });
+
+      // Type guard: Ensures uploadUrl, s3Key, and fileUrl are non-null strings
+      if (presignError || !uploadUrl || !s3Key || !fileUrl) {
+        throw new Error(presignError || 'Failed to generate presigned upload URL.');
+      }
 
       // 2. Direct PUT upload from browser to Cloudflare R2
       const uploadRes = await fetch(uploadUrl, {
