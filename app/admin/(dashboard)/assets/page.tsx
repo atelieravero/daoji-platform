@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   UploadCloud, Search, Trash2, Copy, Check, Image as ImageIcon, 
-  FileText, Music, Loader2, AlertCircle, ExternalLink, X
+  FileText, Music, Loader2, ExternalLink, X
 } from 'lucide-react';
 import { 
   listAssetsAction, 
   getAssetPresignedUploadUrlAction, 
   registerAssetAction, 
   deleteAssetAction, 
+  getAssetPermissionsAction,
   AssetRecord, 
   AssetCategory 
 } from './actions';
@@ -24,14 +25,22 @@ export default function AssetsPage() {
   const [selectedAsset, setSelectedAsset] = useState<AssetRecord | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [permissions, setPermissions] = useState<{ canUpload: boolean; canDelete: boolean }>({
+    canUpload: false,
+    canDelete: false,
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchAssets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await listAssetsAction({ category, search, limit: 50 });
-      setAssets(res.data);
-      setTotal(res.total);
+      const [assetsRes, permsRes] = await Promise.all([
+        listAssetsAction({ category, search, limit: 50 }),
+        getAssetPermissionsAction(),
+      ]);
+      setAssets(assetsRes.data);
+      setTotal(assetsRes.total);
+      setPermissions(permsRes);
     } catch (err: any) {
       console.error('Error fetching assets:', err);
     } finally {
@@ -51,14 +60,16 @@ export default function AssetsPage() {
     setStatusMessage(null);
 
     try {
-      // 1. Request presigned upload URL from Server Action
-      const { uploadUrl, s3Key, fileUrl } = await getAssetPresignedUploadUrlAction({
+      const { uploadUrl, s3Key, fileUrl, error: presignError } = await getAssetPresignedUploadUrlAction({
         fileName: file.name,
         fileType: file.type || 'application/octet-stream',
         fileSize: file.size,
       });
 
-      // 2. Direct PUT upload from browser to Cloudflare R2 (Bypasses Vercel payload limits)
+      if (presignError || !uploadUrl || !s3Key || !fileUrl) {
+        throw new Error(presignError || 'Failed to generate upload URL.');
+      }
+
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
@@ -71,7 +82,6 @@ export default function AssetsPage() {
         throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
       }
 
-      // 3. Register asset record in Supabase
       const regRes = await registerAssetAction({
         fileUrl,
         s3Key,
@@ -140,19 +150,21 @@ export default function AssetsPage() {
           <h1 className="text-xl font-bold text-gray-900">Media Pool</h1>
           <p className="text-xs text-gray-500">Public CDN binary registry for banners, covers, audio, and docs.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
-            {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-            <span>{isUploading ? 'Uploading...' : 'Upload Asset'}</span>
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              onChange={handleUpload} 
-              disabled={isUploading} 
-              className="hidden" 
-            />
-          </label>
-        </div>
+        {permissions.canUpload && (
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+              {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+              <span>{isUploading ? 'Uploading...' : 'Upload Asset'}</span>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                onChange={handleUpload} 
+                disabled={isUploading} 
+                className="hidden" 
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* FEEDBACK BANNER */}
@@ -238,13 +250,17 @@ export default function AssetsPage() {
                         >
                           {copiedId === asset.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
-                        <button
-                          onClick={(e) => handleDelete(e, asset)}
-                          className="p-1.5 bg-white/95 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-md shadow-sm transition-colors backdrop-blur-xs cursor-pointer"
-                          title="Delete Asset"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        
+                        {/* SILENT DENIAL: Hidden if user lacks assets:delete */}
+                        {permissions.canDelete && (
+                          <button
+                            onClick={(e) => handleDelete(e, asset)}
+                            className="p-1.5 bg-white/95 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-md shadow-sm transition-colors backdrop-blur-xs cursor-pointer"
+                            title="Delete Asset"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
 
                       <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden border-b border-gray-100">
@@ -288,17 +304,20 @@ export default function AssetsPage() {
             
             <div className="space-y-5 overflow-y-auto">
               
-              {/* Header with Title, Direct Delete, and Close */}
+              {/* Header */}
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Asset Details</span>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => handleDelete(e, selectedAsset)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                    title="Delete Asset"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* SILENT DENIAL: Hidden if user lacks assets:delete */}
+                  {permissions.canDelete && (
+                    <button
+                      onClick={(e) => handleDelete(e, selectedAsset)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Asset"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <button 
                     onClick={() => setSelectedAsset(null)} 
                     className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
@@ -358,7 +377,7 @@ export default function AssetsPage() {
               </div>
             </div>
 
-            {/* SIDEBAR FOOTER ACTION BUTTONS */}
+            {/* SIDEBAR FOOTER ACTIONS */}
             <div className="pt-4 border-t border-gray-100 flex flex-col gap-2 shrink-0">
               <a
                 href={selectedAsset.file_url}
@@ -368,12 +387,16 @@ export default function AssetsPage() {
               >
                 <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Open in New Tab
               </a>
-              <button
-                onClick={(e) => handleDelete(e, selectedAsset)}
-                className="w-full py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-semibold rounded-lg flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete from Media Pool
-              </button>
+
+              {/* SILENT DENIAL: Hidden if user lacks assets:delete */}
+              {permissions.canDelete && (
+                <button
+                  onClick={(e) => handleDelete(e, selectedAsset)}
+                  className="w-full py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-semibold rounded-lg flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete from Media Pool
+                </button>
+              )}
             </div>
 
           </div>
