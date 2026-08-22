@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      assets: {
+        Row: {
+          alt_text_en: string | null
+          alt_text_zh: string | null
+          created_at: string
+          created_by: string | null
+          file_name: string
+          file_size_bytes: number
+          file_url: string
+          height: number | null
+          id: string
+          mime_type: string
+          s3_key: string
+          width: number | null
+        }
+        Insert: {
+          alt_text_en?: string | null
+          alt_text_zh?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          file_size_bytes: number
+          file_url: string
+          height?: number | null
+          id?: string
+          mime_type: string
+          s3_key: string
+          width?: number | null
+        }
+        Update: {
+          alt_text_en?: string | null
+          alt_text_zh?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          file_size_bytes?: number
+          file_url?: string
+          height?: number | null
+          id?: string
+          mime_type?: string
+          s3_key?: string
+          width?: number | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           actor_email: string
@@ -56,6 +101,159 @@ export type Database = {
         }
         Relationships: []
       }
+      content_pages: {
+        Row: {
+          body_en: string | null
+          body_zh: string
+          cover_asset_id: string | null
+          created_at: string
+          event_id: string | null
+          id: string
+          is_in_feed: boolean
+          is_pinned_in_feed: boolean
+          published_at: string | null
+          short_id: string
+          slug: string | null
+          status: string
+          title_en: string | null
+          title_zh: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          body_en?: string | null
+          body_zh?: string
+          cover_asset_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          is_in_feed?: boolean
+          is_pinned_in_feed?: boolean
+          published_at?: string | null
+          short_id?: string
+          slug?: string | null
+          status?: string
+          title_en?: string | null
+          title_zh: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          body_en?: string | null
+          body_zh?: string
+          cover_asset_id?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          is_in_feed?: boolean
+          is_pinned_in_feed?: boolean
+          published_at?: string | null
+          short_id?: string
+          slug?: string | null
+          status?: string
+          title_en?: string | null
+          title_zh?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_pages_cover_asset_id_fkey"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_pages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          banner_asset_id: string | null
+          code: string
+          created_at: string
+          end_date: string
+          id: string
+          linked_form_id: string | null
+          location_type: string
+          registration_status: string
+          short_id: string
+          slug: string | null
+          start_date: string
+          status: string
+          summary_en: string | null
+          summary_zh: string | null
+          title_en: string | null
+          title_zh: string
+          updated_at: string
+          venue_details_en: string | null
+          venue_details_zh: string | null
+        }
+        Insert: {
+          banner_asset_id?: string | null
+          code?: string
+          created_at?: string
+          end_date: string
+          id?: string
+          linked_form_id?: string | null
+          location_type?: string
+          registration_status?: string
+          short_id?: string
+          slug?: string | null
+          start_date: string
+          status?: string
+          summary_en?: string | null
+          summary_zh?: string | null
+          title_en?: string | null
+          title_zh: string
+          updated_at?: string
+          venue_details_en?: string | null
+          venue_details_zh?: string | null
+        }
+        Update: {
+          banner_asset_id?: string | null
+          code?: string
+          created_at?: string
+          end_date?: string
+          id?: string
+          linked_form_id?: string | null
+          location_type?: string
+          registration_status?: string
+          short_id?: string
+          slug?: string | null
+          start_date?: string
+          status?: string
+          summary_en?: string | null
+          summary_zh?: string | null
+          title_en?: string | null
+          title_zh?: string
+          updated_at?: string
+          venue_details_en?: string | null
+          venue_details_zh?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_banner_asset_id_fkey"
+            columns: ["banner_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_linked_form_id_fkey"
+            columns: ["linked_form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forms: {
         Row: {
           created_at: string
@@ -88,6 +286,91 @@ export type Database = {
           title?: string
         }
         Relationships: []
+      }
+      resources: {
+        Row: {
+          author_speaker_en: string | null
+          author_speaker_zh: string | null
+          cover_asset_id: string | null
+          created_at: string
+          description_en: string | null
+          description_zh: string | null
+          external_url: string | null
+          id: string
+          is_featured: boolean
+          short_id: string
+          slug: string | null
+          source_type: string
+          status: string
+          target_asset_id: string | null
+          target_page_id: string | null
+          title_en: string | null
+          title_zh: string
+          updated_at: string
+        }
+        Insert: {
+          author_speaker_en?: string | null
+          author_speaker_zh?: string | null
+          cover_asset_id?: string | null
+          created_at?: string
+          description_en?: string | null
+          description_zh?: string | null
+          external_url?: string | null
+          id?: string
+          is_featured?: boolean
+          short_id?: string
+          slug?: string | null
+          source_type: string
+          status?: string
+          target_asset_id?: string | null
+          target_page_id?: string | null
+          title_en?: string | null
+          title_zh: string
+          updated_at?: string
+        }
+        Update: {
+          author_speaker_en?: string | null
+          author_speaker_zh?: string | null
+          cover_asset_id?: string | null
+          created_at?: string
+          description_en?: string | null
+          description_zh?: string | null
+          external_url?: string | null
+          id?: string
+          is_featured?: boolean
+          short_id?: string
+          slug?: string | null
+          source_type?: string
+          status?: string
+          target_asset_id?: string | null
+          target_page_id?: string | null
+          title_en?: string | null
+          title_zh?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resources_cover_asset_id_fkey"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resources_target_asset_id_fkey"
+            columns: ["target_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resources_target_page_id_fkey"
+            columns: ["target_page_id"]
+            isOneToOne: false
+            referencedRelation: "content_pages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       submissions: {
         Row: {
@@ -133,6 +416,68 @@ export type Database = {
           },
         ]
       }
+      taggables: {
+        Row: {
+          created_at: string
+          tag_id: string
+          taggable_id: string
+          taggable_type: string
+        }
+        Insert: {
+          created_at?: string
+          tag_id: string
+          taggable_id: string
+          taggable_type: string
+        }
+        Update: {
+          created_at?: string
+          tag_id?: string
+          taggable_id?: string
+          taggable_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "taggables_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_pillar: boolean
+          name_en: string | null
+          name_zh: string
+          short_id: string
+          slug: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_pillar?: boolean
+          name_en?: string | null
+          name_zh: string
+          short_id?: string
+          slug?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_pillar?: boolean
+          name_en?: string | null
+          name_zh?: string
+          short_id?: string
+          slug?: string | null
+        }
+        Relationships: []
+      }
       team_members: {
         Row: {
           created_at: string | null
@@ -168,7 +513,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      nanoid: { Args: { alphabet?: string; size?: number }; Returns: string }
     }
     Enums: {
       [_ in never]: never

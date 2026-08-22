@@ -1,8 +1,92 @@
--- ==========================================
--- DAOJI PLATFORM - COMPLETE DATABASE SCHEMA
--- ==========================================
+-- ==============================================================================
+-- DAOJI PLATFORM - COMPLETE CONSOLIDATED DATABASE SCHEMA
+-- ==============================================================================
 
--- 1. Create Forms Table
+-- ==============================================================================
+-- 1. EXTENSIONS & UTILITY FUNCTIONS
+-- ==============================================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1.1 Base62 Short ID Generator (nanoid)
+CREATE OR REPLACE FUNCTION nanoid(
+  size INT DEFAULT 8,
+  alphabet TEXT DEFAULT '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+)
+RETURNS TEXT AS $$
+DECLARE
+  id TEXT := '';
+  i INT := 0;
+  bytes BYTEA;
+  alphabet_len INT := length(alphabet);
+  mask INT := (2 << cast(floor(ln((alphabet_len - 1)::numeric) / ln(2.0)) as int)) - 1;
+  step INT := cast(ceil(1.6 * mask * size / alphabet_len) as int);
+BEGIN
+  WHILE i < size LOOP
+    bytes := gen_random_bytes(step);
+    FOR j IN 0..step - 1 LOOP
+      DECLARE
+        byte_val INT := get_byte(bytes, j) & mask;
+      BEGIN
+        IF byte_val < alphabet_len THEN
+          id := id || substr(alphabet, byte_val + 1, 1);
+          i := i + 1;
+          IF i = size THEN
+            RETURN id;
+          END IF;
+        END IF;
+      END;
+    END LOOP;
+  END LOOP;
+  RETURN id;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
+-- ==============================================================================
+-- 2. CORE STORAGE & TAXONOMY TABLES (Sprint 15 Foundation)
+-- ==============================================================================
+
+-- 2.1 Media Pool (Assets)
+CREATE TABLE IF NOT EXISTS assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_url TEXT NOT NULL,
+    s3_key TEXT NOT NULL UNIQUE,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    width INT,
+    height INT,
+    alt_text_zh TEXT,
+    alt_text_en TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2.2 Taxonomy (Tags)
+CREATE TABLE IF NOT EXISTS tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
+    slug TEXT,
+    name_zh TEXT NOT NULL,
+    name_en TEXT,
+    is_pillar BOOLEAN NOT NULL DEFAULT FALSE,
+    color TEXT NOT NULL DEFAULT '#4F46E5',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2.3 Polymorphic Tag Relations (Taggables)
+CREATE TABLE IF NOT EXISTS taggables (
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    taggable_id UUID NOT NULL,
+    taggable_type TEXT NOT NULL CHECK (taggable_type IN ('event', 'content_page', 'resource', 'asset')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tag_id, taggable_id, taggable_type)
+);
+
+-- ==============================================================================
+-- 3. FORMS & OPERATIONAL DOMAIN TABLES
+-- ==============================================================================
+
+-- 3.1 Dynamic Forms
 CREATE TABLE IF NOT EXISTS forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug TEXT UNIQUE,
@@ -11,10 +95,77 @@ CREATE TABLE IF NOT EXISTS forms (
     is_followup BOOLEAN DEFAULT false,
     status TEXT DEFAULT 'draft',
     schema JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Create Submissions Table
+-- 3.2 Operational Events
+CREATE TABLE IF NOT EXISTS events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
+    code TEXT NOT NULL UNIQUE DEFAULT UPPER(nanoid(6, '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ')),
+    slug TEXT,
+    title_zh TEXT NOT NULL,
+    title_en TEXT,
+    summary_zh TEXT,
+    summary_en TEXT,
+    start_date TIMESTAMPTZ NOT NULL,
+    end_date TIMESTAMPTZ NOT NULL,
+    location_type TEXT NOT NULL DEFAULT 'in_person' CHECK (location_type IN ('in_person', 'online', 'hybrid')),
+    venue_details_zh TEXT,
+    venue_details_en TEXT,
+    registration_status TEXT NOT NULL DEFAULT 'upcoming' CHECK (registration_status IN ('upcoming', 'open', 'waitlist', 'closed', 'not_required')),
+    linked_form_id UUID REFERENCES forms(id) ON DELETE SET NULL,
+    banner_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_events_code_format CHECK (code ~ '^[A-Z0-9]{1,8}$')
+);
+
+-- 3.3 Editorial Content Pages & Articles
+CREATE TABLE IF NOT EXISTS content_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
+    slug TEXT,
+    type TEXT NOT NULL DEFAULT 'article' CHECK (type IN ('page', 'article')),
+    title_zh TEXT NOT NULL,
+    title_en TEXT,
+    body_zh TEXT NOT NULL DEFAULT '',
+    body_en TEXT,
+    cover_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+    is_in_feed BOOLEAN NOT NULL DEFAULT TRUE,
+    is_pinned_in_feed BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    published_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3.4 Knowledge Hub Resources
+CREATE TABLE IF NOT EXISTS resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
+    slug TEXT,
+    source_type TEXT NOT NULL CHECK (source_type IN ('asset', 'youtube', 'article', 'external_link')),
+    target_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    target_page_id UUID REFERENCES content_pages(id) ON DELETE SET NULL,
+    external_url TEXT,
+    title_zh TEXT NOT NULL,
+    title_en TEXT,
+    description_zh TEXT,
+    description_en TEXT,
+    author_speaker_zh TEXT,
+    author_speaker_en TEXT,
+    cover_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3.5 Form Submissions
 CREATE TABLE IF NOT EXISTS submissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     form_id UUID REFERENCES forms(id) ON DELETE CASCADE,
@@ -27,7 +178,11 @@ CREATE TABLE IF NOT EXISTS submissions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Create Team Members Table (RBAC / Auth Profile)
+-- ==============================================================================
+-- 4. TEAM & AUDIT TABLES
+-- ==============================================================================
+
+-- 4.1 Team Members (RBAC / Profiles)
 CREATE TABLE IF NOT EXISTS team_members (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
@@ -38,7 +193,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Create Audit Logs Table (CDC Mutation Log)
+-- 4.2 System Audit Logs (CDC Mutation Ledger)
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     table_name TEXT NOT NULL,
@@ -53,73 +208,93 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ==========================================
--- INDEXES FOR PERFORMANCE & LOOKUPS
--- ==========================================
+-- ==============================================================================
+-- 5. INDEXES FOR PERFORMANCE & LOOKUPS
+-- ==============================================================================
+
+-- Assets indexes
+CREATE INDEX IF NOT EXISTS idx_assets_mime_type ON assets(mime_type);
+CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at DESC);
+
+-- Tags indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_slug_unique ON tags(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tags_short_id ON tags(short_id);
+CREATE INDEX IF NOT EXISTS idx_tags_is_pillar ON tags(is_pillar);
+
+-- Taggables indexes
+CREATE INDEX IF NOT EXISTS idx_taggables_lookup ON taggables(taggable_id, taggable_type);
 
 -- Forms indexes
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
 
+-- Events indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_code ON events(code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_unique ON events(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_events_short_id ON events(short_id);
+CREATE INDEX IF NOT EXISTS idx_events_status_dates ON events(status, start_date ASC);
+
+-- Content Pages indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_content_pages_slug_unique ON content_pages(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_content_pages_short_id ON content_pages(short_id);
+CREATE INDEX IF NOT EXISTS idx_content_pages_feed ON content_pages(status, is_in_feed, published_at DESC);
+
+-- Resources indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_slug_unique ON resources(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_resources_short_id ON resources(short_id);
+CREATE INDEX IF NOT EXISTS idx_resources_status_featured ON resources(status, is_featured, created_at DESC);
+
 -- Submissions indexes
-CREATE INDEX IF NOT EXISTS idx_submissions_event_token 
-ON submissions(event_id, applicant_token);
+CREATE INDEX IF NOT EXISTS idx_submissions_event_token ON submissions(event_id, applicant_token);
+CREATE INDEX IF NOT EXISTS idx_submissions_form_date ON submissions(form_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_submissions_event_seq ON submissions(event_id, applicant_seq_num DESC);
 
-CREATE INDEX IF NOT EXISTS idx_submissions_form_date 
-ON submissions(form_id, created_at DESC);
+-- Team Members indexes
+CREATE INDEX IF NOT EXISTS idx_team_members_roles ON team_members USING GIN (roles);
+CREATE INDEX IF NOT EXISTS idx_team_members_email ON team_members(email);
 
-CREATE INDEX IF NOT EXISTS idx_submissions_event_seq 
-ON submissions(event_id, applicant_seq_num DESC);
+-- Audit Logs indexes
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_table_name ON audit_logs(table_name);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_email ON audit_logs(actor_email);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_record_label ON audit_logs(record_label);
 
--- Team members indexes
-CREATE INDEX IF NOT EXISTS idx_team_members_roles 
-ON team_members USING GIN (roles);
+-- ==============================================================================
+-- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- ==============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_team_members_email 
-ON team_members(email);
-
--- Audit logs indexes
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at 
-ON audit_logs(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_table_name 
-ON audit_logs(table_name);
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_email 
-ON audit_logs(actor_email);
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_record_label 
-ON audit_logs(record_label);
-
--- ==========================================
--- ROW LEVEL SECURITY (RLS)
--- ==========================================
-
+ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE taggables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_pages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Forms Policies
-CREATE POLICY "Allow authenticated CRUD on forms" 
-ON forms FOR ALL TO authenticated 
-USING (true) WITH CHECK (true);
+-- 6.1 Public Read Policies
+CREATE POLICY "Public read for assets" ON assets FOR SELECT USING (true);
+CREATE POLICY "Public read for tags" ON tags FOR SELECT USING (true);
+CREATE POLICY "Public read for taggables" ON taggables FOR SELECT USING (true);
+CREATE POLICY "Public read for published events" ON events FOR SELECT USING (status = 'published');
+CREATE POLICY "Public read for published content_pages" ON content_pages FOR SELECT USING (status = 'published');
+CREATE POLICY "Public read for published resources" ON resources FOR SELECT USING (status = 'published');
 
--- Submissions Policies
-CREATE POLICY "Allow authenticated CRUD on submissions" 
-ON submissions FOR ALL TO authenticated 
-USING (true) WITH CHECK (true);
+-- 6.2 Authenticated Staff Full Access Policies (Governed at App Level by ABAC Guards)
+CREATE POLICY "Authenticated staff full access assets" ON assets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access tags" ON tags FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access taggables" ON taggables FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access forms" ON forms FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access events" ON events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access content_pages" ON content_pages FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access resources" ON resources FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access submissions" ON submissions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated staff full access team_members" ON team_members FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Team Members Policies
-CREATE POLICY "Allow authenticated CRUD on team_members" 
-ON team_members FOR ALL TO authenticated 
-USING (true) WITH CHECK (true);
-
--- Audit Logs Policies (Default-Deny for anon/authenticated, accessed via Admin Client)
--- No public/authenticated policies granted.
-
--- ==========================================
--- AUTOMATED APPLICANT SEQUENCE TRIGGER
--- ==========================================
+-- ==============================================================================
+-- 7. APPLICANT SEQUENCE GENERATOR TRIGGER
+-- ==============================================================================
 
 CREATE OR REPLACE FUNCTION set_applicant_seq_num()
 RETURNS TRIGGER AS $$
@@ -154,117 +329,137 @@ BEFORE INSERT ON submissions
 FOR EACH ROW
 EXECUTE FUNCTION set_applicant_seq_num();
 
--- ==========================================
--- AUTOMATED CDC AUDIT LOG TRIGGER
--- ==========================================
+-- ==============================================================================
+-- 8. UNIFIED CDC AUDIT LOGGING ENGINE
+-- ==============================================================================
 
-CREATE OR REPLACE FUNCTION process_audit_log_cdc()
+CREATE OR REPLACE FUNCTION log_cdc_mutation()
 RETURNS TRIGGER AS $$
 DECLARE
-    acting_user_id UUID;
-    actor_user_name TEXT;
-    actor_user_email TEXT;
-    extracted_label TEXT;
-    old_data JSONB := NULL;
-    new_data JSONB := NULL;
+    v_actor_id UUID := auth.uid();
+    v_actor_name TEXT;
+    v_actor_email TEXT;
+    v_record_id TEXT;
+    v_record_label TEXT;
+    v_old_values JSONB := NULL;
+    v_new_values JSONB := NULL;
 BEGIN
-    -- 1. Resolve current actor identity
-    acting_user_id := auth.uid();
-
-    IF acting_user_id IS NOT NULL THEN
-        SELECT display_name, email 
-        INTO actor_user_name, actor_user_email
+    -- 1. Resolve actor profile
+    IF v_actor_id IS NOT NULL THEN
+        SELECT display_name, email INTO v_actor_name, v_actor_email
         FROM team_members
-        WHERE id = acting_user_id;
+        WHERE id = v_actor_id
+        LIMIT 1;
 
-        IF actor_user_email IS NULL THEN
-            SELECT email INTO actor_user_email
-            FROM auth.users
-            WHERE id = acting_user_id;
+        IF v_actor_email IS NULL THEN
+            SELECT email INTO v_actor_email FROM auth.users WHERE id = v_actor_id LIMIT 1;
         END IF;
     END IF;
 
-    IF actor_user_name IS NULL AND actor_user_email IS NOT NULL THEN
-        actor_user_name := actor_user_email;
-    ELSIF actor_user_name IS NULL THEN
-        actor_user_name := 'system';
-    END IF;
-
-    -- 2. Capture deltas
-    IF TG_OP = 'INSERT' THEN
-        new_data := to_jsonb(NEW);
-    ELSIF TG_OP = 'UPDATE' THEN
-        old_data := to_jsonb(OLD);
-        new_data := to_jsonb(NEW);
-    ELSIF TG_OP = 'DELETE' THEN
-        old_data := to_jsonb(OLD);
-    END IF;
-
-    -- 3. Resolve human-readable entity descriptor
-    IF TG_TABLE_NAME = 'forms' THEN
-        IF TG_OP = 'DELETE' THEN
-            extracted_label := COALESCE(OLD.title, OLD.slug, OLD.id::text);
-        ELSE
-            extracted_label := COALESCE(NEW.title, NEW.slug, NEW.id::text);
-        END IF;
-    ELSIF TG_TABLE_NAME = 'team_members' THEN
-        IF TG_OP = 'DELETE' THEN
-            extracted_label := COALESCE(
-                CASE WHEN OLD.display_name IS NOT NULL AND OLD.email IS NOT NULL 
-                     THEN OLD.display_name || ' (' || OLD.email || ')'
-                     ELSE COALESCE(OLD.display_name, OLD.email)
-                END, 
-                OLD.id::text
-            );
-        ELSE
-            extracted_label := COALESCE(
-                CASE WHEN NEW.display_name IS NOT NULL AND NEW.email IS NOT NULL 
-                     THEN NEW.display_name || ' (' || NEW.email || ')'
-                     ELSE COALESCE(NEW.display_name, NEW.email)
-                END, 
-                NEW.id::text
-            );
-        END IF;
+    -- 2. Extract values and human-readable descriptor
+    IF TG_OP = 'DELETE' THEN
+        v_record_id := OLD.id::TEXT;
+        v_old_values := to_jsonb(OLD);
+        v_record_label := COALESCE(
+            v_old_values->>'title_zh',
+            v_old_values->>'title',
+            v_old_values->>'name_zh',
+            v_old_values->>'file_name',
+            v_old_values->>'name',
+            v_old_values->>'display_name',
+            v_old_values->>'slug',
+            v_old_values->>'email',
+            v_record_id
+        );
     ELSE
-        extracted_label := COALESCE((CASE WHEN TG_OP = 'DELETE' THEN OLD.id::text ELSE NEW.id::text END), 'unknown');
+        v_record_id := NEW.id::TEXT;
+        v_new_values := to_jsonb(NEW);
+        IF TG_OP = 'UPDATE' THEN
+            v_old_values := to_jsonb(OLD);
+        END IF;
+        v_record_label := COALESCE(
+            v_new_values->>'title_zh',
+            v_new_values->>'title',
+            v_new_values->>'name_zh',
+            v_new_values->>'file_name',
+            v_new_values->>'name',
+            v_new_values->>'display_name',
+            v_new_values->>'slug',
+            v_new_values->>'email',
+            v_record_id
+        );
     END IF;
 
-    -- 4. Record audit event
-    INSERT INTO audit_logs (
-        table_name,
-        record_id,
-        record_label,
-        operation,
-        old_values,
-        new_values,
-        actor_id,
-        actor_email,
-        actor_name,
-        created_at
-    ) VALUES (
-        TG_TABLE_NAME,
-        CASE WHEN TG_OP = 'DELETE' THEN OLD.id::text ELSE NEW.id::text END,
-        extracted_label,
-        TG_OP,
-        old_data,
-        new_data,
-        acting_user_id,
-        actor_user_email,
-        actor_user_name,
-        NOW()
-    );
+    -- 3. Write immutable audit log
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
+        INSERT INTO audit_logs (
+            actor_id,
+            actor_name,
+            actor_email,
+            table_name,
+            operation,
+            record_id,
+            record_label,
+            old_values,
+            new_values,
+            created_at
+        ) VALUES (
+            v_actor_id,
+            COALESCE(v_actor_name, 'System / Anonymous'),
+            COALESCE(v_actor_email, 'system@internal'),
+            TG_TABLE_NAME,
+            CASE 
+                WHEN TG_OP = 'INSERT' THEN 'CREATE'
+                ELSE TG_OP
+            END,
+            v_record_id,
+            v_record_label,
+            v_old_values,
+            v_new_values,
+            NOW()
+        );
+    END IF;
 
-    RETURN COALESCE(NEW, OLD);
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Attach CDC triggers to mutable configuration entities
-DROP TRIGGER IF EXISTS trg_audit_forms ON forms;
-CREATE TRIGGER trg_audit_forms
+-- Attach CDC triggers
+DROP TRIGGER IF EXISTS audit_forms_trigger ON forms;
+CREATE TRIGGER audit_forms_trigger
 AFTER INSERT OR UPDATE OR DELETE ON forms
-FOR EACH ROW EXECUTE FUNCTION process_audit_log_cdc();
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
 
-DROP TRIGGER IF EXISTS trg_audit_team_members ON team_members;
-CREATE TRIGGER trg_audit_team_members
+DROP TRIGGER IF EXISTS audit_team_members_trigger ON team_members;
+CREATE TRIGGER audit_team_members_trigger
 AFTER INSERT OR UPDATE OR DELETE ON team_members
-FOR EACH ROW EXECUTE FUNCTION process_audit_log_cdc();
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_assets_trigger ON assets;
+CREATE TRIGGER audit_assets_trigger
+AFTER INSERT OR UPDATE OR DELETE ON assets
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_tags_trigger ON tags;
+CREATE TRIGGER audit_tags_trigger
+AFTER INSERT OR UPDATE OR DELETE ON tags
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_events_trigger ON events;
+CREATE TRIGGER audit_events_trigger
+AFTER INSERT OR UPDATE OR DELETE ON events
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_content_pages_trigger ON content_pages;
+CREATE TRIGGER audit_content_pages_trigger
+AFTER INSERT OR UPDATE OR DELETE ON content_pages
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_resources_trigger ON resources;
+CREATE TRIGGER audit_resources_trigger
+AFTER INSERT OR UPDATE OR DELETE ON resources
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();

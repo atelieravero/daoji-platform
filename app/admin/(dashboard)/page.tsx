@@ -26,11 +26,22 @@ export default async function AdminRootRedirect() {
 
   const userRoles = (profile.roles || []) as Role[];
 
-  if (hasPermission(userRoles, 'content:edit')) {
+  // 1. Content & Events Priority (Super Admins, Content Editors, Event Coordinators, Viewers)
+  if (hasPermission(userRoles, 'events:view')) {
     redirect('/admin/events');
   }
-  
+
+  if (hasPermission(userRoles, 'articles:view')) {
+    redirect('/admin/articles');
+  }
+
+  if (hasPermission(userRoles, 'resources:view')) {
+    redirect('/admin/resources');
+  }
+
+  // 2. Forms & Submissions Priority (Form Editors, Submission Viewers)
   if (
+    hasPermission(userRoles, 'forms:view') ||
     hasPermission(userRoles, 'forms:edit') || 
     hasPermission(userRoles, 'submissions:view_real') || 
     hasPermission(userRoles, 'submissions:view_test')
@@ -38,10 +49,25 @@ export default async function AdminRootRedirect() {
     redirect('/admin/forms');
   }
 
-  if (hasPermission(userRoles, 'team:manage_workers')) {
+  // 3. Shared Foundation Priority
+  if (hasPermission(userRoles, 'assets:view')) {
+    redirect('/admin/assets');
+  }
+
+  if (hasPermission(userRoles, 'tags:view')) {
+    redirect('/admin/tags');
+  }
+
+  // 4. Team Administration Priority (Team Managers)
+  if (hasPermission(userRoles, 'team:view') || hasPermission(userRoles, 'team:manage_workers')) {
     redirect('/admin/team');
   }
 
+  if (hasPermission(userRoles, 'logs:view')) {
+    redirect('/admin/logs');
+  }
+
+  // Fallback for authenticated users with zero valid permissions
   await supabase.auth.signOut();
   redirect('/admin/login?error=unauthorized');
 }

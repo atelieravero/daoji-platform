@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { ImageIcon, Loader2 } from 'lucide-react';
-import { getPublicPresignedUploadUrl } from '@/app/admin/forms/builder/actions';
+import { getPublicPresignedUploadUrl } from '@/app/admin/(dashboard)/forms/builder/actions';
 
 interface MarkdownEditorProps {
   value: string;
