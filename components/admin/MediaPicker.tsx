@@ -5,7 +5,13 @@ import {
   X, UploadCloud, Search, Check, Image as ImageIcon, 
   FileText, Music, Loader2, AlertCircle 
 } from 'lucide-react';
-import { listAssetsAction, uploadAssetAction, AssetRecord, AssetCategory } from '@/app/admin/(dashboard)/assets/actions';
+import { 
+  listAssetsAction, 
+  getAssetPresignedUploadUrlAction, 
+  registerAssetAction, 
+  AssetRecord, 
+  AssetCategory 
+} from '@/app/admin/(dashboard)/assets/actions';
 
 interface MediaPickerProps {
   isOpen: boolean;
@@ -66,28 +72,49 @@ export default function MediaPicker({
     setUploadError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (altTextZh) formData.append('alt_text_zh', altTextZh);
-      if (altTextEn) formData.append('alt_text_en', altTextEn);
+      // 1. Get presigned upload URL from Server Action
+      const { uploadUrl, s3Key, fileUrl } = await getAssetPresignedUploadUrlAction({
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+      });
 
-      const res = await uploadAssetAction(formData);
-      if (!res.success || !res.data) {
-        throw new Error(res.error || 'Failed to upload asset.');
+      // 2. Direct PUT upload from browser to Cloudflare R2
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
+      }
+
+      // 3. Register asset record in Supabase
+      const regRes = await registerAssetAction({
+        fileUrl,
+        s3Key,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        fileSizeBytes: file.size,
+        altTextZh: altTextZh || null,
+        altTextEn: altTextEn || null,
+      });
+
+      if (!regRes.success || !regRes.data) {
+        throw new Error(regRes.error || 'Failed to register asset.');
       }
       
-      setSelectedAsset(res.data);
+      setSelectedAsset(regRes.data);
       setAltTextZh('');
       setAltTextEn('');
       setActiveTab('browse');
       await fetchAssets();
     } catch (err: any) {
       console.error('MediaPicker upload error:', err);
-      setUploadError(
-        err.message?.includes('1 MB limit') || err.message?.includes('413')
-          ? 'File exceeds upload limit. Please check next.config bodySizeLimit.'
-          : err.message || 'Upload failed.'
-      );
+      setUploadError(err.message || 'Upload failed.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -264,7 +291,7 @@ export default function MediaPicker({
                 {isUploading ? 'Uploading to Media Pool...' : 'Click to browse or drop file here'}
               </span>
               <span className="text-xs text-gray-400 mt-1">
-                Images (PNG, JPG, WebP, SVG), Audio (MP3, WAV), or PDFs up to 50MB
+                Images (PNG, JPG, WebP, SVG), Audio (MP3, M4A, WAV), or PDFs up to 100MB
               </span>
               <input 
                 ref={fileInputRef}

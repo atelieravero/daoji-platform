@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth-guards';
 import { revalidatePath } from 'next/cache';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
 
 export interface AssetRecord {
@@ -23,61 +24,76 @@ export interface AssetRecord {
 export type AssetCategory = 'all' | 'image' | 'audio' | 'video' | 'document';
 
 /**
- * Upload an asset directly to Cloudflare R2 and register it in the Media Pool.
+ * Generates an S3 presigned PUT upload URL for direct browser-to-R2 streaming.
+ * Bypasses Vercel Serverless Function body size limits (supports up to 100MB+).
  * Guarded by 'assets:upload'.
  */
-export async function uploadAssetAction(formData: FormData): Promise<{ success: boolean; data?: AssetRecord; error?: string }> {
+export async function getAssetPresignedUploadUrlAction(params: {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}): Promise<{ uploadUrl: string; s3Key: string; fileUrl: string }> {
   await requirePermission('assets:upload');
 
-  const file = formData.get('file') as File | null;
-  const altTextZh = (formData.get('alt_text_zh') as string) || null;
-  const altTextEn = (formData.get('alt_text_en') as string) || null;
-
-  if (!file) {
-    return { success: false, error: 'No file provided.' };
-  }
-
   const publicBucket = process.env.S3_PUBLIC_BUCKET_NAME;
-  const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
+  const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL || 'https://cdn.ajahnyiu.org';
 
-  if (!publicBucket || !cdnUrl) {
-    return { success: false, error: 'Storage environment variables are not configured.' };
+  if (!publicBucket) {
+    throw new Error('Public bucket is not configured.');
   }
+
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const sanitizedFileName = params.fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const s3Key = `assets/${year}/${month}/${Date.now()}-${sanitizedFileName}`;
+
+  const putCommand = new PutObjectCommand({
+    Bucket: publicBucket,
+    Key: s3Key,
+    ContentType: params.fileType || 'application/octet-stream',
+  });
+
+  // Generate direct presigned PUT URL valid for 10 minutes
+  const uploadUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 600 });
+  const fileUrl = `${cdnUrl}/${s3Key}`;
+
+  return {
+    uploadUrl,
+    s3Key,
+    fileUrl,
+  };
+}
+
+/**
+ * Registers an uploaded asset's metadata in Supabase.
+ * Guarded by 'assets:upload'.
+ */
+export async function registerAssetAction(params: {
+  fileUrl: string;
+  s3Key: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  altTextZh?: string | null;
+  altTextEn?: string | null;
+}): Promise<{ success: boolean; data?: AssetRecord; error?: string }> {
+  await requirePermission('assets:upload');
 
   try {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const s3Key = `assets/${year}/${month}/${Date.now()}-${sanitizedFileName}`;
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    // 1. Upload to Cloudflare R2 public bucket
-    const putCommand = new PutObjectCommand({
-      Bucket: publicBucket,
-      Key: s3Key,
-      Body: buffer,
-      ContentType: file.type || 'application/octet-stream',
-    });
-    await s3Client.send(putCommand);
-
-    const finalUrl = `${cdnUrl}/${s3Key}`;
-
-    // 2. Insert into Supabase assets table (using user server client to preserve auth.uid())
     const supabase = await createClient();
     const { data: userAuth } = await supabase.auth.getUser();
 
     const { data: asset, error: dbError } = await supabase
       .from('assets')
       .insert({
-        file_url: finalUrl,
-        s3_key: s3Key,
-        file_name: file.name,
-        mime_type: file.type || 'application/octet-stream',
-        file_size_bytes: file.size,
-        alt_text_zh: altTextZh,
-        alt_text_en: altTextEn,
+        file_url: params.fileUrl,
+        s3_key: params.s3Key,
+        file_name: params.fileName,
+        mime_type: params.mimeType,
+        file_size_bytes: params.fileSizeBytes,
+        alt_text_zh: params.altTextZh || null,
+        alt_text_en: params.altTextEn || null,
         created_by: userAuth?.user?.id || null,
       })
       .select()
@@ -92,8 +108,8 @@ export async function uploadAssetAction(formData: FormData): Promise<{ success: 
 
     return { success: true, data: asset as AssetRecord };
   } catch (error: any) {
-    console.error('Upload asset error:', error);
-    return { success: false, error: error.message || 'Asset upload failed.' };
+    console.error('Register asset error:', error);
+    return { success: false, error: error.message || 'Failed to register asset.' };
   }
 }
 

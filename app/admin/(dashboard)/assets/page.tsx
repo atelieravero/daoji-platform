@@ -5,7 +5,14 @@ import {
   UploadCloud, Search, Trash2, Copy, Check, Image as ImageIcon, 
   FileText, Music, Loader2, AlertCircle, ExternalLink, X
 } from 'lucide-react';
-import { listAssetsAction, uploadAssetAction, deleteAssetAction, AssetRecord, AssetCategory } from './actions';
+import { 
+  listAssetsAction, 
+  getAssetPresignedUploadUrlAction, 
+  registerAssetAction, 
+  deleteAssetAction, 
+  AssetRecord, 
+  AssetCategory 
+} from './actions';
 
 export default function AssetsPage() {
   const [category, setCategory] = useState<AssetCategory>('all');
@@ -44,24 +51,46 @@ export default function AssetsPage() {
     setStatusMessage(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // 1. Request presigned upload URL from Server Action
+      const { uploadUrl, s3Key, fileUrl } = await getAssetPresignedUploadUrlAction({
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+      });
 
-      const res = await uploadAssetAction(formData);
+      // 2. Direct PUT upload from browser to Cloudflare R2 (Bypasses Vercel payload limits)
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+      });
 
-      if (res.success) {
+      if (!uploadRes.ok) {
+        throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
+      }
+
+      // 3. Register asset record in Supabase
+      const regRes = await registerAssetAction({
+        fileUrl,
+        s3Key,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        fileSizeBytes: file.size,
+      });
+
+      if (regRes.success) {
         setStatusMessage({ type: 'success', text: `Uploaded ${file.name} successfully.` });
         fetchAssets();
       } else {
-        setStatusMessage({ type: 'error', text: res.error || 'Upload failed.' });
+        throw new Error(regRes.error || 'Failed to register asset.');
       }
     } catch (err: any) {
       console.error('Asset upload exception:', err);
       setStatusMessage({ 
         type: 'error', 
-        text: err.message?.includes('1 MB limit') || err.message?.includes('413')
-          ? 'File is too large. Please configure bodySizeLimit in next.config or choose a smaller file.'
-          : err.message || 'Network error occurred during upload.' 
+        text: err.message || 'Error occurred during asset upload.' 
       });
     } finally {
       setIsUploading(false);
@@ -204,14 +233,14 @@ export default function AssetsPage() {
                       <div className="absolute top-2 right-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={(e) => handleCopyUrl(e, asset.file_url, asset.id)}
-                          className="p-1.5 bg-white/95 hover:bg-white text-gray-700 hover:text-indigo-600 rounded-md shadow-sm transition-colors backdrop-blur-xs"
+                          className="p-1.5 bg-white/95 hover:bg-white text-gray-700 hover:text-indigo-600 rounded-md shadow-sm transition-colors backdrop-blur-xs cursor-pointer"
                           title="Copy Link"
                         >
                           {copiedId === asset.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                         <button
                           onClick={(e) => handleDelete(e, asset)}
-                          className="p-1.5 bg-white/95 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-md shadow-sm transition-colors backdrop-blur-xs"
+                          className="p-1.5 bg-white/95 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-md shadow-sm transition-colors backdrop-blur-xs cursor-pointer"
                           title="Delete Asset"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -257,7 +286,6 @@ export default function AssetsPage() {
         {selectedAsset && (
           <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col justify-between shadow-xl z-10 animate-in slide-in-from-right duration-200">
             
-            {/* TOP HEADER & INFO */}
             <div className="space-y-5 overflow-y-auto">
               
               {/* Header with Title, Direct Delete, and Close */}

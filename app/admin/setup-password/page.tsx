@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { completePasswordSetup } from '@/app/admin/team/actions';
+import { completePasswordSetup } from '@/app/admin/(dashboard)/team/actions';
 import { FormInput } from '@/components/ui/FormControls';
 import { Shield, Loader2, CheckCircle2, AlertCircle, User } from 'lucide-react';
 
