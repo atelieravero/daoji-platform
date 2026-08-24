@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Tag as TagIcon, Plus, Search, Edit2, Trash2, Loader2, 
-  X, Check, Bookmark, Hash
-} from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, X, Check, Bookmark, Hash } from 'lucide-react';
 import { FormInput } from '@/components/ui/FormControls';
 import { listTagsAction, createTagAction, updateTagAction, deleteTagAction, TagRecord } from './actions';
+import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
+import AdminTableToolbar from '@/components/admin/shared/AdminTableToolbar';
+import AdminTableCard from '@/components/admin/shared/AdminTableCard';
+import AdminStatusBanner from '@/components/admin/shared/AdminStatusBanner';
 
 const PRESET_COLORS = [
   '#4F46E5', // Indigo
@@ -24,7 +25,7 @@ export default function TagsPage() {
   const [tags, setTags] = useState<TagRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'pillars' | 'micro'>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   
   // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -144,186 +145,131 @@ export default function TagsPage() {
     return true;
   });
 
-  const pillarCount = tags.filter(t => t.is_pillar).length;
-  const microCount = tags.filter(t => !t.is_pillar).length;
-
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-50 overflow-hidden font-sans">
-      
-      {/* TOP HEADER */}
-      <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 z-10">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Taxonomy & Tags</h1>
-          <p className="text-xs text-gray-500">Manage Tier-2 Topic Pillars and polymorphic micro-tags across all content.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={openCreateModal}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4 mr-1.5" /> Create Tag
-          </button>
-        </div>
-      </div>
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full font-sans relative">
+      {/* HEADER */}
+      <AdminPageHeader
+        title="Taxonomy & Tags"
+        description="Manage Tier-2 Topic Pillars and polymorphic micro-tags across all content."
+        actionButton={{
+          label: 'Create Tag',
+          onClick: openCreateModal,
+          icon: Plus,
+        }}
+      />
 
-      {/* FEEDBACK NOTIFICATION */}
-      {statusMessage && (
-        <div className={`px-8 py-2.5 text-xs font-medium flex items-center justify-between ${
-          statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-b border-emerald-100' : 'bg-red-50 text-red-800 border-b border-red-100'
-        }`}>
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="underline ml-4 cursor-pointer">Dismiss</button>
-        </div>
-      )}
+      {/* FEEDBACK BANNER */}
+      <AdminStatusBanner message={statusMessage} onDismiss={() => setStatusMessage(null)} className="mb-6 rounded-xl" />
 
-      {/* MAIN CONTAINER */}
-      <div className="flex-1 flex flex-col overflow-hidden p-8">
-        
-        {/* FILTERS & SEARCH */}
-        <div className="flex items-center justify-between mb-6 gap-4 shrink-0">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              placeholder="Search tags by name, slug, or short_id..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm bg-white text-gray-950 placeholder-gray-400 rounded-xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-          </div>
+      {/* TOOLBAR */}
+      <AdminTableToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search tags by name, slug, or short_id..."
+        statusFilter={filterType}
+        onStatusFilterChange={setFilterType}
+        filterOptions={[
+          { value: 'all', label: `All Tags (${tags.length})` },
+          { value: 'pillars', label: `Topic Pillars (${tags.filter(t => t.is_pillar).length})` },
+          { value: 'micro', label: `Micro-Tags (${tags.filter(t => !t.is_pillar).length})` },
+        ]}
+      />
 
-          <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm text-xs font-medium text-gray-600">
-            <button
-              onClick={() => setFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                filterType === 'all' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'hover:text-gray-900'
-              }`}
-            >
-              All Tags ({tags.length})
-            </button>
-            <button
-              onClick={() => setFilterType('pillars')}
-              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center cursor-pointer ${
-                filterType === 'pillars' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'hover:text-gray-900'
-              }`}
-            >
-              <Bookmark className="w-3.5 h-3.5 mr-1" /> Topic Pillars ({pillarCount})
-            </button>
-            <button
-              onClick={() => setFilterType('micro')}
-              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center cursor-pointer ${
-                filterType === 'micro' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'hover:text-gray-900'
-              }`}
-            >
-              <Hash className="w-3.5 h-3.5 mr-1" /> Micro-Tags ({microCount})
-            </button>
-          </div>
-        </div>
-
-        {/* TAGS TABLE / LIST */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
-              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                <Loader2 className="w-6 h-6 animate-spin mr-2 text-indigo-600" />
-                Loading taxonomy...
-              </div>
-            ) : filteredTags.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12">
-                <TagIcon className="w-12 h-12 text-gray-300 mb-3" />
-                <h3 className="text-sm font-bold text-gray-900">No tags found</h3>
-                <p className="text-xs text-gray-500 mt-1">Get started by creating your first Topic Pillar or Micro-tag.</p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                    <th className="py-3.5 px-6">Tag Name & Badge</th>
-                    <th className="py-3.5 px-6">Type</th>
-                    <th className="py-3.5 px-6">Short ID / Vanity Slug</th>
-                    <th className="py-3.5 px-6">Linked Usage</th>
-                    <th className="py-3.5 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-sm">
-                  {filteredTags.map((tag) => (
-                    <tr key={tag.id} className="hover:bg-gray-50/75 transition-colors group">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <span 
-                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white shadow-xs"
-                            style={{ backgroundColor: tag.color }}
-                          >
-                            {tag.is_pillar ? <Bookmark className="w-3 h-3 mr-1" /> : <Hash className="w-3 h-3 mr-1" />}
-                            {tag.name_zh}
-                          </span>
-                          {tag.name_en && (
-                            <span className="text-xs text-gray-400 font-normal">
-                              / {tag.name_en}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        {tag.is_pillar ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            Tier-2 Pillar
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 text-gray-600">
-                            Micro-tag
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col">
-                          <span className="font-mono text-xs text-gray-900">id: {tag.short_id}</span>
-                          {tag.slug ? (
-                            <span className="font-mono text-[11px] text-indigo-600">/{tag.slug}</span>
-                          ) : (
-                            <span className="text-[11px] text-gray-400 italic">No vanity slug</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                          {tag.usage_count || 0} reference(s)
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openEditModal(tag)}
-                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Tag"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(tag)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Tag"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-      </div>
+      {/* TABLE */}
+      <AdminTableCard
+        isLoading={isLoading}
+        loadingText="Loading taxonomy..."
+        isEmpty={filteredTags.length === 0}
+        emptyTitle="No tags found"
+        emptyDescription="Get started by creating your first Topic Pillar or Micro-tag."
+      >
+        <table className="min-w-full divide-y divide-gray-200 text-left">
+          <thead className="bg-gray-50/50">
+            <tr className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              <th className="py-3.5 px-6">Tag Name & Badge</th>
+              <th className="py-3.5 px-6">Type</th>
+              <th className="py-3.5 px-6">Short ID / Vanity Slug</th>
+              <th className="py-3.5 px-6">Linked Usage</th>
+              <th className="py-3.5 px-6 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-100 text-sm">
+            {filteredTags.map((tag) => (
+              <tr key={tag.id} className="hover:bg-gray-50/75 transition-colors group">
+                <td className="py-4 px-6 whitespace-nowrap">
+                  <div className="flex items-center gap-3">
+                    <span 
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white shadow-xs"
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      {tag.is_pillar ? <Bookmark className="w-3 h-3 mr-1" /> : <Hash className="w-3 h-3 mr-1" />}
+                      {tag.name_zh}
+                    </span>
+                    {tag.name_en && (
+                      <span className="text-xs text-gray-400 font-normal">
+                        / {tag.name_en}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="py-4 px-6 whitespace-nowrap">
+                  {tag.is_pillar ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      Tier-2 Pillar
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 text-gray-600">
+                      Micro-tag
+                    </span>
+                  )}
+                </td>
+                <td className="py-4 px-6 whitespace-nowrap">
+                  <div className="flex flex-col">
+                    <span className="font-mono text-xs text-gray-900">id: {tag.short_id}</span>
+                    {tag.slug ? (
+                      <span className="font-mono text-[11px] text-indigo-600">/{tag.slug}</span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400 italic">No vanity slug</span>
+                    )}
+                  </div>
+                </td>
+                <td className="py-4 px-6 whitespace-nowrap">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                    {tag.usage_count || 0} reference(s)
+                  </span>
+                </td>
+                <td className="py-4 px-6 text-right whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(tag)}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                      title="Edit Tag"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(tag)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Tag"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </AdminTableCard>
 
       {/* CREATE / EDIT MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-base font-bold text-gray-900">
                 {editingTag ? 'Edit Tag' : 'Create New Tag'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -406,7 +352,7 @@ export default function TagsPage() {
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition ${
                       formData.is_pillar ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
@@ -424,7 +370,7 @@ export default function TagsPage() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors flex items-center cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-xs transition-colors flex items-center cursor-pointer"
                 >
                   {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
                   {editingTag ? 'Save Changes' : 'Create Tag'}
@@ -434,7 +380,6 @@ export default function TagsPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

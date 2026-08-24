@@ -1,27 +1,15 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { getAuditLogs } from './actions';
 import { 
-  Search, 
-  History, 
-  ChevronRight, 
-  ChevronDown, 
-  RefreshCw, 
-  Loader2,
-  Copy,
-  Check,
-  Columns,
-  AlignJustify,
-  Maximize2,
-  Minimize2,
-  FileText,
-  Users
+  RefreshCw, ChevronRight, ChevronDown, Copy, Check, 
+  Columns, AlignJustify, Maximize2, Minimize2, FileText, Users 
 } from 'lucide-react';
+import { getAuditLogs } from './actions';
+import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
+import AdminTableToolbar from '@/components/admin/shared/AdminTableToolbar';
+import AdminTableCard from '@/components/admin/shared/AdminTableCard';
 
-// ==========================================
-// PURE DIFF COMPUTATION ENGINE (LCS)
-// ==========================================
 type DiffType = 'equal' | 'add' | 'delete';
 
 interface DiffLine {
@@ -154,9 +142,6 @@ function buildSplitDiff(diff: DiffLine[]): SplitDiffRow[] {
   return rows;
 }
 
-// ==========================================
-// GITHUB-STYLE DIFF VIEWER COMPONENT
-// ==========================================
 interface DiffViewerProps {
   oldValues: any;
   newValues: any;
@@ -279,7 +264,7 @@ function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) 
             <button
               type="button"
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                 viewMode === 'split' ? 'bg-[#30363d] text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
@@ -288,7 +273,7 @@ function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) 
             <button
               type="button"
               onClick={() => setViewMode('unified')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                 viewMode === 'unified' ? 'bg-[#30363d] text-white shadow-xs' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
@@ -299,7 +284,7 @@ function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) 
           <button
             type="button"
             onClick={copyDiff}
-            className="flex items-center px-2.5 py-1 bg-[#21262d] hover:bg-[#30363d] text-gray-300 border border-[#30363d] rounded text-[11px] transition-colors"
+            className="flex items-center px-2.5 py-1 bg-[#21262d] hover:bg-[#30363d] text-gray-300 border border-[#30363d] rounded text-[11px] transition-colors cursor-pointer"
           >
             {copied ? <Check className="w-3 h-3 text-[#3fb950] mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
             {copied ? 'Copied' : 'Copy JSON'}
@@ -428,14 +413,10 @@ function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) 
   );
 }
 
-// ==========================================
-// HELPER: FORMAT ENTITY DISPLAY
-// ==========================================
 function formatEntityDisplay(log: any) {
   const isForm = log.table_name === 'forms';
   const isTeam = log.table_name === 'team_members';
 
-  // Primary Title Resolution
   let primaryTitle = log.record_label;
 
   if (!primaryTitle || primaryTitle === log.record_id) {
@@ -451,7 +432,6 @@ function formatEntityDisplay(log: any) {
     }
   }
 
-  // Secondary Context Resolution
   const val = log.new_values || log.old_values || {};
   let subContext = '';
   if (isForm && val.slug) {
@@ -467,14 +447,7 @@ function formatEntityDisplay(log: any) {
   };
 }
 
-// ==========================================
-// MAIN AUDIT LOGS CLIENT EXPLORER
-// ==========================================
-interface LogsClientProps {
-  initialLogs: any[];
-}
-
-export default function LogsClient({ initialLogs }: LogsClientProps) {
+export default function LogsClient({ initialLogs = [] }: { initialLogs: any[] }) {
   const [logs, setLogs] = useState<any[]>(initialLogs);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -493,8 +466,7 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
     }
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+  const handleSearchChange = (val: string) => {
     setSearchTerm(val);
     fetchLogs(val, selectedOp);
   };
@@ -522,160 +494,126 @@ export default function LogsClient({ initialLogs }: LogsClientProps) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full">
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full font-sans">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center">
-            <History className="w-6 h-6 mr-2 text-indigo-600" />
-            Audit Logs Explorer
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Read-only, automated Change Data Capture (CDC) audit trail for forms and team members.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="Audit Logs Explorer"
+        description="Read-only, automated Change Data Capture (CDC) audit trail for forms, team members, and events."
+      >
         <button
+          type="button"
           onClick={() => fetchLogs()}
           disabled={isLoading}
-          className="inline-flex items-center px-3.5 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors"
+          className="inline-flex items-center px-3.5 py-2 border border-gray-300 shadow-xs text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-4 h-4 mr-2 text-gray-500 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
-      </div>
+      </AdminPageHeader>
 
       {/* FILTER TOOLBAR */}
-      <div className="bg-white p-4 rounded-t-xl border border-gray-200 border-b-0 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="relative w-full sm:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search form name, team member, email..."
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 outline-none transition-colors text-gray-900 placeholder-gray-400 font-mono text-xs"
-            value={searchTerm}
-            onChange={handleSearchChange}
-          />
-        </div>
-
-        {/* OPERATION FILTER CHIPS */}
-        <div className="flex items-center space-x-1.5 w-full sm:w-auto">
-          {['all', 'CREATE', 'UPDATE', 'DELETE'].map((op) => (
-            <button
-              key={op}
-              onClick={() => handleOpChange(op)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors ${
-                selectedOp === op
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {op}
-            </button>
-          ))}
-        </div>
-      </div>
+      <AdminTableToolbar
+        search={searchTerm}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Search form name, team member, email..."
+        statusFilter={selectedOp}
+        onStatusFilterChange={handleOpChange}
+        filterOptions={[
+          { value: 'all', label: 'All' },
+          { value: 'CREATE', label: 'CREATE' },
+          { value: 'UPDATE', label: 'UPDATE' },
+          { value: 'DELETE', label: 'DELETE' },
+        ]}
+      />
 
       {/* CDC AUDIT TABLE */}
-      <div className="bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden font-mono text-xs">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/75">
-              <tr>
-                <th scope="col" className="w-8 px-4 py-3"></th>
-                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Actor</th>
-                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Timestamp</th>
-                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Operation</th>
-                <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Target Entity</th>
-              </tr>
-            </thead>
+      <AdminTableCard
+        isLoading={isLoading}
+        loadingText="Loading mutation events..."
+        isEmpty={logs.length === 0}
+        emptyTitle="No CDC log records found"
+        emptyDescription="System changes will automatically register here."
+      >
+        <table className="min-w-full divide-y divide-gray-200 font-mono text-xs">
+          <thead className="bg-gray-50/75">
+            <tr>
+              <th scope="col" className="w-8 px-4 py-3"></th>
+              <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Actor</th>
+              <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Timestamp</th>
+              <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Operation</th>
+              <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-500 uppercase">Target Entity</th>
+            </tr>
+          </thead>
 
-            <tbody className="bg-white divide-y divide-gray-100">
-              {isLoading && logs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-sans">
-                    <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto mb-2" />
-                    Loading mutation events...
-                  </td>
-                </tr>
-              ) : logs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-sans">
-                    No CDC log records found.
-                  </td>
-                </tr>
-              ) : (
-                logs.map((log) => {
-                  const isExpanded = expandedLogId === log.id;
-                  const actorDisplay =
-                    log.actor_name && log.actor_name !== 'system'
-                      ? `${log.actor_name} (${log.actor_email})`
-                      : log.actor_email || 'system';
+          <tbody className="bg-white divide-y divide-gray-100">
+            {logs.map((log) => {
+              const isExpanded = expandedLogId === log.id;
+              const actorDisplay =
+                log.actor_name && log.actor_name !== 'system'
+                  ? `${log.actor_name} (${log.actor_email})`
+                  : log.actor_email || 'system';
 
-                  const entity = formatEntityDisplay(log);
-                  const Icon = entity.icon;
+              const entity = formatEntityDisplay(log);
+              const Icon = entity.icon;
 
-                  return (
-                    <React.Fragment key={log.id}>
-                      <tr
-                        onClick={() => toggleExpand(log.id)}
-                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                          isExpanded ? 'bg-indigo-50/40' : ''
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-gray-400">
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-indigo-600" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium font-sans">
-                          {actorDisplay}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-500">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {getOperationBadge(log.operation)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Icon className="w-4 h-4 text-gray-400 shrink-0" />
-                            <div>
-                              <div className="font-semibold text-gray-900 font-sans truncate max-w-sm">
-                                {entity.primaryTitle}
-                              </div>
-                              <div className="text-[11px] text-gray-400 font-mono">
-                                {log.table_name} • {entity.subContext}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* EXPANDED GITHUB-STYLE DIFF DRAWER */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-5 bg-gray-900 border-y border-gray-800">
-                            <GitHubDiffViewer
-                              oldValues={log.old_values}
-                              newValues={log.new_values}
-                              operation={log.operation}
-                              logId={log.id}
-                            />
-                          </td>
-                        </tr>
+              return (
+                <React.Fragment key={log.id}>
+                  <tr
+                    onClick={() => toggleExpand(log.id)}
+                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                      isExpanded ? 'bg-indigo-50/40' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-gray-400">
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-indigo-600" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
                       )}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-900 font-medium font-sans">
+                      {actorDisplay}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-500">
+                      {new Date(log.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {getOperationBadge(log.operation)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4 text-gray-400 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-gray-900 font-sans truncate max-w-sm">
+                            {entity.primaryTitle}
+                          </div>
+                          <div className="text-[11px] text-gray-400 font-mono">
+                            {log.table_name} • {entity.subContext}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* EXPANDED GITHUB-STYLE DIFF DRAWER */}
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-5 bg-gray-900 border-y border-gray-800">
+                        <GitHubDiffViewer
+                          oldValues={log.old_values}
+                          newValues={log.new_values}
+                          operation={log.operation}
+                          logId={log.id}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </AdminTableCard>
     </div>
   );
 }
