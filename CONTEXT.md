@@ -12,6 +12,28 @@
 
 ---
 
+## Admin Workspace Design System & Theme Architecture
+To ensure strict visual consistency and eliminate code duplication across domains:
+
+*   **Color Token Partitioning:**
+    *   **Admin Dashboard (`app/admin/(dashboard)/`):** Standardized on the **Indigo** system palette (`bg-indigo-600`, `hover:bg-indigo-700`, `bg-indigo-50`, `text-indigo-600`, `focus:ring-indigo-500`)[cite: 27, 28].
+    *   **Public Portal (`app/[locale]/`):** Uses the **Daoji Ochre** brand palette (`--color-primary: #A65D24`, `--color-surface-cream: #FAF5F0`, `--color-surface-base: #FCFAF8`)[cite: 14].
+*   **Shared Admin Primitives (`components/admin/shared/`):**
+    *   `<AdminPageHeader/>`: Standard title, subtitle, optional breadcrumb link, and primary action button[cite: 25, 27].
+    *   `<AdminTableToolbar/>`: Debounced search input, status filter tabs, and action slots[cite: 25, 27].
+    *   `<AdminTableCard/>`: Unified table container with loading skeleton, empty state, and responsive scroll[cite: 25, 27].
+    *   `<AdminStatusBanner/>`: Dismissable success/error notification banners[cite: 25, 33].
+    *   `<ShareQrModal/>`: Universal URL copier and 1000x1000 high-res QR PNG downloader[cite: 25, 27].
+    *   `<StatusBadgeSelect/>`: Color-coded operational status switcher (`open`/`published`, `draft`/`unlisted`, `closed`/`archived`)[cite: 25, 27].
+*   **Unified Editor Architecture (`components/admin/editor/`):**
+    *   `<EditorLayout/>`: Standardized two-pane layout shell with center scrollable canvas and fixed `460px` right inspector[cite: 28, 31].
+    *   `<EditorHeader/>`: Top bar with back navigation, entity title, code chip, split/single view switcher, preview, and save button[cite: 28, 31].
+    *   `<BilingualCanvas/>`: Side-by-side or tabbed writing surface for English and Traditional Chinese content with integrated `<MediaPicker/>` triggers[cite: 24, 31].
+    *   `<CoverBannerPicker/>`: Cover banner upload/selection card linked directly to the Media Pool[cite: 31, 32].
+    *   `<UrlSlugInspector/>`: Live-sanitized vanity URL input with permalink assistance and domain prefix[cite: 28, 31].
+
+---
+
 ## Core Domains & Paths
 
 ### Public Shell (`app/[locale]/`)

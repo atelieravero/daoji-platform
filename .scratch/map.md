@@ -1,9 +1,10 @@
 # Daoji Platform - Project Map
 
 ## Active Sprint
-*   [ ] `16-events-registration-hub.md` - Operational Events domain (`/admin/events`), venues registry with dual map routing (Google Maps / Amap), recurrence rules with blackout date exclusions, polymorphic 3-state CTA engine, `unlisted` direct-link event status, N:N article timeline linking, `.ics`/Google Calendar export, and public landing pages (`/events/[id_or_slug]`).
+*   [ ] `19-admin-design-system-and-component-extraction.md` - Admin workspace UI design system unification (Indigo palette), extraction of shared list view primitives (`AdminPageHeader`, `AdminTableToolbar`, `ShareQrModal`, `StatusBadgeSelect`), editor primitives (`EditorLayout`, `EditorHeader`, `BilingualCanvas`, `CoverBannerPicker`, `UrlSlugInspector`), and Media Pool deduplication.
 
 ## Backlog
+*   [ ] `16-events-registration-hub.md` - Operational Events domain (`/admin/events`), venues registry with dual map routing (Google Maps / Amap), recurrence rules with blackout date exclusions, polymorphic 3-state CTA engine, `unlisted` direct-link event status, N:N article timeline linking, `.ics`/Google Calendar export, and public landing pages (`/events/[id_or_slug]`).
 *   [ ] `17-articles-pages-news-feed.md` - Editorial Content Pages (`content_pages`), Markdown editor with `<MediaPicker/>`, bulletin feed (`/news`), static pages (`/[id_or_slug]`), and multi-event update attachments via `event_articles`[cite: 26].
 *   [ ] `18-resources-hub-cross-domain-taxonomy.md` - Curated Resource Hub (`/resources`), multi-source media catalog, two-way Article ⟷ Resource sync, and cross-domain tag aggregator (`/tags/[id_or_slug]`)[cite: 26].
 *   [ ] Optimize submission CSV exports with batch streaming[cite: 26].
