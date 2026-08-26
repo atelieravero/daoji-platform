@@ -16,21 +16,21 @@
 To ensure strict visual consistency and eliminate code duplication across domains:
 
 *   **Color Token Partitioning:**
-    *   **Admin Dashboard (`app/admin/(dashboard)/`):** Standardized on the **Indigo** system palette (`bg-indigo-600`, `hover:bg-indigo-700`, `bg-indigo-50`, `text-indigo-600`, `focus:ring-indigo-500`)[cite: 27, 28].
+    *   **Admin Dashboard (`app/admin/(dashboard)/`):** Standardized on the **Indigo** system palette (`bg-indigo-600`, `hover:bg-indigo-700`, `bg-indigo-50`, `text-indigo-600`, `focus:ring-indigo-500`).
     *   **Public Portal (`app/[locale]/`):** Uses the **Daoji Ochre** brand palette (`--color-primary: #A65D24`, `--color-surface-cream: #FAF5F0`, `--color-surface-base: #FCFAF8`)[cite: 14].
 *   **Shared Admin Primitives (`components/admin/shared/`):**
-    *   `<AdminPageHeader/>`: Standard title, subtitle, optional breadcrumb link, and primary action button[cite: 25, 27].
-    *   `<AdminTableToolbar/>`: Debounced search input, status filter tabs, and action slots[cite: 25, 27].
-    *   `<AdminTableCard/>`: Unified table container with loading skeleton, empty state, and responsive scroll[cite: 25, 27].
-    *   `<AdminStatusBanner/>`: Dismissable success/error notification banners[cite: 25, 33].
-    *   `<ShareQrModal/>`: Universal URL copier and 1000x1000 high-res QR PNG downloader[cite: 25, 27].
-    *   `<StatusBadgeSelect/>`: Color-coded operational status switcher (`open`/`published`, `draft`/`unlisted`, `closed`/`archived`)[cite: 25, 27].
+    *   `<AdminPageHeader/>`: Standard title, subtitle, optional breadcrumb link, and primary action button[cite: 25].
+    *   `<AdminTableToolbar/>`: Debounced search input, status filter tabs, and action slots[cite: 25].
+    *   `<AdminTableCard/>`: Unified table container with loading skeleton, empty state, and responsive scroll[cite: 25].
+    *   `<AdminStatusBanner/>`: Dismissable success/error notification banners[cite: 25].
+    *   `<ShareQrModal/>`: Universal URL copier and 1000x1000 high-res QR PNG downloader[cite: 25].
+    *   `<StatusBadgeSelect/>`: Color-coded operational status switcher (`open`/`published`, `draft`/`unlisted`, `closed`/`archived`)[cite: 25].
 *   **Unified Editor Architecture (`components/admin/editor/`):**
-    *   `<EditorLayout/>`: Standardized two-pane layout shell with center scrollable canvas and fixed `460px` right inspector[cite: 28, 31].
-    *   `<EditorHeader/>`: Top bar with back navigation, entity title, code chip, split/single view switcher, preview, and save button[cite: 28, 31].
-    *   `<BilingualCanvas/>`: Side-by-side or tabbed writing surface for English and Traditional Chinese content with integrated `<MediaPicker/>` triggers[cite: 24, 31].
-    *   `<CoverBannerPicker/>`: Cover banner upload/selection card linked directly to the Media Pool[cite: 31, 32].
-    *   `<UrlSlugInspector/>`: Live-sanitized vanity URL input with permalink assistance and domain prefix[cite: 28, 31].
+    *   `<EditorLayout/>`: Standardized two-pane layout shell with center scrollable canvas and fixed `460px` right inspector.
+    *   `<EditorHeader/>`: Top bar with back navigation, entity title, code chip, split/single view switcher, preview, and save button.
+    *   `<BilingualCanvas/>`: Side-by-side or tabbed writing surface for English and Traditional Chinese content with integrated `<MediaPicker/>` triggers[cite: 24].
+    *   `<CoverBannerPicker/>`: Cover banner upload/selection card linked directly to the Media Pool.
+    *   `<UrlSlugInspector/>`: Live-sanitized vanity URL input with permalink assistance and domain prefix.
 
 ---
 
@@ -47,7 +47,7 @@ To ensure strict visual consistency and eliminate code duplication across domain
 ### Admin Dashboard (`app/admin/`)
 *   **Auth Routes (Public):** `app/admin/login/`, `app/admin/forgot-password/`, `app/admin/setup-password/`, `app/admin/auth/`[cite: 24]
 *   **Protected Workspace (`app/admin/(dashboard)/`):**
-    *   **Events Manager:** `app/admin/(dashboard)/events/` (Operational dates, venues, linked forms, registration status, recurrence rules, blackout dates)[cite: 24]
+    *   **Events Manager:** `app/admin/(dashboard)/events/` (Operational dates, venues, organizers, registration modes, recurrence rules, blackout dates)[cite: 24]
     *   **Editorial Content / Articles:** `app/admin/(dashboard)/articles/` (Markdown editor with `<MediaPicker/>`, feed toggles, multi-event linking)[cite: 24]
     *   **Resource Hub Curator:** `app/admin/(dashboard)/resources/` (Curated library index: assets, YouTube, articles, external links)[cite: 24]
     *   **Media Pool (Assets):** `app/admin/(dashboard)/assets/` (Centralized R2 storage pool & reusable `<MediaPicker/>`)[cite: 24]
@@ -65,90 +65,92 @@ To ensure strict visual consistency and eliminate code duplication across domain
 ### 1. Storage & Media Layer (`assets`)
 *   **Role:** Physical Cloudflare R2 binary registry (The Media Pool) served over `https://cdn.ajahnyiu.org`[cite: 24].
 *   **Fields:** `id` (UUID), `file_url` (CDN link), `s3_key`, `file_name`, `mime_type`, `file_size_bytes`, `width`, `height`, `alt_text_zh`, `alt_text_en`, `created_by` (UUID), `created_at`[cite: 24].
-*   **Usage:** Shared pool for inline article images, event flyers, banner graphics, audio talks, and PDF e-books[cite: 24].
+*   **Display Policy:** Banner images render with natural aspect ratios (fitted to container width, no hard aspect-ratio cropping).
 
-### 2. Venues Registry (`venues`)
-*   **Role:** Centralized repository for recurring physical and digital event locations[cite: 24].
+### 2. Organizers Registry (`organizers`)
+*   **Role:** Repository for internal and external organizing bodies, sangha trusts, and affiliated foundations.
+*   **Fields:** `id` (UUID PK), `name_en` (Text NOT NULL, mandatory), `name_zh` (Text, nullable), `url` (Text, nullable), `description_zh` (Text, nullable), `description_en` (Text, nullable), `created_at` (TIMESTAMPTZ).
+*   **Access Control:** Governed under `events:create`, `events:edit`, and `events:delete`.
+
+### 3. Venues Registry (`venues`)
+*   **Role:** Centralized repository for physical event locations[cite: 24].
 *   **Fields:** `id` (UUID PK), `name_zh` (Text), `name_en` (Text, nullable), `address_zh` (Text, nullable), `address_en` (Text, nullable), `google_maps_url` (Text, nullable), `amap_url` (Text, nullable for Mainland China navigation), `transport_guide_zh` (Text, nullable), `transport_guide_en` (Text, nullable), `created_at` (TIMESTAMPTZ)[cite: 24].
-*   **Access Control:** Governed under `events:create`, `events:edit`, and `events:delete` (no separate venue permission keys required).
+*   **Access Control:** Governed under `events:create`, `events:edit`, and `events:delete`.
 
-### 3. Operational Domain (`events`)
-*   **Role:** First-class operational hub for dates, recurring schedules, venues, linked forms, applicant tokens, and registration state machines[cite: 24].
+### 4. Operational Domain (`events`)
+*   **Role:** First-class operational hub for dates, recurring schedules, venues, organizers, registration state machines, and livestream gateways[cite: 24].
 *   **Fields:**
-    *   `id` (UUID PK), `short_id` (Text, 8-char Base62, Unique), `code` (Text, 1–8 uppercase alphanumeric, Unique, replaces `interimEventCode`), `slug` (Text, nullable, Unique)[cite: 24].
+    *   `id` (UUID PK), `short_id` (Text, 8-char Base62, Unique), `slug` (Text, nullable, Unique)[cite: 24].
+    *   `organizer_id` (FK -> `organizers.id`, nullable).
     *   `title_zh`, `title_en` (Text)[cite: 24].
     *   `summary_zh`, `summary_en` (Text, plain-text preview snippet for cards, calendars, and SEO OpenGraph)[cite: 24].
     *   `body_zh`, `body_en` (Text, rich Markdown description with inline assets)[cite: 24].
-    *   `start_date` (TIMESTAMPTZ), `end_date` (TIMESTAMPTZ), `timezone` (Text, default `'Asia/Hong_Kong'`), `is_all_day` (Boolean)[cite: 24].
-    *   `recurrence_rule` (JSONB, frequency, days of week, time window, until date)[cite: 24].
+    *   `languages` (`TEXT[]`, default `'{cantonese}'` — Multiple selection from: `cantonese`, `mandarin`, `english`, `thai`).
+    *   `start_date` (TIMESTAMPTZ), `end_date` (TIMESTAMPTZ) — **Defines the first occurrence/session slot and duration**[cite: 24].
+    *   `timezone` (Text, default `'Asia/Hong_Kong'`), `is_all_day` (Boolean)[cite: 24].
+    *   `recurrence_rule` (JSONB: `frequency`, `interval`, `days_of_week`, `until_date`, `count`)[cite: 24].
     *   `blackout_dates` (`DATE[]`, skipped occurrences e.g. when teacher is away)[cite: 24].
-    *   `location_type` (`in_person` | `online` | `hybrid`)[cite: 24].
-    *   `venue_id` (FK -> `venues.id`, nullable), `venue_override_zh`, `venue_override_en` (Text, nullable)[cite: 24].
-    *   `registration_status` (`upcoming` | `open` | `waitlist` | `closed` | `not_required`)[cite: 24].
-    *   `cta_type` (`internal_form` | `external_url` | `zoom` | `none`)[cite: 24].
-    *   `cta_label_zh`, `cta_label_en` (Text, nullable custom button labels)[cite: 24].
-    *   `external_url` (Text, nullable for external portal integration)[cite: 24].
-    *   `zoom_config` (JSONB, meeting ID, password, URL, auto-activation window)[cite: 24].
-    *   `linked_form_id` (FK -> `forms.id`, nullable), `banner_asset_id` (FK -> `assets.id`, nullable)[cite: 24].
+    *   **Location Format Toggles:**
+        *   `is_in_person` (Boolean, default `true`): Enables `venue_id` (FK -> `venues.id`), `venue_override_zh`, `venue_override_en`[cite: 24].
+        *   `is_livestream` (Boolean, default `false`): Enables `livestream_config` (JSONB: `zoom_url`, `youtube_url`, `facebook_url`, `zoom_meeting_id`, `zoom_passcode`, `open_minutes_before` default 15).
+    *   **Registration & Participation Gate:**
+        *   `registration_mode` (`internal_form` | `external_url` | `not_required`).
+        *   `code` (Text, 1–8 uppercase alphanumeric, **non-unique**, mandatory *only* when `registration_mode = 'internal_form'`, defines the applicant token namespace e.g. `STAY-XXXX-XXXX`)[cite: 24].
+        *   `linked_form_id` (FK -> `forms.id`, nullable, active when `registration_mode = 'internal_form'`)[cite: 24].
+        *   `external_url` (Text, nullable, active when `registration_mode = 'external_url'`)[cite: 24].
+        *   `registration_status` (`upcoming` | `open` | `closed`)[cite: 24].
+        *   `cta_label_zh`, `cta_label_en` (Text, nullable custom button labels)[cite: 24].
+    *   `banner_asset_id` (FK -> `assets.id`, nullable)[cite: 24].
     *   `status` (`draft` | `published` | `unlisted` | `archived`), `is_featured` (Boolean), `created_at`, `updated_at`.
 
-### 4. Multi-Event Articles Junction (`event_articles`)
+### 5. Multi-Event Articles Junction (`event_articles`)
 *   **Role:** N:N associative relation allowing single announcement articles to promote multiple events, or single events to aggregate chronological article updates[cite: 24].
 *   **Fields:** `event_id` (UUID FK -> `events.id`), `article_id` (UUID FK -> `content_pages.id`), `sort_order` (Integer), `created_at` (TIMESTAMPTZ)[cite: 24].
 *   **Primary Key:** `(event_id, article_id)`[cite: 24].
 
-### 5. Editorial & Static Content (`content_pages`)
+### 6. Editorial & Static Content (`content_pages`)
 *   **Role:** Web-native reading material, blog reflections, bulletin updates, and fixed layout pages[cite: 24].
 *   **Fields:** `id` (UUID), `short_id` (Text, 8-char Base62, Unique), `slug` (Text, nullable, Unique), `type` (`page` | `article`), `title_zh`, `title_en`, `body_zh` (Markdown), `body_en`, `cover_asset_id` (FK -> `assets.id`, nullable), `is_in_feed` (Boolean, shows in `/news`), `is_pinned_in_feed` (Boolean, sticky banner), `status` (`draft` | `published` | `archived`), `published_at`, `created_at`, `updated_at`[cite: 24].
 
-### 6. Knowledge Hub Catalog (`resources`)
+### 7. Knowledge Hub Catalog (`resources`)
 *   **Role:** Curated public library entries (`/[locale]/resources`) linking across formats[cite: 24].
 *   **Fields:** `id` (UUID), `short_id` (Text, 8-char Base62, Unique), `slug` (Text, nullable, Unique), `source_type` (`asset` | `youtube` | `article` | `external_link`), `target_asset_id` (FK -> `assets.id`, nullable), `target_page_id` (FK -> `content_pages.id`, nullable), `external_url` (Text, nullable), `title_zh`, `title_en`, `description_zh`, `description_en`, `author_speaker_zh`, `author_speaker_en`, `cover_asset_id` (FK -> `assets.id`, nullable), `is_featured` (Boolean), `status` (`draft` | `published` | `archived`), `created_at`, `updated_at`[cite: 24].
 
-### 7. Polymorphic Taxonomy (`tags` & `taggables`)
+### 8. Polymorphic Taxonomy (`tags` & `taggables`)
 *   **`tags` Table:** `id` (UUID), `short_id` (Text, 8-char Base62, Unique), `slug` (Text, nullable, Unique), `name_zh`, `name_en`, `is_pillar` (Boolean, marks Tier-2 Topic Pillars), `color` (Hex code), `created_at`[cite: 24].
 *   **`taggables` Table:** `tag_id` (UUID), `taggable_id` (UUID), `taggable_type` (`event` | `content_page` | `resource` | `asset`), with a composite primary key `(tag_id, taggable_id, taggable_type)`[cite: 24].
 
-### 8. Forms, Submissions & Audit Logs
-*   **`forms` Table:** Single `forms` table with dynamic JSONB `schema`, `short_id`, optional `slug`, `event_id`, and `is_followup` flags[cite: 24].
-*   **`submissions` Table:** Dynamic JSONB responses, Magic Tokens (`EVENTCODE-XXXX-XXXX`), sequential human-readable numbers (`applicant_seq_num`), test/real isolation[cite: 24].
-*   **`team_members` Table:** Admin user profiles, roles array (`super_admin`, `team_manager`, `form_editor`, `submission_viewer`, `content_editor`, `event_coordinator`, `viewer`), auth links[cite: 24].
-*   **`audit_logs` Table:** PostgreSQL CDC mutation records via triggers for `forms`, `team_members`, `events`, `venues`, `content_pages`, `resources`, `tags`, and `assets` with neutral `system@internal` actor attribution[cite: 24].
-
 ---
 
-## Call-to-Action (CTA) & Operational Design Matrix
-All action buttons unify around Daoji Ochre brand tokens defined in `globals.css`[cite: 24]:
+## Operational Action & Button State Machines
 
-*   **State 1: Draft / Opening Soon / Paused**[cite: 24]
-    *   Display Text: `即將開放` / *Opening Soon* (or `暫停報名` / *Paused*)[cite: 24]
-    *   Condition: Linked form in `draft`, or external link / Zoom marked not yet active[cite: 24].
-    *   Style: Outlined Cream (`bg-[#FAF5F0] border border-[#A65D24]/40 text-[#A65D24] hover:bg-[#F2E8DC] cursor-pointer`)[cite: 24]
-*   **State 2: Open / Active**[cite: 24]
-    *   Display Text: `立即報名` / *Register Now* (or `進入會議` / *Join Zoom Meeting*)[cite: 24]
-    *   Condition: Linked form is `open`, or external link active, or Zoom within 30-min window[cite: 24].
-    *   Style: Solid Daoji Ochre (`bg-[#A65D24] hover:bg-[#8A4D1E] text-white shadow-sm font-semibold transition-colors cursor-pointer`)[cite: 24]
-*   **State 3: Closed / Ended**[cite: 24]
-    *   Display Text: `報名截止` / *Registration Closed* (or `活動已結束` / *Event Concluded*)[cite: 24]
-    *   Condition: Linked form is `closed`, or date has passed, or manually closed[cite: 24].
-    *   Style: Muted Stone (`bg-stone-200 border border-stone-300 text-stone-500 cursor-not-allowed select-none`)[cite: 24]
+### 1. Registration Button State Machine (3 States)
+*   **Mode: `internal_form` (Dynamic Inheritance):**
+    *   `forms.status === 'draft'` ➔ **State 1: Upcoming** (`即將開放` / *Opening Soon*). Outlined Cream (`bg-[#FAF5F0] border border-[#A65D24]/40 text-[#A65D24]`)[cite: 24].
+    *   `forms.status === 'open'` ➔ **State 2: Open** (`立即報名` / *Register Now*). Solid Daoji Ochre (`bg-[#A65D24] text-white shadow-xs`)[cite: 24] ➔ smooth-scroll or navigate to form[cite: 24, 25].
+    *   `forms.status === 'closed'` ➔ **State 3: Closed** (`報名截止` / *Registration Closed*). Muted Stone (`bg-stone-200 text-stone-500 cursor-not-allowed`)[cite: 24].
+*   **Mode: `external_url` (Manual Selection):**
+    *   Admin selects `upcoming`, `open`, or `closed` directly[cite: 24].
+*   **Mode: `not_required` (Passive Badge):**
+    *   Renders informational banner: `無需預先報名・自由入座` (*No pre-registration required*).
 
----
-
-## Recurrence & Calendar Export Architecture
-1.  **Recurrence Engine:**[cite: 24]
-    *   Events store a declarative `recurrence_rule` JSONB (`frequency`, `days_of_week`, `start_time`, `end_time`, `until_date`)[cite: 24].
-    *   `blackout_dates` (`DATE[]`) skips discrete occurrences (e.g. holidays, teacher travel) without mutating the master event record[cite: 24].
-2.  **Calendar Integration (`lib/calendar.ts`):**[cite: 24]
-    *   **Google Calendar 1-Click Intent:** Encodes localized title, schedule, venue address, and description into a direct web intent URL[cite: 24].
-    *   **RFC-5545 `.ics` Generator:** Generates standard iCalendar payload client-side supporting `RRULE`, `EXDATE` (from `blackout_dates`), and `TZID:Asia/Hong_Kong` for Apple Calendar, iOS, and Outlook[cite: 24].
+### 2. Livestream Action Engine (Time-Windowed & Multi-Platform)
+*   **Active Window:** `now >= (next_session_start - open_minutes_before)` **AND** `now <= next_session_end`.
+    *   Renders multi-platform trigger bar with platform-specific badges:
+        *   **Zoom:** Direct app link + Meeting ID & Passcode copy modal.
+        *   **YouTube:** Direct YouTube live stream URL.
+        *   **Facebook:** Direct Facebook Live stream URL.
+*   **Outside Window (Single & Recurring Sessions):**
+    *   Finds next scheduled session date/time (omitting `blackout_dates`)[cite: 24].
+    *   Renders status hint: `直播將於 [日期 時間 - X分鐘] 開放進入` (*Livestream opens at [Date Time - X min]*).
+*   **After Event Concluded:**
+    *   Hides livestream buttons automatically when all occurrences have passed.
 
 ---
 
 ## URL Routing & Identifier Architecture (Dual-Lookup)
-To eliminate administrative friction for Chinese-first content while supporting vanity URLs[cite: 24]:
-1.  **Permanent `short_id` (Immutable):** Every public record receives an auto-generated 8-character Base62 string (e.g., `k8x9m2pz`) via database default[cite: 24].
-2.  **Optional `slug` (Mutable Vanity String):** Slugs are completely optional[cite: 24]. Admins can leave them blank or set custom English/ASCII slugs for branding/SEO[cite: 24].
+1.  **Permanent `short_id` (Immutable):** Every public record receives an auto-generated 8-character Base62 string (e.g., `k8x9m2pz`)[cite: 24].
+2.  **Optional `slug` (Mutable Vanity String):** Slugs are optional and globally unique[cite: 24]. When left blank, editor suggests lowercase `/{code}` as initial draft[cite: 24].
 3.  **Unified Resolution:** Route handlers execute a single indexed lookup:
     ```sql
     WHERE (short_id = $1 OR slug = $1) AND status IN ('published', 'unlisted')
