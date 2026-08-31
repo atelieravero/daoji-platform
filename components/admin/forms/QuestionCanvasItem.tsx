@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   GripVertical, GitBranch, AlertCircle, ChevronUp, ChevronDown, 
-  Smartphone, Calendar, Clock, UploadCloud, KeyRound 
+  Smartphone, Calendar, Clock, UploadCloud, KeyRound, Hash 
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import { FieldOption } from './ChoicesConfigurator';
@@ -11,6 +11,7 @@ import { LogicRule } from './ConditionalLogicInspector';
 
 export type FieldType =
   | 'text'
+  | 'number'
   | 'email'
   | 'mobile'
   | 'date'
@@ -32,6 +33,9 @@ export interface FormField {
   descriptionEn?: string;
   descriptionZh?: string;
   required: boolean;
+  decimals?: number; // e.g. 0 for integer, 2 for payment currency
+  min?: number;
+  max?: number;
   options?: FieldOption[];
   condition?: { match: 'AND' | 'OR'; rules: LogicRule[] };
 }
@@ -129,6 +133,11 @@ export default function QuestionCanvasItem({
                 key: {field.dataKey || '(missing)'}
               </span>
             )}
+            {field.type === 'number' && field.decimals !== undefined && (
+              <span className="font-mono text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded ml-1 font-semibold border border-blue-200">
+                {field.decimals === 0 ? 'Integer' : `${field.decimals} Decimals`}
+              </span>
+            )}
             {field.required && field.type !== 'info' && <span className="text-red-500 ml-1">*</span>}
           </label>
           <MarkdownRenderer content={field.descriptionEn} className="text-sm text-gray-500 mt-1" />
@@ -136,7 +145,17 @@ export default function QuestionCanvasItem({
         </div>
 
         {/* INPUT MOCK PREVIEWS */}
-        {field.type === 'info' ? null : field.type === 'text' || field.type === 'email' ? (
+        {field.type === 'info' ? null : field.type === 'number' ? (
+          <div className="relative">
+            <Hash className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+            <input 
+              type="number" 
+              disabled 
+              placeholder={field.decimals === 2 ? '0.00' : '0'} 
+              className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white font-mono text-sm" 
+            />
+          </div>
+        ) : field.type === 'text' || field.type === 'email' ? (
           <input type={field.type} disabled placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
         ) : field.type === 'textarea' ? (
           <textarea disabled rows={3} placeholder="..." className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white" />

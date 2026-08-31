@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw, Hash } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 
 import enDict from '@/messages/en.json';
@@ -216,15 +216,65 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       const normRuleVal = normalize(rule.value);
 
       switch (rule.operator) {
-        case 'equals': 
+        case 'greater_than': {
+          const numDep = parseFloat(normDependentVal);
+          const numRule = parseFloat(normRuleVal);
+          if (isNaN(numDep) || isNaN(numRule)) return false;
+          return numDep > numRule;
+        }
+
+        case 'less_than': {
+          const numDep = parseFloat(normDependentVal);
+          const numRule = parseFloat(normRuleVal);
+          if (isNaN(numDep) || isNaN(numRule)) return false;
+          return numDep < numRule;
+        }
+
+        case 'within_range': {
+          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => s.trim());
+          if (!startStr || !endStr) return false;
+          const numDep = parseFloat(normDependentVal);
+          const numStart = parseFloat(startStr);
+          const numEnd = parseFloat(endStr);
+          if (!isNaN(numDep) && !isNaN(numStart) && !isNaN(numEnd)) {
+            return numDep >= numStart && numDep <= numEnd;
+          }
+          return normDependentVal >= startStr && normDependentVal <= endStr;
+        }
+
+        case 'not_within_range': {
+          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => s.trim());
+          if (!startStr || !endStr) return true;
+          const numDep = parseFloat(normDependentVal);
+          const numStart = parseFloat(startStr);
+          const numEnd = parseFloat(endStr);
+          if (!isNaN(numDep) && !isNaN(numStart) && !isNaN(numEnd)) {
+            return numDep < numStart || numDep > numEnd;
+          }
+          return normDependentVal < startStr || normDependentVal > endStr;
+        }
+
+        case 'equals': {
+          const numDep = parseFloat(normDependentVal);
+          const numRule = parseFloat(normRuleVal);
+          if (!isNaN(numDep) && !isNaN(numRule) && String(normDependentVal).trim() !== '' && String(normRuleVal).trim() !== '') {
+            return numDep === numRule;
+          }
           return Array.isArray(normDependentVal) 
             ? normDependentVal.length === 1 && normDependentVal[0] === normRuleVal 
             : normDependentVal === normRuleVal;
+        }
 
-        case 'not_equals': 
+        case 'not_equals': {
+          const numDep = parseFloat(normDependentVal);
+          const numRule = parseFloat(normRuleVal);
+          if (!isNaN(numDep) && !isNaN(numRule) && String(normDependentVal).trim() !== '' && String(normRuleVal).trim() !== '') {
+            return numDep !== numRule;
+          }
           return Array.isArray(normDependentVal) 
             ? normDependentVal.length !== 1 || normDependentVal[0] !== normRuleVal 
             : normDependentVal !== normRuleVal;
+        }
 
         case 'contains': 
           return Array.isArray(normDependentVal) 
@@ -248,18 +298,6 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
           return Array.isArray(normDependentVal) 
             ? !normDependentVal.some((val: string) => disallowed.includes(val)) 
             : !disallowed.includes(normDependentVal);
-        }
-
-        case 'within_range': {
-          const [start, end] = normRuleVal.split('..').map((s: string) => s.trim());
-          if (!start || !end) return false;
-          return normDependentVal >= start && normDependentVal <= end;
-        }
-
-        case 'not_within_range': {
-          const [start, end] = normRuleVal.split('..').map((s: string) => s.trim());
-          if (!start || !end) return true;
-          return normDependentVal < start || normDependentVal > end;
         }
 
         default: 
@@ -295,6 +333,17 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     }
 
     for (const f of visibleFields) {
+      if (f.required) {
+        const val = activeAnswers[f.dataKey];
+        if (val === undefined || val === null || val === '') {
+          const fieldLabel = locale === 'zh' 
+            ? (f.labelZh || f.labelEn || f.title || f.dataKey) 
+            : (f.labelEn || f.labelZh || f.title || f.dataKey);
+          setErrorMessage(`${t.required}: ${fieldLabel}`);
+          return;
+        }
+      }
+
       if (f.required && f.type === 'checkbox') {
         const currentVals = activeAnswers[f.dataKey] || [];
         if (currentVals.length === 0) {
@@ -305,6 +354,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
           return;
         }
       }
+
       if (f.required && f.type === 'time') {
         const val = activeAnswers[f.dataKey] || '';
         const [h, m] = val.split(':');
@@ -406,12 +456,13 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
           <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
           <button
+            type="button"
             onClick={() => {
               navigator.clipboard.writeText(generatedToken);
               setIsCopied(true);
               setTimeout(() => setIsCopied(false), 2000);
             }}
-            className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none"
+            className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none cursor-pointer"
           >
             {isCopied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
           </button>
@@ -476,7 +527,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
               <button
                 type="submit"
                 disabled={isPreGateVerifying || !manualToken}
-                className="w-full mt-6 py-3.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 flex items-center justify-center"
+                className="w-full mt-6 py-3.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 flex items-center justify-center cursor-pointer"
               >
                 {isPreGateVerifying && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
                 {isPreGateVerifying ? t.verifying : t.verify}
@@ -492,13 +543,9 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         ? (form.schema?.successTitleZh || form.schema?.successTitleEn || t.successTitle) 
         : (form.schema?.successTitleEn || form.schema?.successTitleZh || t.successTitle);
       
-      let successMessage = locale === 'zh' 
+      const successMessage = locale === 'zh' 
         ? (form.schema?.successMessageZh || form.schema?.successMessageEn || t.successMessage) 
         : (form.schema?.successMessageEn || form.schema?.successMessageZh || t.successMessage);
-      
-      if (generatedToken && !successMessage.includes('{{TOKEN_BOX}}')) {
-        successMessage += '\n\n{{TOKEN_BOX}}';
-      }
       
       const messageParts = successMessage.split('{{TOKEN_BOX}}');
 
@@ -528,7 +575,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
               <div className="mt-12 pt-6 border-t border-stone-100 text-center">
                 <button
                   onClick={handleStartOver}
-                  className="inline-flex items-center text-sm font-medium text-stone-400 hover:text-stone-600 transition-colors focus:outline-none"
+                  className="inline-flex items-center text-sm font-medium text-stone-400 hover:text-stone-600 transition-colors focus:outline-none cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
                   {(t as any).submitAnother || 'Submit another response'}
@@ -597,7 +644,29 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                   </label>
                   {fieldDesc && <MarkdownRenderer content={fieldDesc} className="text-xs text-stone-500" />}
 
-                  {field.type === 'text' || field.type === 'email' ? (
+                  {field.type === 'number' ? (
+                    <div className="relative mt-2">
+                      <input
+                        type="number"
+                        required={field.required}
+                        min={field.min}
+                        max={field.max}
+                        step={field.decimals !== undefined ? (field.decimals === 0 ? '1' : String(Math.pow(10, -field.decimals))) : 'any'}
+                        value={activeAnswers[field.dataKey] ?? ''}
+                        onChange={(e) => handleInputChange(field.dataKey, e.target.value)}
+                        onBlur={(e) => {
+                          if (e.target.value !== '' && field.decimals !== undefined && field.decimals > 0) {
+                            const parsed = parseFloat(e.target.value);
+                            if (!isNaN(parsed)) {
+                              handleInputChange(field.dataKey, parsed.toFixed(field.decimals));
+                            }
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                        placeholder={field.decimals === 2 ? '0.00' : field.decimals === 0 ? '0' : '...'}
+                      />
+                    </div>
+                  ) : field.type === 'text' || field.type === 'email' ? (
                     <input
                       type={field.type}
                       required={field.required}
@@ -717,7 +786,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                                  return next;
                               });
                             }}
-                            className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0"
+                            className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0 cursor-pointer"
                           >
                             {(t as any).remove}
                           </button>
@@ -787,7 +856,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                                 type="button"
                                 onClick={() => handleInlineVerify(field.dataKey, activeAnswers[field.dataKey])}
                                 disabled={!hasValue || inlineTokens[field.dataKey]?.verifying || isFieldVerified}
-                                className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                                className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px] cursor-pointer"
                               >
                                 {inlineTokens[field.dataKey]?.verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : isFieldVerified ? <Check className="w-5 h-5 text-emerald-600" /> : t.verify}
                               </button>
@@ -838,7 +907,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                                   handleInputChange(field.dataKey, ''); 
                                 }
                               }}
-                              className="w-4 h-4 text-primary border-stone-300 focus:ring-primary"
+                              className="w-4 h-4 text-primary border-stone-300 focus:ring-primary cursor-pointer"
                             />
                             <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
                           </label>
@@ -863,7 +932,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                                 else updated = updated.filter((v: string) => v !== opt.value);
                                 handleInputChange(field.dataKey, updated);
                               }}
-                              className="w-4 h-4 text-primary border-stone-300 rounded focus:ring-primary"
+                              className="w-4 h-4 text-primary border-stone-300 rounded focus:ring-primary cursor-pointer"
                             />
                             <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
                           </label>
@@ -885,7 +954,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center"
+              className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center cursor-pointer"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               {isSubmitting ? t.submitting : (isTest ? (t.submitTest || 'Submit Form (Test Data)') : t.submit)}
@@ -913,7 +982,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                 urlParams.set('standalone', 'true');
                 window.location.href = newPath + '?' + urlParams.toString();
               }}
-              className="px-4 py-2 bg-white/80 backdrop-blur border border-stone-200 shadow-sm rounded-full text-sm font-medium text-stone-700 hover:text-primary transition-colors flex items-center"
+              className="px-4 py-2 bg-white/80 backdrop-blur border border-stone-200 shadow-sm rounded-full text-sm font-medium text-stone-700 hover:text-primary transition-colors flex items-center cursor-pointer"
             >
               {locale === 'en' ? '中文' : 'English'}
             </button>

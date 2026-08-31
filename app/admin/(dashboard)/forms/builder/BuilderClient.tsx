@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2 } from 'lucide-react';
-import { saveFormSchema, getFormSchema } from './actions';
+import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2, Calendar } from 'lucide-react';
+import { saveFormSchema, getFormSchema, getEventsForFormBuilder, FormEventOption } from './actions';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import MarkdownEditor from '@/components/shared/MarkdownEditor';
 import { FormInput, FormSelect } from '@/components/ui/FormControls';
@@ -50,6 +50,9 @@ function FormBuilderContent() {
   const [viewMode, setViewMode] = useState<'form' | 'success'>('form');
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
 
+  // Real Database Events List
+  const [availableEvents, setAvailableEvents] = useState<FormEventOption[]>([]);
+
   const [formConfig, setFormConfig] = useState({
     internalName: 'Untitled Form',
     slug: '',
@@ -57,10 +60,10 @@ function FormBuilderContent() {
     titleZh: '新表單',
     subtitleEn: '',
     subtitleZh: '',
-    eventId: 'evt_1',
+    eventId: '',
     isFollowUp: false,
     status: 'draft',
-    interimEventCode: 'OCT26',
+    interimEventCode: '',
     isStandalone: false,
     bannerImageUrl: '',
     successTitleEn: 'Submission Successful',
@@ -72,6 +75,14 @@ function FormBuilderContent() {
   const [fields, setFields] = useState<FormField[]>([]);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
+  // Load Real Events
+  useEffect(() => {
+    getEventsForFormBuilder().then((events) => {
+      setAvailableEvents(events);
+    });
+  }, []);
+
+  // Load Form Data
   useEffect(() => {
     if (!formIdParam || formIdParam === 'new') return;
     let isMounted = true;
@@ -90,14 +101,14 @@ function FormBuilderContent() {
         setFormConfig({
           internalName: record.title || '',
           slug: record.slug || '',
-          eventId: record.event_id || 'evt_1',
+          eventId: record.event_id || '',
           isFollowUp: record.is_followup || false,
           titleEn: schema.titleEn ?? '',
           titleZh: schema.titleZh ?? '',
           subtitleEn: schema.subtitleEn ?? '',
           subtitleZh: schema.subtitleZh ?? '',
           status: schema.status ?? 'draft',
-          interimEventCode: schema.interimEventCode ?? 'OCT26',
+          interimEventCode: schema.interimEventCode ?? schema.eventCode ?? '',
           isStandalone: schema.isStandalone ?? false,
           bannerImageUrl: schema.bannerImageUrl ?? '',
           successTitleEn: schema.successTitleEn ?? 'Submission Successful',
@@ -114,6 +125,9 @@ function FormBuilderContent() {
       isMounted = false;
     };
   }, [formIdParam]);
+
+  const selectedEvent = availableEvents.find((e) => e.id === formConfig.eventId);
+  const effectiveEventCode = selectedEvent?.code || formConfig.interimEventCode || '';
 
   const activeField = fields.find((f) => f.id === activeFieldId);
   const activeFieldIndex = fields.findIndex((f) => f.id === activeFieldId);
@@ -243,8 +257,10 @@ function FormBuilderContent() {
     setIsSaving(true);
 
     try {
+      const eventCodeToSave = selectedEvent?.code || formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
       const payload = {
-        event_id: formConfig.eventId,
+        event_id: formConfig.eventId && formConfig.eventId !== '' ? formConfig.eventId : null,
         slug: cleanSlug,
         title: formConfig.internalName,
         is_followup: formConfig.isFollowUp,
@@ -254,7 +270,8 @@ function FormBuilderContent() {
           subtitleEn: formConfig.subtitleEn,
           subtitleZh: formConfig.subtitleZh,
           status: formConfig.status,
-          interimEventCode: formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+          interimEventCode: eventCodeToSave,
+          eventCode: eventCodeToSave,
           isStandalone: formConfig.isStandalone,
           bannerImageUrl: formConfig.bannerImageUrl,
           successTitleEn: formConfig.successTitleEn,
@@ -275,7 +292,7 @@ function FormBuilderContent() {
       if (error.message.includes('duplicate key value violates unique constraint')) {
         alert('Validation Error: This URL Slug is already taken by another form.');
       } else {
-        alert('Failed to save Form Schema.');
+        alert(error.message || 'Failed to save Form Schema.');
       }
     } finally {
       setIsSaving(false);
@@ -302,7 +319,7 @@ function FormBuilderContent() {
           <EditorHeader
             backHref="/admin/forms"
             title={formConfig.internalName}
-            codeBadge={formConfig.interimEventCode}
+            codeBadge={effectiveEventCode || undefined}
             previewUrl={formConfig.slug ? `/en/form/${formConfig.slug}?test=true` : undefined}
             onSave={handleSave}
             isSaving={isSaving}
@@ -502,29 +519,59 @@ function FormBuilderContent() {
                       required
                     />
 
-                    <FormSelect
-                      label="Linked Event"
-                      value={formConfig.eventId}
-                      onChange={(e) => setFormConfig({ ...formConfig, eventId: e.target.value })}
-                    >
-                      <option value="evt_1">7-Day Silent Zen Retreat</option>
-                      <option value="evt_2">Weekly Wednesday Wisdom</option>
-                    </FormSelect>
+                    {/* REAL EVENT SELECTOR */}
+                    <div className="space-y-2">
+                      <FormSelect
+                        label="Linked Event"
+                        value={formConfig.eventId}
+                        onChange={(e) => {
+                          const newEventId = e.target.value;
+                          const evt = availableEvents.find((item) => item.id === newEventId);
+                          setFormConfig({
+                            ...formConfig,
+                            eventId: newEventId,
+                            interimEventCode: evt?.code || formConfig.interimEventCode,
+                          });
+                        }}
+                      >
+                        <option value="">-- No Linked Event (Standalone Form) --</option>
+                        {availableEvents.map((evt) => (
+                          <option key={evt.id} value={evt.id}>
+                            {evt.title_zh} {evt.code ? `[${evt.code}]` : ''} ({evt.status})
+                          </option>
+                        ))}
+                      </FormSelect>
 
-                    <FormInput
-                      label="Interim Event Code (Prefix)"
-                      helperText="Applicants will get tokens like [PREFIX]-A4X9-P2M8"
-                      maxLength={8}
-                      value={formConfig.interimEventCode}
-                      onChange={(e) =>
-                        setFormConfig({
-                          ...formConfig,
-                          interimEventCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-                        })
-                      }
-                      className="font-mono uppercase"
-                      placeholder="e.g., ZEN26"
-                    />
+                      {/* DISPLAY INHERITED EVENT CODE */}
+                      {selectedEvent ? (
+                        <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-gray-900 block">Event Code Namespace</span>
+                            <span className="text-[11px] text-gray-500">
+                              Applicant Token: <code className="font-bold text-indigo-700 font-mono">[{selectedEvent.code || 'NO-CODE'}]-XXXX-XXXX</code>
+                            </span>
+                          </div>
+                          <span className="px-2 py-1 bg-white font-mono font-bold text-indigo-600 rounded-md border border-indigo-200 text-xs shadow-2xs">
+                            {selectedEvent.code || 'None'}
+                          </span>
+                        </div>
+                      ) : (
+                        <FormInput
+                          label="Event Code (Fallback Token Prefix)"
+                          helperText="Used if not linked to an event. (1-8 uppercase alphanumeric)"
+                          maxLength={8}
+                          value={formConfig.interimEventCode}
+                          onChange={(e) =>
+                            setFormConfig({
+                              ...formConfig,
+                              interimEventCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                            })
+                          }
+                          className="font-mono uppercase"
+                          placeholder="e.g., MMC"
+                        />
+                      )}
+                    </div>
 
                     <div className="flex items-center justify-between py-3 border-y border-gray-100 mt-4">
                       <div>
@@ -663,6 +710,7 @@ function FormBuilderContent() {
                         updateActiveField({
                           type: newType,
                           dataKey: newType === 'info' ? '' : activeField.dataKey || `question_${fields.length + 1}`,
+                          decimals: newType === 'number' ? 2 : undefined,
                           options:
                             ['select', 'radio', 'checkbox'].includes(newType) && !activeField.options
                               ? [{ value: 'opt_1', labelEn: 'Option 1', labelZh: '選項 1' }]
@@ -671,8 +719,9 @@ function FormBuilderContent() {
                       }}
                       icon={Settings2}
                     >
-                      <optgroup label="Text">
+                      <optgroup label="Text & Numbers">
                         <option value="text">Short Text</option>
+                        <option value="number">Number / Amount</option>
                         <option value="textarea">Long Paragraph</option>
                         <option value="email">Email Address</option>
                         <option value="mobile">Mobile Number</option>
@@ -694,6 +743,51 @@ function FormBuilderContent() {
                         <option value="info">Informational Text Block</option>
                       </optgroup>
                     </FormSelect>
+                    
+                    {/* NUMBER CONFIGURATION INSPECTOR */}
+                    {activeField.type === 'number' && (
+                      <div className="p-4 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-blue-950 uppercase tracking-wider">Number Settings</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <FormInput
+                            label="Decimals"
+                            type="number"
+                            min={0}
+                            max={6}
+                            placeholder="e.g. 2"
+                            value={activeField.decimals !== undefined ? String(activeField.decimals) : '2'}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
+                              updateActiveField({ decimals: isNaN(val as number) ? undefined : val });
+                            }}
+                            helperText="0 = Integer, 2 = $0.00"
+                          />
+                          <FormInput
+                            label="Min Value"
+                            type="number"
+                            placeholder="No min"
+                            value={activeField.min !== undefined ? String(activeField.min) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              updateActiveField({ min: isNaN(val as number) ? undefined : val });
+                            }}
+                          />
+                          <FormInput
+                            label="Max Value"
+                            type="number"
+                            placeholder="No max"
+                            value={activeField.max !== undefined ? String(activeField.max) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              updateActiveField({ max: isNaN(val as number) ? undefined : val });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {hasOptions && (
                       <ChoicesConfigurator

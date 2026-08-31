@@ -7,9 +7,37 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '@/lib/s3/client';
 
+export interface FormEventOption {
+  id: string;
+  title_zh: string;
+  title_en: string | null;
+  code: string | null;
+  short_id: string;
+  status: string;
+}
+
+/**
+ * Fetch real events list for Form Builder linkage
+ */
+export async function getEventsForFormBuilder(): Promise<FormEventOption[]> {
+  await requirePermission('forms:edit');
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, title_zh, title_en, code, short_id, status')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching events for form builder:', error);
+    return [];
+  }
+
+  return (data as FormEventOption[]) || [];
+}
+
 /**
  * Fetches form schema by ID.
- * Strictly restricted to Form Editors.
  */
 export async function getFormSchema(id: string) {
   await requirePermission('forms:edit');
@@ -30,11 +58,10 @@ export async function getFormSchema(id: string) {
 }
 
 /**
- * Saves or updates form schema.
- * Direct async declaration preserves session cookies for auth.uid() CDC triggers.
+ * Saves or updates form schema with sanitized event_id.
  */
 export async function saveFormSchema(payload: {
-  event_id: string;
+  event_id?: string | null;
   slug: string; 
   title: string;
   is_followup: boolean;
@@ -43,11 +70,20 @@ export async function saveFormSchema(payload: {
   await requirePermission('forms:edit');
   const supabase = await createClient();
 
+  const cleanPayload: Record<string, any> = {
+    title: payload.title,
+    slug: payload.slug,
+    is_followup: Boolean(payload.is_followup),
+    schema: payload.schema,
+    event_id: payload.event_id && payload.event_id.trim() !== '' && payload.event_id !== 'none'
+      ? payload.event_id
+      : null,
+  };
+
   let error;
   let savedId = id;
 
   if (id) {
-    // 1. Verify current status before allowing update (State-Based Guard)
     const { data: existingForm, error: fetchError } = await supabase
       .from('forms')
       .select('status')
@@ -62,17 +98,13 @@ export async function saveFormSchema(payload: {
       throw new Error('Action blocked: Form schema cannot be modified while open or closed. Please revert to draft status first.');
     }
 
-    // 2. Update with active auth.uid() context for PostgreSQL CDC trigger
-    const res = await supabase
-      .from('forms')
-      .update(payload)
+    const res = await (supabase.from('forms') as any)
+      .update(cleanPayload)
       .eq('id', id);
     error = res.error;
   } else {
-    // Handling for brand new forms
-    const res = await supabase
-      .from('forms')
-      .insert([payload])
+    const res = await (supabase.from('forms') as any)
+      .insert([cleanPayload])
       .select('id')
       .single();
     

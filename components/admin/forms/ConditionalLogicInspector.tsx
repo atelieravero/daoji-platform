@@ -9,6 +9,8 @@ export type LogicOperator =
   | 'is_not_blank'
   | 'equals'
   | 'not_equals'
+  | 'greater_than'
+  | 'less_than'
   | 'contains'
   | 'not_contains'
   | 'is_one_of'
@@ -85,6 +87,20 @@ export default function ConditionalLogicInspector({
 
               const renderOperatorOptions = () => {
                 if (!depType) return null;
+                if (depType === 'number') {
+                  return (
+                    <>
+                      <option value="equals">Equals (=)</option>
+                      <option value="not_equals">Does Not Equal (≠)</option>
+                      <option value="greater_than">Greater Than (&gt;)</option>
+                      <option value="less_than">Less Than (&lt;)</option>
+                      <option value="within_range">Within Range (Between)</option>
+                      <option value="not_within_range">Not Within Range</option>
+                      <option value="is_blank">Is Blank</option>
+                      <option value="is_not_blank">Is Not Blank</option>
+                    </>
+                  );
+                }
                 if (['text', 'email', 'mobile', 'textarea'].includes(depType)) {
                   return (
                     <>
@@ -187,8 +203,42 @@ export default function ConditionalLogicInspector({
                         {renderOperatorOptions()}
                       </select>
 
-                      {!isBlankOp &&
-                        (['radio', 'select', 'checkbox'].includes(depType || '') ? (
+                      {!isBlankOp && (
+                        depType === 'number' ? (
+                          isRangeOp ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                placeholder="Min"
+                                value={rule.value.split('..')[0] || ''}
+                                onChange={(e) => {
+                                  const to = rule.value.split('..')[1] || '';
+                                  onUpdateRule(rule.id, { value: `${e.target.value}..${to}` });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono"
+                              />
+                              <span className="text-xs text-gray-400 font-bold">to</span>
+                              <input
+                                type="number"
+                                placeholder="Max"
+                                value={rule.value.split('..')[1] || ''}
+                                onChange={(e) => {
+                                  const from = rule.value.split('..')[0] || '';
+                                  onUpdateRule(rule.id, { value: `${from}..${e.target.value}` });
+                                }}
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-950 font-mono"
+                              />
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              value={rule.value}
+                              onChange={(e) => onUpdateRule(rule.id, { value: e.target.value })}
+                              placeholder="Target number..."
+                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 font-mono text-gray-950 bg-white"
+                            />
+                          )
+                        ) : ['radio', 'select', 'checkbox'].includes(depType || '') ? (
                           <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200 max-h-36 overflow-y-auto">
                             <span className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                               Select matching options:
@@ -296,7 +346,8 @@ export default function ConditionalLogicInspector({
                             placeholder="Value..."
                             className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-amber-500 text-gray-950 bg-white"
                           />
-                        ))}
+                        )
+                      )}
                     </div>
                   )}
                 </div>
