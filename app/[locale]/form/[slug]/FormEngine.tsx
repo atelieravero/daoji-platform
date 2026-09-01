@@ -203,6 +203,14 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       return s;
     };
 
+    const isStrictNumeric = (val: any): boolean => {
+      if (typeof val === 'number') return !isNaN(val);
+      if (typeof val !== 'string') return false;
+      const trimmed = val.trim();
+      if (trimmed === '') return false;
+      return !isNaN(Number(trimmed));
+    };
+
     const evaluations = rules.map((rule: any) => {
       const dependentVal = activeAnswers[rule.dependsOn];
       const isEmpty = dependentVal === undefined || dependentVal === null || dependentVal === '' || (Array.isArray(dependentVal) && dependentVal.length === 0);
@@ -217,74 +225,76 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
       switch (rule.operator) {
         case 'greater_than': {
-          const numDep = parseFloat(normDependentVal);
-          const numRule = parseFloat(normRuleVal);
-          if (isNaN(numDep) || isNaN(numRule)) return false;
-          return numDep > numRule;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(normRuleVal)) {
+            return Number(normDependentVal) > Number(normRuleVal);
+          }
+          return normDependentVal > normRuleVal;
         }
 
         case 'less_than': {
-          const numDep = parseFloat(normDependentVal);
-          const numRule = parseFloat(normRuleVal);
-          if (isNaN(numDep) || isNaN(numRule)) return false;
-          return numDep < numRule;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(normRuleVal)) {
+            return Number(normDependentVal) < Number(normRuleVal);
+          }
+          return normDependentVal < normRuleVal;
         }
 
         case 'within_range': {
-          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => s.trim());
+          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => normalize(s.trim()));
           if (!startStr || !endStr) return false;
-          const numDep = parseFloat(normDependentVal);
-          const numStart = parseFloat(startStr);
-          const numEnd = parseFloat(endStr);
-          if (!isNaN(numDep) && !isNaN(numStart) && !isNaN(numEnd)) {
-            return numDep >= numStart && numDep <= numEnd;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(startStr) && isStrictNumeric(endStr)) {
+            const num = Number(normDependentVal);
+            return num >= Number(startStr) && num <= Number(endStr);
           }
           return normDependentVal >= startStr && normDependentVal <= endStr;
         }
 
         case 'not_within_range': {
-          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => s.trim());
+          const [startStr, endStr] = String(normRuleVal).split('..').map((s: string) => normalize(s.trim()));
           if (!startStr || !endStr) return true;
-          const numDep = parseFloat(normDependentVal);
-          const numStart = parseFloat(startStr);
-          const numEnd = parseFloat(endStr);
-          if (!isNaN(numDep) && !isNaN(numStart) && !isNaN(numEnd)) {
-            return numDep < numStart || numDep > numEnd;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(startStr) && isStrictNumeric(endStr)) {
+            const num = Number(normDependentVal);
+            return num < Number(startStr) || num > Number(endStr);
           }
           return normDependentVal < startStr || normDependentVal > endStr;
         }
 
         case 'equals': {
-          const numDep = parseFloat(normDependentVal);
-          const numRule = parseFloat(normRuleVal);
-          if (!isNaN(numDep) && !isNaN(numRule) && String(normDependentVal).trim() !== '' && String(normRuleVal).trim() !== '') {
-            return numDep === numRule;
+          if (Array.isArray(normDependentVal)) {
+            return normDependentVal.length === 1 && (
+              isStrictNumeric(normDependentVal[0]) && isStrictNumeric(normRuleVal)
+                ? Number(normDependentVal[0]) === Number(normRuleVal)
+                : normDependentVal[0] === normRuleVal
+            );
           }
-          return Array.isArray(normDependentVal) 
-            ? normDependentVal.length === 1 && normDependentVal[0] === normRuleVal 
-            : normDependentVal === normRuleVal;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(normRuleVal)) {
+            return Number(normDependentVal) === Number(normRuleVal);
+          }
+          return normDependentVal === normRuleVal;
         }
 
         case 'not_equals': {
-          const numDep = parseFloat(normDependentVal);
-          const numRule = parseFloat(normRuleVal);
-          if (!isNaN(numDep) && !isNaN(numRule) && String(normDependentVal).trim() !== '' && String(normRuleVal).trim() !== '') {
-            return numDep !== numRule;
+          if (Array.isArray(normDependentVal)) {
+            return normDependentVal.length !== 1 || (
+              isStrictNumeric(normDependentVal[0]) && isStrictNumeric(normRuleVal)
+                ? Number(normDependentVal[0]) !== Number(normRuleVal)
+                : normDependentVal[0] !== normRuleVal
+            );
           }
-          return Array.isArray(normDependentVal) 
-            ? normDependentVal.length !== 1 || normDependentVal[0] !== normRuleVal 
-            : normDependentVal !== normRuleVal;
+          if (isStrictNumeric(normDependentVal) && isStrictNumeric(normRuleVal)) {
+            return Number(normDependentVal) !== Number(normRuleVal);
+          }
+          return normDependentVal !== normRuleVal;
         }
 
         case 'contains': 
           return Array.isArray(normDependentVal) 
             ? normDependentVal.includes(normRuleVal) 
-            : (typeof normDependentVal === 'string' ? normDependentVal.toLowerCase().includes(normRuleVal.toLowerCase()) : false);
+            : (typeof normDependentVal === 'string' ? normDependentVal.toLowerCase().includes(String(normRuleVal).toLowerCase()) : false);
 
         case 'not_contains': 
           return Array.isArray(normDependentVal) 
             ? !normDependentVal.includes(normRuleVal) 
-            : (typeof normDependentVal === 'string' ? !normDependentVal.toLowerCase().includes(normRuleVal.toLowerCase()) : false);
+            : (typeof normDependentVal === 'string' ? !normDependentVal.toLowerCase().includes(String(normRuleVal).toLowerCase()) : false);
 
         case 'is_one_of': {
           const allowed = (Array.isArray(rule.value) ? rule.value : (typeof rule.value === 'string' ? rule.value.split(',') : [])).map((v: string) => normalize(v.trim()));
