@@ -11,8 +11,7 @@ const getSupabaseAdmin = () => createAdminClient(
 );
 
 /**
- * Fetches all forms with submission counts.
- * Uses admin client to aggregate submission counts across RLS barriers.
+ * Fetches all forms with linked event details and submission counts.
  */
 export async function getForms() {
   await requirePermission('submissions:view_test');
@@ -20,10 +19,45 @@ export async function getForms() {
 
   const { data, error } = await supabase
     .from('forms')
-    .select('*, submissions(is_test)')
+    .select('*, events:events!forms_event_id_fkey(id, title_zh, title_en, code, short_id, status), submissions(is_test)')
     .order('created_at', { ascending: false });
 
-  if (error) throw new Error(error.message);
+  // Fallback query if FK relationship cache is still refreshing
+  if (error) {
+    const { data: fallbackForms, error: fallbackError } = await supabase
+      .from('forms')
+      .select('*, submissions(is_test)')
+      .order('created_at', { ascending: false });
+
+    if (fallbackError) throw new Error(fallbackError.message);
+
+    const eventIds = (fallbackForms || []).map((f: any) => f.event_id).filter(Boolean);
+    let eventsMap: Record<string, any> = {};
+
+    if (eventIds.length > 0) {
+      const { data: eventsList } = await supabase
+        .from('events')
+        .select('id, title_zh, title_en, code, short_id, status')
+        .in('id', eventIds);
+
+      (eventsList || []).forEach((e: any) => {
+        eventsMap[e.id] = e;
+      });
+    }
+
+    return (fallbackForms || []).map((form: any) => {
+      const subs = form.submissions || [];
+      const testCount = subs.filter((s: any) => s.is_test).length;
+      const realCount = subs.filter((s: any) => !s.is_test).length;
+      
+      return {
+        ...form,
+        events: form.event_id ? eventsMap[form.event_id] || null : null,
+        real_count: realCount,
+        test_count: testCount
+      };
+    });
+  }
   
   return (data || []).map((form: any) => {
     const subs = form.submissions || [];
@@ -40,7 +74,6 @@ export async function getForms() {
 
 /**
  * Deletes a draft form with no submissions.
- * Uses authenticated User Client so CDC triggers capture auth.uid().
  */
 export async function deleteForm(id: string) {
   await requirePermission('forms:delete');
@@ -80,7 +113,6 @@ export async function deleteForm(id: string) {
 
 /**
  * Updates status (draft | open | closed).
- * Uses authenticated User Client so CDC triggers capture auth.uid().
  */
 export async function updateFormStatus(id: string, newStatus: string) {
   await requirePermission('forms:update_status');
@@ -99,7 +131,6 @@ export async function updateFormStatus(id: string, newStatus: string) {
 
 /**
  * Duplicates a form.
- * Uses authenticated User Client so CDC triggers capture auth.uid().
  */
 export async function duplicateForm(id: string) {
   await requirePermission('forms:create');

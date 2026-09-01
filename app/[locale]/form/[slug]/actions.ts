@@ -11,7 +11,6 @@ const getSupabaseAdmin = () => createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Generates a recognizable but highly secure token (e.g., ZEN26-A4X9-P2M8)
 function generateMagicToken(prefix: string = 'MMC'): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
   let token = `${prefix}-`;
@@ -22,12 +21,11 @@ function generateMagicToken(prefix: string = 'MMC'): string {
   return token;
 }
 
-// NEW: Fetches the form securely using the URL Slug
 export async function getPublicForm(slug: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('forms')
-    .select('*')
+    .select('*, events:events!event_id(id, code, title_zh, title_en, status)')
     .eq('slug', slug)
     .single();
 
@@ -38,26 +36,36 @@ export async function getPublicForm(slug: string) {
   return data;
 }
 
-export async function verifyApplicantToken(token: string, eventId: string, isTest: boolean = false) {
+/**
+ * Validates applicant tokens scoped by event_code.
+ */
+export async function verifyApplicantToken(token: string, eventCodeOrId: string, isTest: boolean = false) {
   if (isTest) {
     return { valid: true };
   }
 
   const supabase = getSupabaseAdmin();
   
-  if (!token || !eventId) {
-    return { valid: false, message: 'Token and Event ID are required.' };
+  if (!token || !eventCodeOrId) {
+    return { valid: false, message: 'Token and Event Code are required.' };
+  }
+
+  // Resolve event_code if UUID was passed
+  let targetCode = eventCodeOrId.trim();
+  if (targetCode.includes('-') && targetCode.length === 36) {
+    const { data: evt } = await supabase.from('events').select('code').eq('id', targetCode).single();
+    if (evt?.code) targetCode = evt.code;
   }
 
   const { data: existingSubmissions, error } = await supabase
     .from('submissions')
     .select('id, is_test')
     .eq('applicant_token', token.trim())
-    .eq('event_id', eventId)
+    .eq('event_code', targetCode)
     .limit(1);
 
   if (error || !existingSubmissions || existingSubmissions.length === 0) {
-    return { valid: false, message: 'Invalid or expired access token for this event.' };
+    return { valid: false, message: 'Invalid or expired access token for this event code.' };
   }
 
   if (existingSubmissions[0].is_test === true) {
@@ -67,6 +75,9 @@ export async function verifyApplicantToken(token: string, eventId: string, isTes
   return { valid: true };
 }
 
+/**
+ * Submits public form record scoped to event_code.
+ */
 export async function submitPublicForm(payload: {
   form_id: string;
   event_id: string;
@@ -76,6 +87,14 @@ export async function submitPublicForm(payload: {
   interim_event_code?: string;
 }) {
   const supabase = getSupabaseAdmin();
+
+  // Resolve true event_code
+  let resolvedCode = payload.interim_event_code || 'MMC';
+  if (payload.event_id) {
+    const { data: evt } = await supabase.from('events').select('code').eq('id', payload.event_id).single();
+    if (evt?.code) resolvedCode = evt.code;
+  }
+
   let activeToken = payload.applicant_token;
 
   if (activeToken) {
@@ -84,11 +103,11 @@ export async function submitPublicForm(payload: {
         .from('submissions')
         .select('id, is_test')
         .eq('applicant_token', activeToken.trim())
-        .eq('event_id', payload.event_id)
+        .eq('event_code', resolvedCode)
         .limit(1);
 
       if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
-        throw new Error('Invalid or expired access token for this event.');
+        throw new Error('Invalid or expired access token for this event code.');
       }
 
       if (existingSubmissions[0].is_test === true) {
@@ -96,7 +115,7 @@ export async function submitPublicForm(payload: {
       }
     }
   } else {
-    activeToken = generateMagicToken(payload.interim_event_code || 'MMC');
+    activeToken = generateMagicToken(resolvedCode);
   }
 
   const { error: insertError } = await supabase
@@ -104,6 +123,7 @@ export async function submitPublicForm(payload: {
     .insert([{
       form_id: payload.form_id,
       event_id: payload.event_id,
+      event_code: resolvedCode,
       response: payload.answers, 
       applicant_token: activeToken, 
       is_test: payload.is_test || false, 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Plus, LayoutTemplate, Eye, Copy, Trash2, 
-  FileSignature, CalendarDays, Share2 
+  FileSignature, Share2, AlertCircle 
 } from 'lucide-react';
 import { getForms, deleteForm, updateFormStatus, duplicateForm } from './actions';
 import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
@@ -65,11 +65,14 @@ export default function FormsClient({ permissions }: { permissions: any }) {
     }
   };
 
-  const filteredForms = forms.filter(
-    (form) =>
-      (form.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (form.schema?.titleEn || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredForms = forms.filter((form) => {
+    const term = searchTerm.toLowerCase();
+    const titleMatch = (form.title || '').toLowerCase().includes(term);
+    const schemaTitleMatch = (form.schema?.titleEn || '').toLowerCase().includes(term);
+    const eventMatch = (form.events?.title_zh || '').toLowerCase().includes(term) ||
+                       (form.events?.code || '').toLowerCase().includes(term);
+    return titleMatch || schemaTitleMatch || eventMatch;
+  });
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full font-sans relative">
@@ -78,7 +81,7 @@ export default function FormsClient({ permissions }: { permissions: any }) {
         isOpen={Boolean(shareForm)}
         onClose={() => setShareForm(null)}
         title="Share Form"
-        url={shareForm?.slug ? `${window.location.origin}/zh/form/${shareForm.slug}` : ''}
+        url={shareForm?.slug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/zh/form/${shareForm.slug}` : ''}
         filename={shareForm?.slug || 'form'}
       />
 
@@ -97,7 +100,7 @@ export default function FormsClient({ permissions }: { permissions: any }) {
       <AdminTableToolbar
         search={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search forms by title..."
+        searchPlaceholder="Search forms by title, event, code..."
       />
 
       {/* TABLE */}
@@ -139,9 +142,12 @@ export default function FormsClient({ permissions }: { permissions: any }) {
               const realCount = form.real_count || 0;
               const testCount = form.test_count || 0;
               const displayCount = testCount > 0 ? `${realCount} (${testCount})` : realCount.toString();
+              const event = form.events;
 
               return (
                 <tr key={form.id} className="hover:bg-gray-50/80 transition-colors">
+                  
+                  {/* 1. FORM TITLE */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="shrink-0 h-10 w-10 bg-indigo-50 rounded-lg flex items-center justify-center border border-indigo-100">
@@ -150,15 +156,41 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                       <div className="ml-4">
                         <div className="text-sm font-semibold text-gray-900">{form.title}</div>
                         <div className="text-xs text-gray-500 mt-0.5">{form.schema?.titleEn || 'Untitled Form'}</div>
+                        {form.slug && (
+                          <div className="text-[11px] font-mono text-indigo-600 mt-0.5">/form/{form.slug}</div>
+                        )}
                       </div>
                     </div>
                   </td>
+
+                  {/* 2. LINKED EVENT */}
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <CalendarDays className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
-                      {form.event_id}
-                    </div>
+                    {event ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          {event.code && (
+                            <span className="font-mono text-xs font-bold px-1.5 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded">
+                              [{event.code}]
+                            </span>
+                          )}
+                          <span className="text-sm font-semibold text-gray-900 truncate max-w-[220px]">
+                            {event.title_zh || event.title_en}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
+                          <span>id: {event.short_id}</span>
+                          <span className="capitalize text-gray-500 font-sans">({event.status})</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Unlinked (Fallback: {form.schema?.eventCode || form.schema?.interimEventCode || 'MMC'})</span>
+                      </div>
+                    )}
                   </td>
+
+                  {/* 3. TYPE */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -168,6 +200,8 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                       {isFollowUp ? 'Follow-up' : 'Application'}
                     </span>
                   </td>
+
+                  {/* 4. STATUS */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <StatusBadgeSelect
                       value={status}
@@ -180,6 +214,8 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                       ]}
                     />
                   </td>
+
+                  {/* 5. SUBMISSIONS COUNT */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <Link
                       href={`/admin/forms/${form.id}/submissions`}
@@ -193,6 +229,8 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                       {displayCount}
                     </Link>
                   </td>
+
+                  {/* 6. ACTIONS */}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-1.5">
                       {permissions.canDelete && status === 'draft' && realCount === 0 && testCount === 0 && (
@@ -232,7 +270,7 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                       <button
                         onClick={() => {
                           if (!form.slug) {
-                            alert('This form does not have a URL Slug yet. Please edit the form and save a slug first.');
+                            alert('This form does not have a URL Slug yet.');
                             return;
                           }
                           setShareForm(form);

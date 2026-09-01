@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2, Calendar } from 'lucide-react';
+import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2 } from 'lucide-react';
 import { saveFormSchema, getFormSchema, getEventsForFormBuilder, FormEventOption } from './actions';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import MarkdownEditor from '@/components/shared/MarkdownEditor';
@@ -233,6 +233,11 @@ function FormBuilderContent() {
       return;
     }
 
+    if (!formConfig.eventId) {
+      alert('Validation Error: Please select an event to link to this form.');
+      return;
+    }
+
     const cleanSlug = formConfig.slug.replace(/^-|-$/g, '');
     const invalidIds: string[] = [];
 
@@ -260,7 +265,7 @@ function FormBuilderContent() {
       const eventCodeToSave = selectedEvent?.code || formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
       const payload = {
-        event_id: formConfig.eventId && formConfig.eventId !== '' ? formConfig.eventId : null,
+        event_id: formConfig.eventId,
         slug: cleanSlug,
         title: formConfig.internalName,
         is_followup: formConfig.isFollowUp,
@@ -473,7 +478,7 @@ function FormBuilderContent() {
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Success Content</h3>
                     <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
                       <p className="text-xs text-amber-800 font-medium">
-                        Use <code className="bg-white px-1 py-0.5 rounded font-bold">{'{{TOKEN_BOX}}'}</code> exactly as written to place the Applicant Token card inside your message.
+                        Use <code className="bg-white px-1 py-0.5 rounded font-bold">{'{{TOKEN_BOX}}'}</code> exactly as written to place the Applicant Token card inside your message. If omitted, no token card will be displayed.
                       </p>
                     </div>
                     <div>
@@ -519,10 +524,10 @@ function FormBuilderContent() {
                       required
                     />
 
-                    {/* REAL EVENT SELECTOR */}
+                    {/* MANDATORY EVENT SELECTOR */}
                     <div className="space-y-2">
                       <FormSelect
-                        label="Linked Event"
+                        label="Linked Event *"
                         value={formConfig.eventId}
                         onChange={(e) => {
                           const newEventId = e.target.value;
@@ -530,11 +535,12 @@ function FormBuilderContent() {
                           setFormConfig({
                             ...formConfig,
                             eventId: newEventId,
-                            interimEventCode: evt?.code || formConfig.interimEventCode,
+                            interimEventCode: evt?.code || '',
                           });
                         }}
+                        required
                       >
-                        <option value="">-- No Linked Event (Standalone Form) --</option>
+                        <option value="">-- Choose Linked Event * --</option>
                         {availableEvents.map((evt) => (
                           <option key={evt.id} value={evt.id}>
                             {evt.title_zh} {evt.code ? `[${evt.code}]` : ''} ({evt.status})
@@ -542,34 +548,19 @@ function FormBuilderContent() {
                         ))}
                       </FormSelect>
 
-                      {/* DISPLAY INHERITED EVENT CODE */}
-                      {selectedEvent ? (
+                      {/* INHERITED EVENT CODE BADGE */}
+                      {selectedEvent && (
                         <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between">
                           <div>
                             <span className="text-xs font-bold text-gray-900 block">Event Code Namespace</span>
                             <span className="text-[11px] text-gray-500">
-                              Applicant Token: <code className="font-bold text-indigo-700 font-mono">[{selectedEvent.code || 'NO-CODE'}]-XXXX-XXXX</code>
+                              Tokens generated: <code className="font-bold text-indigo-700 font-mono">[{selectedEvent.code || 'NO-CODE'}]-XXXX-XXXX</code>
                             </span>
                           </div>
                           <span className="px-2 py-1 bg-white font-mono font-bold text-indigo-600 rounded-md border border-indigo-200 text-xs shadow-2xs">
                             {selectedEvent.code || 'None'}
                           </span>
                         </div>
-                      ) : (
-                        <FormInput
-                          label="Event Code (Fallback Token Prefix)"
-                          helperText="Used if not linked to an event. (1-8 uppercase alphanumeric)"
-                          maxLength={8}
-                          value={formConfig.interimEventCode}
-                          onChange={(e) =>
-                            setFormConfig({
-                              ...formConfig,
-                              interimEventCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-                            })
-                          }
-                          className="font-mono uppercase"
-                          placeholder="e.g., MMC"
-                        />
                       )}
                     </div>
 
@@ -721,7 +712,7 @@ function FormBuilderContent() {
                     >
                       <optgroup label="Text & Numbers">
                         <option value="text">Short Text</option>
-                        <option value="number">Number / Amount</option>
+                        <option value="number">Number / Amount (數字 / 金額)</option>
                         <option value="textarea">Long Paragraph</option>
                         <option value="email">Email Address</option>
                         <option value="mobile">Mobile Number</option>
@@ -862,12 +853,13 @@ function FormBuilderContent() {
         }
       />
 
+      {/* MEDIA PICKER MODAL */}
       <MediaPicker
         isOpen={isMediaPickerOpen}
         onClose={() => setIsMediaPickerOpen(false)}
         onSelect={(asset: AssetRecord) => setFormConfig({ ...formConfig, bannerImageUrl: asset.file_url })}
         allowedCategory="image"
-        title="Select Cover Banner"
+        title="Select Cover Banner from Media Pool"
       />
     </>
   );

@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       assets: {
@@ -173,15 +198,65 @@ export type Database = {
           },
         ]
       }
+      event_articles: {
+        Row: {
+          article_id: string
+          created_at: string
+          event_id: string
+          sort_order: number
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          event_id: string
+          sort_order?: number
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          event_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_articles_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "content_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_articles_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           banner_asset_id: string | null
-          code: string
+          blackout_dates: string[] | null
+          body_en: string | null
+          body_zh: string
+          code: string | null
           created_at: string
+          cta_label_en: string | null
+          cta_label_zh: string | null
           end_date: string
+          external_url: string | null
           id: string
+          is_all_day: boolean
+          is_featured: boolean
+          is_in_person: boolean | null
+          is_livestream: boolean | null
+          languages: string[] | null
           linked_form_id: string | null
-          location_type: string
+          livestream_config: Json | null
+          organizer_id: string | null
+          recurrence_rule: Json | null
+          registration_mode: string | null
           registration_status: string
           short_id: string
           slug: string | null
@@ -189,20 +264,36 @@ export type Database = {
           status: string
           summary_en: string | null
           summary_zh: string | null
+          timezone: string
           title_en: string | null
           title_zh: string
           updated_at: string
-          venue_details_en: string | null
-          venue_details_zh: string | null
+          venue_id: string | null
+          venue_override_en: string | null
+          venue_override_zh: string | null
         }
         Insert: {
           banner_asset_id?: string | null
-          code?: string
+          blackout_dates?: string[] | null
+          body_en?: string | null
+          body_zh?: string
+          code?: string | null
           created_at?: string
+          cta_label_en?: string | null
+          cta_label_zh?: string | null
           end_date: string
+          external_url?: string | null
           id?: string
+          is_all_day?: boolean
+          is_featured?: boolean
+          is_in_person?: boolean | null
+          is_livestream?: boolean | null
+          languages?: string[] | null
           linked_form_id?: string | null
-          location_type?: string
+          livestream_config?: Json | null
+          organizer_id?: string | null
+          recurrence_rule?: Json | null
+          registration_mode?: string | null
           registration_status?: string
           short_id?: string
           slug?: string | null
@@ -210,20 +301,36 @@ export type Database = {
           status?: string
           summary_en?: string | null
           summary_zh?: string | null
+          timezone?: string
           title_en?: string | null
           title_zh: string
           updated_at?: string
-          venue_details_en?: string | null
-          venue_details_zh?: string | null
+          venue_id?: string | null
+          venue_override_en?: string | null
+          venue_override_zh?: string | null
         }
         Update: {
           banner_asset_id?: string | null
-          code?: string
+          blackout_dates?: string[] | null
+          body_en?: string | null
+          body_zh?: string
+          code?: string | null
           created_at?: string
+          cta_label_en?: string | null
+          cta_label_zh?: string | null
           end_date?: string
+          external_url?: string | null
           id?: string
+          is_all_day?: boolean
+          is_featured?: boolean
+          is_in_person?: boolean | null
+          is_livestream?: boolean | null
+          languages?: string[] | null
           linked_form_id?: string | null
-          location_type?: string
+          livestream_config?: Json | null
+          organizer_id?: string | null
+          recurrence_rule?: Json | null
+          registration_mode?: string | null
           registration_status?: string
           short_id?: string
           slug?: string | null
@@ -231,11 +338,13 @@ export type Database = {
           status?: string
           summary_en?: string | null
           summary_zh?: string | null
+          timezone?: string
           title_en?: string | null
           title_zh?: string
           updated_at?: string
-          venue_details_en?: string | null
-          venue_details_zh?: string | null
+          venue_id?: string | null
+          venue_override_en?: string | null
+          venue_override_zh?: string | null
         }
         Relationships: [
           {
@@ -252,12 +361,26 @@ export type Database = {
             referencedRelation: "forms"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "events_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
         ]
       }
       forms: {
         Row: {
           created_at: string
-          event_id: string
+          event_id: string | null
           id: string
           is_followup: boolean
           schema: Json
@@ -267,7 +390,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          event_id: string
+          event_id?: string | null
           id?: string
           is_followup?: boolean
           schema?: Json
@@ -277,13 +400,51 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          event_id?: string
+          event_id?: string | null
           id?: string
           is_followup?: boolean
           schema?: Json
           slug?: string | null
           status?: string
           title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forms_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizers: {
+        Row: {
+          created_at: string
+          description_en: string | null
+          description_zh: string | null
+          id: string
+          name_en: string
+          name_zh: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          description_en?: string | null
+          description_zh?: string | null
+          id?: string
+          name_en: string
+          name_zh?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          description_en?: string | null
+          description_zh?: string | null
+          id?: string
+          name_en?: string
+          name_zh?: string | null
+          url?: string | null
         }
         Relationships: []
       }
@@ -377,6 +538,7 @@ export type Database = {
           applicant_seq_num: number | null
           applicant_token: string
           created_at: string
+          event_code: string
           event_id: string
           form_id: string
           id: string
@@ -388,6 +550,7 @@ export type Database = {
           applicant_seq_num?: number | null
           applicant_token: string
           created_at?: string
+          event_code: string
           event_id: string
           form_id: string
           id?: string
@@ -399,6 +562,7 @@ export type Database = {
           applicant_seq_num?: number | null
           applicant_token?: string
           created_at?: string
+          event_code?: string
           event_id?: string
           form_id?: string
           id?: string
@@ -505,6 +669,45 @@ export type Database = {
           roles?: string[] | null
           status?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      venues: {
+        Row: {
+          address_en: string | null
+          address_zh: string | null
+          amap_url: string | null
+          created_at: string
+          google_maps_url: string | null
+          id: string
+          name_en: string | null
+          name_zh: string
+          transport_guide_en: string | null
+          transport_guide_zh: string | null
+        }
+        Insert: {
+          address_en?: string | null
+          address_zh?: string | null
+          amap_url?: string | null
+          created_at?: string
+          google_maps_url?: string | null
+          id?: string
+          name_en?: string | null
+          name_zh: string
+          transport_guide_en?: string | null
+          transport_guide_zh?: string | null
+        }
+        Update: {
+          address_en?: string | null
+          address_zh?: string | null
+          amap_url?: string | null
+          created_at?: string
+          google_maps_url?: string | null
+          id?: string
+          name_en?: string | null
+          name_zh?: string
+          transport_guide_en?: string | null
+          transport_guide_zh?: string | null
         }
         Relationships: []
       }
@@ -642,6 +845,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
