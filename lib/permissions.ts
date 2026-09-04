@@ -70,7 +70,7 @@ export const ROLE_ASSIGNMENT_AUTHORITY: Record<Role, Role[]> = {
 // ============================================================================
 export type SystemAction = 
   // Forms & Submissions
-  | 'forms:view' | 'forms:create' | 'forms:edit' | 'forms:delete' | 'forms:update_status'
+  | 'forms:view' | 'forms:view_schema' | 'forms:create' | 'forms:edit' | 'forms:delete' | 'forms:update_status'
   | 'submissions:view_real' | 'submissions:view_test' | 'submissions:export_real' 
   | 'submissions:export_test' | 'submissions:manage' 
   
@@ -82,16 +82,16 @@ export type SystemAction =
   // Media Pool (Assets)
   | 'assets:view' | 'assets:upload' | 'assets:delete'
 
-  // Taxonomy & Tags (Granular)
+  // Taxonomy & Tags
   | 'tags:view' | 'tags:create' | 'tags:edit' | 'tags:delete'
 
-  // Events Domain (Sprint 16)
+  // Events Domain
   | 'events:view' | 'events:create' | 'events:edit' | 'events:delete' | 'events:publish'
 
-  // Articles & Pages Domain (Sprint 17)
+  // Articles & Pages Domain
   | 'articles:view' | 'articles:create' | 'articles:edit' | 'articles:delete' | 'articles:publish'
 
-  // Resources Domain (Sprint 18)
+  // Resources Domain
   | 'resources:view' | 'resources:create' | 'resources:edit' | 'resources:delete' | 'resources:publish';
 
 export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
@@ -102,6 +102,7 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
   ],
   form_editor: [
     'forms:view',
+    'forms:view_schema',
     'forms:create', 
     'forms:edit', 
     'forms:delete', 
@@ -146,6 +147,7 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
   ],
   event_coordinator: [
     'forms:view',
+    'forms:view_schema',
     'forms:create',
     'forms:edit',
     'submissions:view_real',
@@ -166,6 +168,7 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
   ],
   viewer: [
     'forms:view',
+    'forms:view_schema',
     'submissions:view_test',
     'assets:view',
     'tags:view',
@@ -173,7 +176,7 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
     'articles:view',
     'resources:view'
   ]
-};
+}
 
 export function hasPermission(userRoles: string[] | undefined | null, action: SystemAction): boolean {
   if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) return false;

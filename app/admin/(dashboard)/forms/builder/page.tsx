@@ -1,9 +1,10 @@
 import { requirePermission } from '@/lib/auth-guards';
+import { getFormBuilderPermissionsAction } from './actions';
 import BuilderClient from './BuilderClient';
 
 export default async function FormBuilderPage() {
-  // 1. PAGE GUARD: Strictly limit access to Form Editors (and Super Admins)
-  await requirePermission('forms:edit');
+  await requirePermission('forms:view_schema');
+  const permissions = await getFormBuilderPermissionsAction();
 
-  return <BuilderClient />;
+  return <BuilderClient canEditPermission={permissions.canEdit} />;
 }

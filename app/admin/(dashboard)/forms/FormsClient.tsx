@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Plus, LayoutTemplate, Eye, Copy, Trash2, 
+  Plus, LayoutTemplate, Pencil, Eye, Copy, Trash2, 
   FileSignature, Share2, AlertCircle 
 } from 'lucide-react';
 import { getForms, deleteForm, updateFormStatus, duplicateForm } from './actions';
@@ -233,6 +233,8 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                   {/* 6. ACTIONS */}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-1.5">
+                      
+                      {/* Delete (Draft only, 0 submissions) */}
                       {permissions.canDelete && status === 'draft' && realCount === 0 && testCount === 0 && (
                         <button
                           onClick={() => handleDelete(form.id)}
@@ -241,18 +243,28 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      )}                  
 
-                      {permissions.canEdit && status === 'draft' && (
+                      {/* Schema Action: Pencil for Draft Edit, LayoutTemplate for View Only */}
+                      {permissions.canEdit && status === 'draft' ? (
                         <Link
                           href={`/admin/forms/builder?id=${form.id}`}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
                           title="Edit Schema"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Link>
+                      ) : (permissions.canViewSchema || permissions.canEdit) ? (
+                        <Link
+                          href={`/admin/forms/builder?id=${form.id}`}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                          title={`View Schema (${status.toUpperCase()} - Read Only)`}
                         >
                           <LayoutTemplate className="w-4 h-4" />
                         </Link>
-                      )}
+                      ) : null}                  
 
+                      {/* Public Preview & Test */}
                       <button
                         onClick={() => {
                           if (form.slug) {
@@ -265,8 +277,9 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                         title="Preview & Test"
                       >
                         <Eye className="w-4 h-4" />
-                      </button>
+                      </button>                  
 
+                      {/* Share QR */}
                       <button
                         onClick={() => {
                           if (!form.slug) {
@@ -279,8 +292,9 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                         title="Share & QR Code"
                       >
                         <Share2 className="w-4 h-4" />
-                      </button>
+                      </button>                  
 
+                      {/* Duplicate */}
                       {permissions.canCreate && (
                         <button
                           onClick={() => handleDuplicate(form.id)}

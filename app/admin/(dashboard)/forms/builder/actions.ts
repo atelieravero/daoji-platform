@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth-guards';
+import { hasPermission, Role } from '@/lib/permissions';
 import { revalidatePath } from 'next/cache';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -17,10 +18,41 @@ export interface FormEventOption {
 }
 
 /**
- * Fetch real events list for Form Builder linkage
+ * Resolves current user permissions for the Form Builder.
+ */
+export async function getFormBuilderPermissionsAction(): Promise<{
+  canEdit: boolean;
+  canCreate: boolean;
+}> {
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return { canEdit: false, canCreate: false };
+  }
+
+  const { data: member } = await supabase
+    .from('team_members')
+    .select('roles, status')
+    .eq('id', user.id)
+    .single();
+
+  if (!member || member.status !== 'active') {
+    return { canEdit: false, canCreate: false };
+  }
+
+  const roles = (member.roles || []) as Role[];
+  return {
+    canEdit: hasPermission(roles, 'forms:edit'),
+    canCreate: hasPermission(roles, 'forms:create'),
+  };
+}
+
+/**
+ * Fetch real events list for Form Builder linkage (requires view_schema).
  */
 export async function getEventsForFormBuilder(): Promise<FormEventOption[]> {
-  await requirePermission('forms:edit');
+  await requirePermission('forms:view_schema');
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -37,10 +69,10 @@ export async function getEventsForFormBuilder(): Promise<FormEventOption[]> {
 }
 
 /**
- * Fetches form schema by ID.
+ * Fetches form schema by ID (requires view_schema).
  */
 export async function getFormSchema(id: string) {
-  await requirePermission('forms:edit');
+  await requirePermission('forms:view_schema');
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -58,7 +90,7 @@ export async function getFormSchema(id: string) {
 }
 
 /**
- * Saves or updates form schema with sanitized event_id.
+ * Saves or updates form schema (strictly requires forms:edit & draft status).
  */
 export async function saveFormSchema(payload: {
   event_id?: string | null;
@@ -103,6 +135,7 @@ export async function saveFormSchema(payload: {
       .eq('id', id);
     error = res.error;
   } else {
+    await requirePermission('forms:create');
     const res = await (supabase.from('forms') as any)
       .insert([cleanPayload])
       .select('id')

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2, Lock, AlertTriangle } from 'lucide-react';
 import { saveFormSchema, getFormSchema, getEventsForFormBuilder, FormEventOption } from './actions';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import MarkdownEditor from '@/components/shared/MarkdownEditor';
@@ -20,7 +20,11 @@ import ChoicesConfigurator, { FieldOption } from '@/components/admin/forms/Choic
 import ConditionalLogicInspector, { LogicRule } from '@/components/admin/forms/ConditionalLogicInspector';
 import SuccessScreenPreview from '@/components/admin/forms/SuccessScreenPreview';
 
-export default function FormBuilderPage() {
+interface BuilderClientProps {
+  canEditPermission?: boolean;
+}
+
+export default function FormBuilderPage({ canEditPermission = false }: BuilderClientProps) {
   return (
     <Suspense
       fallback={
@@ -32,12 +36,12 @@ export default function FormBuilderPage() {
         </div>
       }
     >
-      <FormBuilderContent />
+      <FormBuilderContent canEditPermission={canEditPermission} />
     </Suspense>
   );
 }
 
-function FormBuilderContent() {
+function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
   const searchParams = useSearchParams();
   const formIdParam = searchParams.get('id');
 
@@ -75,6 +79,9 @@ function FormBuilderContent() {
   const [fields, setFields] = useState<FormField[]>([]);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
+  // READ-ONLY LOCK: Locked if user lacks edit permissions OR if form is already open/closed
+  const isReadOnly = !canEditPermission || formConfig.status !== 'draft';
+
   // Load Real Events
   useEffect(() => {
     getEventsForFormBuilder().then((events) => {
@@ -107,7 +114,7 @@ function FormBuilderContent() {
           titleZh: schema.titleZh ?? '',
           subtitleEn: schema.subtitleEn ?? '',
           subtitleZh: schema.subtitleZh ?? '',
-          status: schema.status ?? 'draft',
+          status: record.status || schema.status || 'draft',
           interimEventCode: schema.interimEventCode ?? schema.eventCode ?? '',
           isStandalone: schema.isStandalone ?? false,
           bannerImageUrl: schema.bannerImageUrl ?? '',
@@ -135,10 +142,13 @@ function FormBuilderContent() {
     .slice(0, activeFieldIndex > -1 ? activeFieldIndex : 0)
     .filter((f) => f.type !== 'info');
 
-  const updateActiveField = (updates: Partial<FormField>) =>
+  const updateActiveField = (updates: Partial<FormField>) => {
+    if (isReadOnly) return;
     setFields(fields.map((f) => (f.id === activeFieldId ? { ...f, ...updates } : f)));
+  };
 
   const moveField = (index: number, direction: 'up' | 'down') => {
+    if (isReadOnly) return;
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === fields.length - 1) return;
     const newFields = [...fields];
@@ -148,7 +158,7 @@ function FormBuilderContent() {
   };
 
   const moveOption = (index: number, direction: 'up' | 'down') => {
-    if (!activeField || !activeField.options) return;
+    if (isReadOnly || !activeField || !activeField.options) return;
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === activeField.options.length - 1) return;
     const newOpts = [...activeField.options];
@@ -158,6 +168,7 @@ function FormBuilderContent() {
   };
 
   const handleAddQuestion = () => {
+    if (isReadOnly) return;
     const newId = `field_${Date.now()}`;
     setFields([
       ...fields,
@@ -174,60 +185,59 @@ function FormBuilderContent() {
   };
 
   const handleAddOption = () => {
-    if (activeField) {
-      updateActiveField({
-        options: [
-          ...(activeField.options || []),
-          { value: `opt_${(activeField.options?.length || 0) + 1}`, labelEn: 'Option', labelZh: '選項' },
-        ],
-      });
-    }
+    if (isReadOnly || !activeField) return;
+    updateActiveField({
+      options: [
+        ...(activeField.options || []),
+        { value: `opt_${(activeField.options?.length || 0) + 1}`, labelEn: 'Option', labelZh: '選項' },
+      ],
+    });
   };
 
   const handleUpdateOption = (index: number, key: keyof FieldOption, value: string) => {
-    if (activeField?.options) {
-      const newOpts = [...activeField.options];
-      newOpts[index] = { ...newOpts[index], [key]: value };
-      updateActiveField({ options: newOpts });
-    }
+    if (isReadOnly || !activeField?.options) return;
+    const newOpts = [...activeField.options];
+    newOpts[index] = { ...newOpts[index], [key]: value };
+    updateActiveField({ options: newOpts });
   };
 
   const handleRemoveOption = (index: number) => {
-    if (activeField?.options) {
-      updateActiveField({ options: activeField.options.filter((_, i) => i !== index) });
-    }
+    if (isReadOnly || !activeField?.options) return;
+    updateActiveField({ options: activeField.options.filter((_, i) => i !== index) });
   };
 
   const handleAddRule = () => {
-    if (activeField) {
-      updateActiveField({
-        condition: {
-          match: activeField.condition?.match || 'AND',
-          rules: [...(activeField.condition?.rules || []), { id: `rule_${Date.now()}`, dependsOn: '', operator: 'equals', value: '' }],
-        },
-      });
-    }
+    if (isReadOnly || !activeField) return;
+    updateActiveField({
+      condition: {
+        match: activeField.condition?.match || 'AND',
+        rules: [...(activeField.condition?.rules || []), { id: `rule_${Date.now()}`, dependsOn: '', operator: 'equals', value: '' }],
+      },
+    });
   };
 
   const handleUpdateRule = (ruleId: string, updates: Partial<LogicRule>) => {
-    if (activeField?.condition) {
-      updateActiveField({
-        condition: {
-          ...activeField.condition,
-          rules: activeField.condition.rules.map((r) => (r.id === ruleId ? { ...r, ...updates } : r)),
-        },
-      });
-    }
+    if (isReadOnly || !activeField?.condition) return;
+    updateActiveField({
+      condition: {
+        ...activeField.condition,
+        rules: activeField.condition.rules.map((r) => (r.id === ruleId ? { ...r, ...updates } : r)),
+      },
+    });
   };
 
   const handleRemoveRule = (ruleId: string) => {
-    if (activeField?.condition) {
-      const rem = activeField.condition.rules.filter((r) => r.id !== ruleId);
-      updateActiveField({ condition: rem.length ? { ...activeField.condition, rules: rem } : undefined });
-    }
+    if (isReadOnly || !activeField?.condition) return;
+    const rem = activeField.condition.rules.filter((r) => r.id !== ruleId);
+    updateActiveField({ condition: rem.length ? { ...activeField.condition, rules: rem } : undefined });
   };
 
   const handleSave = async () => {
+    if (isReadOnly) {
+      alert('Action blocked: Form schema is in read-only mode.');
+      return;
+    }
+
     if (!formConfig.slug || formConfig.slug.trim() === '') {
       alert('Validation Error: URL Slug is required.');
       return;
@@ -238,7 +248,11 @@ function FormBuilderContent() {
       return;
     }
 
-    const cleanSlug = formConfig.slug.replace(/^-|-$/g, '');
+    const cleanSlug = formConfig.slug
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9\-_.~+%]/g, '')
+      .replace(/^-|-$/g, '');
+
     const invalidIds: string[] = [];
 
     for (const f of fields) {
@@ -327,8 +341,15 @@ function FormBuilderContent() {
             codeBadge={effectiveEventCode || undefined}
             previewUrl={formConfig.slug ? `/en/form/${formConfig.slug}?test=true` : undefined}
             onSave={handleSave}
+            disabled={isReadOnly}
             isSaving={isSaving}
-            saveLabel="Save Schema"
+            saveLabel={
+              isReadOnly
+                ? formConfig.status !== 'draft'
+                  ? `Locked (${formConfig.status.toUpperCase()})`
+                  : 'View Only'
+                : 'Save Schema'
+            }
           />
         }
         canvas={
@@ -339,6 +360,21 @@ function FormBuilderContent() {
               setViewMode('form');
             }}
           >
+            {/* READ-ONLY BANNER NOTICE */}
+            {isReadOnly && (
+              <div className="w-full max-w-2xl mb-5 p-3.5 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-center gap-3 text-amber-900 shadow-xs animate-in fade-in">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div className="text-xs leading-relaxed">
+                  <span className="font-bold block">
+                    Read-Only Mode {formConfig.status !== 'draft' ? `(${formConfig.status.toUpperCase()})` : '(Viewing Schema)'}
+                  </span>
+                  {formConfig.status !== 'draft'
+                    ? 'Modifications are locked to protect live submission schema. Revert the form status to Draft in the Forms Manager to make changes.'
+                    : 'You have read-only access to view this schema. Saving changes requires the Form Editor permission.'}
+                </div>
+              </div>
+            )}
+
             {/* VIEW MODE TABS */}
             <div
               className="bg-white rounded-full p-1 border border-gray-200 shadow-xs flex mb-6 relative z-10"
@@ -375,13 +411,15 @@ function FormBuilderContent() {
                 {formConfig.bannerImageUrl && (
                   <div className="w-full relative group">
                     <img src={formConfig.bannerImageUrl} alt="Banner" className="w-full h-auto max-h-64 object-contain bg-stone-50" />
-                    <button
-                      type="button"
-                      onClick={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
-                      className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-xs rounded-full text-gray-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
+                        className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-xs rounded-full text-gray-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -410,7 +448,9 @@ function FormBuilderContent() {
                         <div className="text-center py-12 px-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
                           <LayoutTemplate className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                           <h3 className="text-sm font-medium text-gray-900 mb-1">Your form is empty</h3>
-                          <p className="text-xs text-gray-500">Click the button below to add your first question.</p>
+                          <p className="text-xs text-gray-500">
+                            {isReadOnly ? 'No questions in this form.' : 'Click the button below to add your first question.'}
+                          </p>
                         </div>
                       )}
 
@@ -427,13 +467,15 @@ function FormBuilderContent() {
                         />
                       ))}
 
-                      <button
-                        type="button"
-                        onClick={handleAddQuestion}
-                        className="w-full py-4 mt-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-semibold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors flex items-center justify-center cursor-pointer"
-                      >
-                        <PlusCircle className="w-5 h-5 mr-2" /> Add Question
-                      </button>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={handleAddQuestion}
+                          className="w-full py-4 mt-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-semibold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors flex items-center justify-center cursor-pointer"
+                        >
+                          <PlusCircle className="w-5 h-5 mr-2" /> Add Question
+                        </button>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -450,11 +492,18 @@ function FormBuilderContent() {
         }
         inspector={
           <>
-            <div className="h-14 border-b border-gray-100 flex items-center px-6 bg-gray-50/50 shrink-0">
-              <Settings2 className="w-4 h-4 text-gray-500 mr-2" />
-              <span className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                {viewMode === 'success' ? 'Success Config' : activeField ? 'Field Inspector' : 'Form Settings'}
-              </span>
+            <div className="h-14 border-b border-gray-100 flex items-center justify-between px-6 bg-gray-50/50 shrink-0">
+              <div className="flex items-center">
+                <Settings2 className="w-4 h-4 text-gray-500 mr-2" />
+                <span className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  {viewMode === 'success' ? 'Success Config' : activeField ? 'Field Inspector' : 'Form Settings'}
+                </span>
+              </div>
+              {isReadOnly && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded-md">
+                  <Lock className="w-3 h-3" /> Read Only
+                </span>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
@@ -465,11 +514,13 @@ function FormBuilderContent() {
                     <FormInput
                       label="Title (English)"
                       value={formConfig.successTitleEn}
+                      disabled={isReadOnly}
                       onChange={(e) => setFormConfig({ ...formConfig, successTitleEn: e.target.value })}
                     />
                     <FormInput
                       label="Title (Chinese)"
                       value={formConfig.successTitleZh}
+                      disabled={isReadOnly}
                       onChange={(e) => setFormConfig({ ...formConfig, successTitleZh: e.target.value })}
                     />
                   </div>
@@ -485,7 +536,7 @@ function FormBuilderContent() {
                       <label className="block text-sm font-semibold text-gray-950 mb-1.5">Message (English)</label>
                       <MarkdownEditor
                         value={formConfig.successMessageEn}
-                        onChange={(val) => setFormConfig({ ...formConfig, successMessageEn: val })}
+                        onChange={(val) => !isReadOnly && setFormConfig({ ...formConfig, successMessageEn: val })}
                         rows={6}
                       />
                     </div>
@@ -493,7 +544,7 @@ function FormBuilderContent() {
                       <label className="block text-sm font-semibold text-gray-950 mb-1.5">Message (Chinese)</label>
                       <MarkdownEditor
                         value={formConfig.successMessageZh}
-                        onChange={(val) => setFormConfig({ ...formConfig, successMessageZh: val })}
+                        onChange={(val) => !isReadOnly && setFormConfig({ ...formConfig, successMessageZh: val })}
                         rows={6}
                       />
                     </div>
@@ -503,6 +554,7 @@ function FormBuilderContent() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                   <CoverBannerPicker
                     bannerUrl={formConfig.bannerImageUrl || null}
+                    disabled={isReadOnly}
                     onOpenPicker={() => setIsMediaPickerOpen(true)}
                     onRemoveBanner={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
                   />
@@ -513,14 +565,16 @@ function FormBuilderContent() {
                       label="Internal Reference Name"
                       helperText="Only visible to your admin team in the dashboard."
                       value={formConfig.internalName}
+                      disabled={isReadOnly}
                       onChange={(e) => setFormConfig({ ...formConfig, internalName: e.target.value })}
                     />
 
                     <UrlSlugInspector
                       slug={formConfig.slug}
+                      disabled={isReadOnly}
                       onChange={(cleanSlug) => setFormConfig({ ...formConfig, slug: cleanSlug })}
                       pathPrefix="/form/"
-                      helperText="The public web address (e.g., /en/form/summer-retreat)."
+                      helperText="Legitimate characters: letters, numbers, -, _, ., +, %, ~"
                       required
                     />
 
@@ -529,6 +583,7 @@ function FormBuilderContent() {
                       <FormSelect
                         label="Linked Event *"
                         value={formConfig.eventId}
+                        disabled={isReadOnly}
                         onChange={(e) => {
                           const newEventId = e.target.value;
                           const evt = availableEvents.find((item) => item.id === newEventId);
@@ -548,7 +603,6 @@ function FormBuilderContent() {
                         ))}
                       </FormSelect>
 
-                      {/* INHERITED EVENT CODE BADGE */}
                       {selectedEvent && (
                         <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between">
                           <div>
@@ -573,10 +627,11 @@ function FormBuilderContent() {
                       </div>
                       <button
                         type="button"
+                        disabled={isReadOnly}
                         onClick={() => setFormConfig({ ...formConfig, isFollowUp: !formConfig.isFollowUp })}
-                        className={`relative inline-flex h-5 w-9 rounded-full transition-colors cursor-pointer ${
-                          formConfig.isFollowUp ? 'bg-indigo-600' : 'bg-gray-200'
-                        }`}
+                        className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
+                          isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                        } ${formConfig.isFollowUp ? 'bg-indigo-600' : 'bg-gray-200'}`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
@@ -595,10 +650,11 @@ function FormBuilderContent() {
                       </div>
                       <button
                         type="button"
+                        disabled={isReadOnly}
                         onClick={() => setFormConfig({ ...formConfig, isStandalone: !formConfig.isStandalone })}
-                        className={`relative inline-flex h-5 w-9 rounded-full transition-colors cursor-pointer ${
-                          formConfig.isStandalone ? 'bg-indigo-600' : 'bg-gray-200'
-                        }`}
+                        className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
+                          isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                        } ${formConfig.isStandalone ? 'bg-indigo-600' : 'bg-gray-200'}`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
@@ -614,25 +670,27 @@ function FormBuilderContent() {
                     <FormInput
                       label="Public Title (English)"
                       value={formConfig.titleEn}
+                      disabled={isReadOnly}
                       onChange={(e) => setFormConfig({ ...formConfig, titleEn: e.target.value })}
                     />
                     <FormInput
                       label="Public Title (Chinese)"
                       value={formConfig.titleZh}
+                      disabled={isReadOnly}
                       onChange={(e) => setFormConfig({ ...formConfig, titleZh: e.target.value })}
                     />
                     <div>
                       <label className="block text-sm font-semibold text-gray-950 mb-1.5">Description (English)</label>
                       <MarkdownEditor
                         value={formConfig.subtitleEn}
-                        onChange={(val) => setFormConfig({ ...formConfig, subtitleEn: val })}
+                        onChange={(val) => !isReadOnly && setFormConfig({ ...formConfig, subtitleEn: val })}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-950 mb-1.5">Description (Chinese)</label>
                       <MarkdownEditor
                         value={formConfig.subtitleZh}
-                        onChange={(val) => setFormConfig({ ...formConfig, subtitleZh: val })}
+                        onChange={(val) => !isReadOnly && setFormConfig({ ...formConfig, subtitleZh: val })}
                       />
                     </div>
                   </div>
@@ -644,6 +702,7 @@ function FormBuilderContent() {
                       <FormInput
                         label="Data Key (Database Column)"
                         value={activeField.dataKey}
+                        disabled={isReadOnly}
                         onChange={(e) => updateActiveField({ dataKey: e.target.value })}
                         required
                         className="font-mono"
@@ -659,11 +718,13 @@ function FormBuilderContent() {
                     <FormInput
                       label="Title (English)"
                       value={activeField.labelEn}
+                      disabled={isReadOnly}
                       onChange={(e) => updateActiveField({ labelEn: e.target.value })}
                     />
                     <FormInput
                       label="Title (Chinese)"
                       value={activeField.labelZh}
+                      disabled={isReadOnly}
                       onChange={(e) => updateActiveField({ labelZh: e.target.value })}
                     />
                     <div className="pt-2">
@@ -673,7 +734,7 @@ function FormBuilderContent() {
                       <MarkdownEditor
                         rows={2}
                         value={activeField.descriptionEn || ''}
-                        onChange={(val) => updateActiveField({ descriptionEn: val })}
+                        onChange={(val) => !isReadOnly && updateActiveField({ descriptionEn: val })}
                         placeholder="Optional. Use !!text!! for red warning."
                       />
                     </div>
@@ -684,7 +745,7 @@ function FormBuilderContent() {
                       <MarkdownEditor
                         rows={2}
                         value={activeField.descriptionZh || ''}
-                        onChange={(val) => updateActiveField({ descriptionZh: val })}
+                        onChange={(val) => !isReadOnly && updateActiveField({ descriptionZh: val })}
                         placeholder="選填。"
                       />
                     </div>
@@ -696,6 +757,7 @@ function FormBuilderContent() {
                     <FormSelect
                       label="Field Format"
                       value={activeField.type}
+                      disabled={isReadOnly}
                       onChange={(e) => {
                         const newType = e.target.value as FieldType;
                         updateActiveField({
@@ -748,6 +810,7 @@ function FormBuilderContent() {
                             type="number"
                             min={0}
                             max={6}
+                            disabled={isReadOnly}
                             placeholder="e.g. 2"
                             value={activeField.decimals !== undefined ? String(activeField.decimals) : '2'}
                             onChange={(e) => {
@@ -759,6 +822,7 @@ function FormBuilderContent() {
                           <FormInput
                             label="Min Value"
                             type="number"
+                            disabled={isReadOnly}
                             placeholder="No min"
                             value={activeField.min !== undefined ? String(activeField.min) : ''}
                             onChange={(e) => {
@@ -769,6 +833,7 @@ function FormBuilderContent() {
                           <FormInput
                             label="Max Value"
                             type="number"
+                            disabled={isReadOnly}
                             placeholder="No max"
                             value={activeField.max !== undefined ? String(activeField.max) : ''}
                             onChange={(e) => {
@@ -798,10 +863,11 @@ function FormBuilderContent() {
                         </div>
                         <button
                           type="button"
+                          disabled={isReadOnly}
                           onClick={() => updateActiveField({ required: !activeField.required })}
-                          className={`relative inline-flex h-5 w-9 rounded-full transition-colors cursor-pointer ${
-                            activeField.required ? 'bg-indigo-600' : 'bg-gray-200'
-                          }`}
+                          className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
+                            isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                          } ${activeField.required ? 'bg-indigo-600' : 'bg-gray-200'}`}
                         >
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
@@ -817,6 +883,7 @@ function FormBuilderContent() {
                     condition={activeField.condition}
                     previousFields={previousFields}
                     onToggleCondition={() => {
+                      if (isReadOnly) return;
                       if (activeField.condition) updateActiveField({ condition: undefined });
                       else
                         updateActiveField({
@@ -827,25 +894,27 @@ function FormBuilderContent() {
                         });
                     }}
                     onChangeMatch={(match) =>
-                      updateActiveField({ condition: { ...activeField.condition!, match } })
+                      !isReadOnly && updateActiveField({ condition: { ...activeField.condition!, match } })
                     }
                     onAddRule={handleAddRule}
                     onUpdateRule={handleUpdateRule}
                     onRemoveRule={handleRemoveRule}
                   />
 
-                  <div className="pt-8">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFields(fields.filter((f) => f.id !== activeFieldId));
-                        setActiveFieldId(null);
-                      }}
-                      className="flex items-center text-sm font-medium text-red-600 hover:text-red-700 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete Question
-                    </button>
-                  </div>
+                  {!isReadOnly && (
+                    <div className="pt-8">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFields(fields.filter((f) => f.id !== activeFieldId));
+                          setActiveFieldId(null);
+                        }}
+                        className="flex items-center text-sm font-medium text-red-600 hover:text-red-700 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete Question
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -855,7 +924,7 @@ function FormBuilderContent() {
 
       {/* MEDIA PICKER MODAL */}
       <MediaPicker
-        isOpen={isMediaPickerOpen}
+        isOpen={isMediaPickerOpen && !isReadOnly}
         onClose={() => setIsMediaPickerOpen(false)}
         onSelect={(asset: AssetRecord) => setFormConfig({ ...formConfig, bannerImageUrl: asset.file_url })}
         allowedCategory="image"

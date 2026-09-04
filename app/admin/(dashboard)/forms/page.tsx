@@ -1,19 +1,33 @@
+import { createClient } from '@/lib/supabase/server';
+import { hasPermission, Role } from '@/lib/permissions';
 import { requirePermission } from '@/lib/auth-guards';
-import { hasPermission } from '@/lib/permissions';
 import FormsClient from './FormsClient';
 
 export default async function FormsPage() {
-  // 1. PAGE GUARD: Common baseline for Form Editors and Submission Viewers
-  const { profile } = await requirePermission('submissions:view_test');
+  await requirePermission('forms:view');
 
-  // 2. UI RBAC: Granular permissions for the forms workspace
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let roles: Role[] = [];
+  if (user) {
+    const { data: member } = await supabase
+      .from('team_members')
+      .select('roles, status')
+      .eq('id', user.id)
+      .single();
+    if (member && member.status === 'active') {
+      roles = (member.roles || []) as Role[];
+    }
+  }
+
   const permissions = {
-    canCreate: hasPermission(profile.roles, 'forms:create'),
-    canEdit: hasPermission(profile.roles, 'forms:edit'),
-    canDelete: hasPermission(profile.roles, 'forms:delete'),
-    canUpdateStatus: hasPermission(profile.roles, 'forms:update_status'),
-    canViewReal: hasPermission(profile.roles, 'submissions:view_real'),
-    canExportReal: hasPermission(profile.roles, 'submissions:export_real'),
+    canView: hasPermission(roles, 'forms:view'),
+    canViewSchema: hasPermission(roles, 'forms:view_schema'),
+    canCreate: hasPermission(roles, 'forms:create'),
+    canEdit: hasPermission(roles, 'forms:edit'),
+    canDelete: hasPermission(roles, 'forms:delete'),
+    canUpdateStatus: hasPermission(roles, 'forms:update_status'),
   };
 
   return <FormsClient permissions={permissions} />;
