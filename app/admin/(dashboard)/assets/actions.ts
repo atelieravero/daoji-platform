@@ -75,7 +75,19 @@ export async function getAssetPresignedUploadUrlAction(params: {
   const date = new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const sanitizedFileName = params.fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+
+  // Sanitize filename: isolate extension, replace non-alphanumerics, collapse consecutive underscores
+  const extension = params.fileName.includes('.') ? params.fileName.split('.').pop() : '';
+  const baseName = params.fileName.includes('.') 
+    ? params.fileName.substring(0, params.fileName.lastIndexOf('.'))
+    : params.fileName;
+
+  const sanitizedBase = baseName
+    .replace(/[^a-zA-Z0-9-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'asset';
+
+  const sanitizedFileName = extension ? `${sanitizedBase}.${extension}` : sanitizedBase;
   const s3Key = `assets/${year}/${month}/${Date.now()}-${sanitizedFileName}`;
 
   try {
@@ -191,12 +203,10 @@ export async function listAssetsAction(params: {
 
 /**
  * Delete an asset from S3 and Supabase after verifying no active references.
- * Returns a graceful failure object if permission is denied.
  */
 export async function deleteAssetAction(assetId: string): Promise<{ success: boolean; error?: string }> {
   const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
 
-  // Graceful failure check: never triggers a redirect
   if (!user || !hasPermission(roles, 'assets:delete')) {
     return { 
       success: false, 
