@@ -4,9 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth-guards';
 import { hasPermission, Role } from '@/lib/permissions';
 import { revalidatePath } from 'next/cache';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3Client } from '@/lib/s3/client';
 
 export interface FormEventOption {
   id: string;
@@ -102,14 +99,18 @@ export async function saveFormSchema(payload: {
   await requirePermission('forms:edit');
   const supabase = await createClient();
 
+  const eventId = payload.event_id?.trim();
+  if (!eventId || eventId === 'none') {
+    throw new Error('Validation Error: A linked event is required for every form.');
+  }
+
+  // Removed updated_at to match the live forms table schema
   const cleanPayload: Record<string, any> = {
     title: payload.title,
     slug: payload.slug,
     is_followup: Boolean(payload.is_followup),
     schema: payload.schema,
-    event_id: payload.event_id && payload.event_id.trim() !== '' && payload.event_id !== 'none'
-      ? payload.event_id
-      : null,
+    event_id: eventId,
   };
 
   let error;
@@ -118,7 +119,7 @@ export async function saveFormSchema(payload: {
   if (id) {
     const { data: existingForm, error: fetchError } = await supabase
       .from('forms')
-      .select('status')
+      .select('status, slug')
       .eq('id', id)
       .single();
 
@@ -134,6 +135,12 @@ export async function saveFormSchema(payload: {
       .update(cleanPayload)
       .eq('id', id);
     error = res.error;
+
+    // Invalidate old slug paths if slug changed
+    if (existingForm.slug && existingForm.slug !== cleanPayload.slug) {
+      revalidatePath(`/zh/form/${existingForm.slug}`);
+      revalidatePath(`/en/form/${existingForm.slug}`);
+    }
   } else {
     await requirePermission('forms:create');
     const res = await (supabase.from('forms') as any)
@@ -152,43 +159,12 @@ export async function saveFormSchema(payload: {
     throw new Error(error.message || 'Failed to save form schema.');
   }
 
+  // Revalidate admin views and public edge caches
   revalidatePath('/admin/forms');
   revalidatePath('/admin/logs');
+  revalidatePath(`/[locale]/form/${cleanPayload.slug}`, 'page');
+  revalidatePath(`/zh/form/${cleanPayload.slug}`);
+  revalidatePath(`/en/form/${cleanPayload.slug}`);
+
   return savedId;
-}
-
-/**
- * Generates presigned URL for public form assets.
- */
-export async function getPublicPresignedUploadUrl(fileName: string, fileType: string) {
-  await requirePermission('forms:edit');
-
-  try {
-    const uniqueFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const fileKey = `public/assets/${uniqueFileName}`;
-    
-    const publicBucket = process.env.S3_PUBLIC_BUCKET_NAME;
-    const cdnUrl = process.env.NEXT_PUBLIC_CDN_URL;
-
-    if (!publicBucket || !cdnUrl) {
-      throw new Error('Public bucket or CDN URL is not configured in environment variables.');
-    }
-
-    const command = new PutObjectCommand({
-      Bucket: publicBucket,
-      Key: fileKey,
-      ContentType: fileType,
-    });
-
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-
-    return { 
-      success: true, 
-      signedUrl, 
-      finalUrl: `${cdnUrl}/${fileKey}` 
-    };
-  } catch (error: any) {
-    console.error('Error generating public presigned URL:', error);
-    return { success: false, error: error.message };
-  }
 }

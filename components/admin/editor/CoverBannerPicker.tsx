@@ -8,17 +8,19 @@ import { AssetRecord } from '@/app/admin/(dashboard)/assets/actions';
 interface CoverBannerPickerProps {
   label?: string;
   bannerUrl: string | null;
+  originalBannerUrl?: string | null;
   onOpenPicker: () => void;
   onRemoveBanner: () => void;
   onCropSuccess?: (croppedAsset: AssetRecord) => void;
-  aspectRatio?: number; // e.g. 16/9, 16/5
-  aspectRatioLabel?: string; // e.g. "16:9", "16:5"
+  aspectRatio?: number;
+  aspectRatioLabel?: string;
   disabled?: boolean;
 }
 
 export default function CoverBannerPicker({
   label = 'Cover Banner Image',
   bannerUrl,
+  originalBannerUrl,
   onOpenPicker,
   onRemoveBanner,
   onCropSuccess,
@@ -27,6 +29,9 @@ export default function CoverBannerPicker({
   disabled = false,
 }: CoverBannerPickerProps) {
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+
+  // Always crop from original uncropped source image if available
+  const cropSourceUrl = originalBannerUrl || bannerUrl;
 
   return (
     <>
@@ -49,12 +54,12 @@ export default function CoverBannerPicker({
             
             {!disabled && (
               <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                {onCropSuccess && (
+                {onCropSuccess && cropSourceUrl && (
                   <button
                     type="button"
                     onClick={() => setIsCropModalOpen(true)}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-black/70 hover:bg-black text-white text-xs font-semibold rounded-lg shadow-sm backdrop-blur-xs transition-colors cursor-pointer"
-                    title={`Crop Banner (${aspectRatioLabel})`}
+                    title={`Crop from Original (${aspectRatioLabel})`}
                   >
                     <Crop className="w-3.5 h-3.5" />
                     <span>Crop</span>
@@ -95,12 +100,11 @@ export default function CoverBannerPicker({
         )}
       </div>
 
-      {/* CROP MODAL */}
-      {bannerUrl && onCropSuccess && (
+      {cropSourceUrl && onCropSuccess && (
         <ImageCropModal
           isOpen={isCropModalOpen && !disabled}
           onClose={() => setIsCropModalOpen(false)}
-          imageUrl={bannerUrl}
+          imageUrl={cropSourceUrl}
           aspectRatio={aspectRatio}
           aspectRatioLabel={aspectRatioLabel}
           onCropSuccess={onCropSuccess}

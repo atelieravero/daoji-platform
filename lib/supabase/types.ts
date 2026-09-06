@@ -50,6 +50,7 @@ export type Database = {
           file_url: string
           height: number | null
           id: string
+          is_system: boolean
           mime_type: string
           s3_key: string
           width: number | null
@@ -64,6 +65,7 @@ export type Database = {
           file_url: string
           height?: number | null
           id?: string
+          is_system?: boolean
           mime_type: string
           s3_key: string
           width?: number | null
@@ -78,6 +80,7 @@ export type Database = {
           file_url?: string
           height?: number | null
           id?: string
+          is_system?: boolean
           mime_type?: string
           s3_key?: string
           width?: number | null
@@ -237,6 +240,7 @@ export type Database = {
       events: {
         Row: {
           banner_asset_id: string | null
+          banner_original_asset_id: string | null
           blackout_dates: string[] | null
           body_en: string | null
           body_zh: string
@@ -274,6 +278,7 @@ export type Database = {
         }
         Insert: {
           banner_asset_id?: string | null
+          banner_original_asset_id?: string | null
           blackout_dates?: string[] | null
           body_en?: string | null
           body_zh?: string
@@ -311,6 +316,7 @@ export type Database = {
         }
         Update: {
           banner_asset_id?: string | null
+          banner_original_asset_id?: string | null
           blackout_dates?: string[] | null
           body_en?: string | null
           body_zh?: string
@@ -350,6 +356,13 @@ export type Database = {
           {
             foreignKeyName: "events_banner_asset_id_fkey"
             columns: ["banner_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_banner_original_asset_id_fkey"
+            columns: ["banner_original_asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
             referencedColumns: ["id"]
@@ -682,6 +695,7 @@ export type Database = {
           id: string
           name_en: string | null
           name_zh: string
+          timezone: string
           transport_guide_en: string | null
           transport_guide_zh: string | null
         }
@@ -694,6 +708,7 @@ export type Database = {
           id?: string
           name_en?: string | null
           name_zh: string
+          timezone?: string
           transport_guide_en?: string | null
           transport_guide_zh?: string | null
         }
@@ -706,6 +721,7 @@ export type Database = {
           id?: string
           name_en?: string | null
           name_zh?: string
+          timezone?: string
           transport_guide_en?: string | null
           transport_guide_zh?: string | null
         }

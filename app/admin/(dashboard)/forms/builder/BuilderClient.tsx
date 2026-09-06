@@ -70,6 +70,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
     interimEventCode: '',
     isStandalone: false,
     bannerImageUrl: '',
+    bannerOriginalImageUrl: '', // Retains master uncropped image URL
     successTitleEn: 'Submission Successful',
     successTitleZh: '提交成功',
     successMessageEn: 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
@@ -118,6 +119,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
           interimEventCode: schema.interimEventCode ?? schema.eventCode ?? '',
           isStandalone: schema.isStandalone ?? false,
           bannerImageUrl: schema.bannerImageUrl ?? '',
+          bannerOriginalImageUrl: schema.bannerOriginalImageUrl ?? schema.bannerImageUrl ?? '',
           successTitleEn: schema.successTitleEn ?? 'Submission Successful',
           successTitleZh: schema.successTitleZh ?? '提交成功',
           successMessageEn: schema.successMessageEn ?? 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
@@ -293,6 +295,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
           eventCode: eventCodeToSave,
           isStandalone: formConfig.isStandalone,
           bannerImageUrl: formConfig.bannerImageUrl,
+          bannerOriginalImageUrl: formConfig.bannerOriginalImageUrl || formConfig.bannerImageUrl,
           successTitleEn: formConfig.successTitleEn,
           successTitleZh: formConfig.successTitleZh,
           successMessageEn: formConfig.successMessageEn,
@@ -414,7 +417,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                     {!isReadOnly && (
                       <button
                         type="button"
-                        onClick={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
+                        onClick={() => setFormConfig({ ...formConfig, bannerImageUrl: '', bannerOriginalImageUrl: '' })}
                         className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-xs rounded-full text-gray-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-xs cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -554,11 +557,12 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                   <CoverBannerPicker
                     bannerUrl={formConfig.bannerImageUrl || null}
+                    originalBannerUrl={formConfig.bannerOriginalImageUrl || formConfig.bannerImageUrl || null}
                     aspectRatio={16 / 5}
                     aspectRatioLabel="16:5"
                     disabled={isReadOnly}
                     onOpenPicker={() => setIsMediaPickerOpen(true)}
-                    onRemoveBanner={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
+                    onRemoveBanner={() => setFormConfig({ ...formConfig, bannerImageUrl: '', bannerOriginalImageUrl: '' })}
                     onCropSuccess={(croppedAsset) => {
                       setFormConfig({ ...formConfig, bannerImageUrl: croppedAsset.file_url });
                     }}
@@ -931,7 +935,13 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
       <MediaPicker
         isOpen={isMediaPickerOpen && !isReadOnly}
         onClose={() => setIsMediaPickerOpen(false)}
-        onSelect={(asset: AssetRecord) => setFormConfig({ ...formConfig, bannerImageUrl: asset.file_url })}
+        onSelect={(asset: AssetRecord) =>
+          setFormConfig({
+            ...formConfig,
+            bannerImageUrl: asset.file_url,
+            bannerOriginalImageUrl: asset.file_url,
+          })
+        }
         allowedCategory="image"
         title="Select Cover Banner from Media Pool"
       />

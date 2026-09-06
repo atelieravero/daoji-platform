@@ -79,7 +79,6 @@ export default function ImageCropModal({
     setPosition(clampPosition(initialX, initialY, currentZoom));
   }, [containerWidth, containerHeight, naturalSize, getMinScale, clampPosition]);
 
-  // Load image via server-side action to eliminate CORS failures
   useEffect(() => {
     if (!isOpen || !imageUrl) return;
 
@@ -93,7 +92,7 @@ export default function ImageCropModal({
       if (!isMounted) return;
 
       if (res.error || !res.dataUrl) {
-        setErrorMessage(res.error || 'Failed to load image for cropping.');
+        setErrorMessage(res.error || 'Failed to load source image for cropping.');
         return;
       }
 
@@ -219,6 +218,7 @@ export default function ImageCropModal({
         fileName,
         fileType: 'image/jpeg',
         fileSize: blob.size,
+        folder: 'derivatives/crops', // Explicit prefix partitioning
       });
 
       if (presignError || !uploadUrl || !s3Key || !fileUrl) {
@@ -235,6 +235,7 @@ export default function ImageCropModal({
         throw new Error(`Upload failed with HTTP status ${uploadRes.status}`);
       }
 
+      // Mark is_system: true to exclude from general asset views
       const regRes = await registerAssetAction({
         fileUrl,
         s3Key,
@@ -243,6 +244,7 @@ export default function ImageCropModal({
         fileSizeBytes: blob.size,
         altTextEn: `Banner Crop (${aspectRatioLabel})`,
         altTextZh: `橫幅裁切 (${aspectRatioLabel})`,
+        is_system: true,
       });
 
       if (!regRes.success || !regRes.data) {
@@ -284,7 +286,7 @@ export default function ImageCropModal({
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Drag to reposition • Use slider to zoom
+                Cropping from original source image
               </p>
             </div>
           </div>
@@ -312,7 +314,7 @@ export default function ImageCropModal({
               className="flex items-center justify-center text-stone-400 text-xs gap-2 border border-stone-800 rounded-xl"
             >
               <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
-              <span>Loading image canvas...</span>
+              <span>Loading original image canvas...</span>
             </div>
           ) : (
             <div

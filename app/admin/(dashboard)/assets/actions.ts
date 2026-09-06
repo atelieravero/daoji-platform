@@ -18,14 +18,12 @@ export interface AssetRecord {
   height: number | null;
   alt_text_zh: string | null;
   alt_text_en: string | null;
+  is_system?: boolean;
   created_at: string;
 }
 
 export type AssetCategory = 'all' | 'image' | 'audio' | 'video' | 'document';
 
-/**
- * Helper to authenticate user and extract assigned roles.
- */
 async function getAuthenticatedUserAndRoles() {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -51,13 +49,11 @@ async function getAuthenticatedUserAndRoles() {
   };
 }
 
-/**
- * Generates an S3 presigned PUT upload URL for direct browser-to-R2 streaming.
- */
 export async function getAssetPresignedUploadUrlAction(params: {
   fileName: string;
   fileType: string;
   fileSize: number;
+  folder?: string; // defaults to 'assets'
 }): Promise<{ uploadUrl?: string; s3Key?: string; fileUrl?: string; error?: string }> {
   const { user, roles } = await getAuthenticatedUserAndRoles();
 
@@ -76,7 +72,6 @@ export async function getAssetPresignedUploadUrlAction(params: {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
 
-  // Sanitize filename: isolate extension, replace non-alphanumerics, collapse consecutive underscores
   const extension = params.fileName.includes('.') ? params.fileName.split('.').pop() : '';
   const baseName = params.fileName.includes('.') 
     ? params.fileName.substring(0, params.fileName.lastIndexOf('.'))
@@ -88,7 +83,8 @@ export async function getAssetPresignedUploadUrlAction(params: {
     .replace(/^_+|_+$/g, '') || 'asset';
 
   const sanitizedFileName = extension ? `${sanitizedBase}.${extension}` : sanitizedBase;
-  const s3Key = `assets/${year}/${month}/${Date.now()}-${sanitizedFileName}`;
+  const folder = params.folder || 'assets';
+  const s3Key = `${folder}/${year}/${month}/${Date.now()}-${sanitizedFileName}`;
 
   try {
     const putCommand = new PutObjectCommand({
@@ -107,7 +103,7 @@ export async function getAssetPresignedUploadUrlAction(params: {
 }
 
 /**
- * Registers an uploaded asset's metadata in Supabase.
+ * Registers asset metadata with support for `is_system` (derivative/crop products).
  */
 export async function registerAssetAction(params: {
   fileUrl: string;
@@ -117,6 +113,7 @@ export async function registerAssetAction(params: {
   fileSizeBytes: number;
   altTextZh?: string | null;
   altTextEn?: string | null;
+  is_system?: boolean;
 }): Promise<{ success: boolean; data?: AssetRecord; error?: string }> {
   const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
 
@@ -135,6 +132,7 @@ export async function registerAssetAction(params: {
         file_size_bytes: params.fileSizeBytes,
         alt_text_zh: params.altTextZh || null,
         alt_text_en: params.altTextEn || null,
+        is_system: params.is_system || false,
         created_by: user.id,
       })
       .select()
@@ -144,7 +142,9 @@ export async function registerAssetAction(params: {
       throw new Error(dbError?.message || 'Failed to insert asset record.');
     }
 
-    revalidatePath('/admin/assets');
+    if (!params.is_system) {
+      revalidatePath('/admin/assets');
+    }
     revalidatePath('/admin/logs');
 
     return { success: true, data: asset as AssetRecord };
@@ -155,7 +155,7 @@ export async function registerAssetAction(params: {
 }
 
 /**
- * List assets with category filtering, search, and pagination.
+ * List assets — strictly filters out system/cropped images so they never appear in the Media Pool.
  */
 export async function listAssetsAction(params: {
   category?: AssetCategory;
@@ -173,7 +173,9 @@ export async function listAssetsAction(params: {
 
   let query = supabase
     .from('assets')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .eq('is_system', false)
+    .not('file_name', 'ilike', 'crop-%');
 
   if (category === 'image') {
     query = query.ilike('mime_type', 'image/%');
@@ -201,9 +203,6 @@ export async function listAssetsAction(params: {
   return { data: (data as AssetRecord[]) || [], total: count || 0 };
 }
 
-/**
- * Delete an asset from S3 and Supabase after verifying no active references.
- */
 export async function deleteAssetAction(assetId: string): Promise<{ success: boolean; error?: string }> {
   const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
 
@@ -214,7 +213,6 @@ export async function deleteAssetAction(assetId: string): Promise<{ success: boo
     };
   }
 
-  // 1. Fetch asset metadata
   const { data: asset, error: fetchError } = await supabase
     .from('assets')
     .select('s3_key')
@@ -225,23 +223,27 @@ export async function deleteAssetAction(assetId: string): Promise<{ success: boo
     return { success: false, error: 'Asset not found.' };
   }
 
-  // 2. Reference Guard: Check if asset is actively used
-  const [eventsCheck, pagesCheck, resourcesCheck] = await Promise.all([
+  const [eventsCheck, origEventsCheck, pagesCheck, resourcesCheck] = await Promise.all([
     supabase.from('events').select('id', { count: 'exact', head: true }).eq('banner_asset_id', assetId),
+    supabase.from('events').select('id', { count: 'exact', head: true }).eq('banner_original_asset_id', assetId),
     supabase.from('content_pages').select('id', { count: 'exact', head: true }).eq('cover_asset_id', assetId),
     supabase.from('resources').select('id', { count: 'exact', head: true }).or(`target_asset_id.eq.${assetId},cover_asset_id.eq.${assetId}`),
   ]);
 
-  const usageCount = (eventsCheck.count || 0) + (pagesCheck.count || 0) + (resourcesCheck.count || 0);
+  const usageCount = 
+    (eventsCheck.count || 0) + 
+    (origEventsCheck.count || 0) + 
+    (pagesCheck.count || 0) + 
+    (resourcesCheck.count || 0);
+
   if (usageCount > 0) {
     return {
       success: false,
-      error: `Cannot delete asset: It is currently referenced by ${usageCount} event(s), article(s), or resource(s).`,
+      error: `Cannot delete asset: It is referenced by ${usageCount} event(s), article(s), or resource(s).`,
     };
   }
 
   try {
-    // 3. Delete from R2
     const publicBucket = process.env.S3_PUBLIC_BUCKET_NAME;
     if (publicBucket) {
       await s3Client.send(new DeleteObjectCommand({
@@ -250,7 +252,6 @@ export async function deleteAssetAction(assetId: string): Promise<{ success: boo
       }));
     }
 
-    // 4. Delete record from database
     const { error: deleteError } = await supabase
       .from('assets')
       .delete()
@@ -267,9 +268,6 @@ export async function deleteAssetAction(assetId: string): Promise<{ success: boo
   }
 }
 
-/**
- * Resolves active permissions for the current user in the assets domain.
- */
 export async function getAssetPermissionsAction(): Promise<{
   canUpload: boolean;
   canDelete: boolean;
@@ -286,10 +284,6 @@ export async function getAssetPermissionsAction(): Promise<{
   };
 }
 
-/**
- * Fetches an image server-side and converts it to a clean data URL
- * to prevent CORS failures and tainted canvas errors during cropping.
- */
 export async function fetchImageForCropAction(
   imageUrl: string
 ): Promise<{ dataUrl?: string; error?: string }> {
