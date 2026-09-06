@@ -215,25 +215,37 @@ export default function FormsClient({ permissions }: { permissions: any }) {
                     />
                   </td>
 
-                  {/* 5. SUBMISSIONS COUNT */}
+                  {/* 5. SUBMISSIONS COUNT WITH UNPROCESSED RED BADGE */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <Link
-                      href={`/admin/forms/${form.id}/submissions`}
-                      className={`inline-flex items-center justify-center min-w-[2.5rem] px-3 py-1 rounded-full text-sm font-semibold transition-all ${
-                        testCount > 0
-                          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:ring-2 hover:ring-amber-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-2 hover:ring-indigo-200'
-                      }`}
-                      title="View Submissions Data"
-                    >
-                      {displayCount}
-                    </Link>
+                    <div className="inline-flex items-center justify-center relative">
+                      <Link
+                        href={`/admin/forms/${form.id}/submissions`}
+                        className={`inline-flex items-center justify-center min-w-[2.5rem] px-3 py-1 rounded-full text-sm font-semibold transition-all ${
+                          testCount > 0
+                            ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:ring-2 hover:ring-amber-200'
+                            : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-2 hover:ring-indigo-200'
+                        }`}
+                        title="View Submissions Data"
+                      >
+                        {displayCount}
+                      </Link>
+
+                      {/* Red notification dot for unprocessed submissions */}
+                      {form.has_unprocessed && (
+                        <span
+                          className="absolute -top-1 -right-1 flex h-2.5 w-2.5 pointer-events-none"
+                          title={`${form.unprocessed_count} unprocessed submission(s)`}
+                        >
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 ring-2 ring-white" />
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* 6. ACTIONS */}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-1.5">
-                      
                       {/* Delete (Draft only, 0 submissions) */}
                       {permissions.canDelete && status === 'draft' && realCount === 0 && testCount === 0 && (
                         <button

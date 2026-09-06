@@ -11,7 +11,7 @@ const getSupabaseAdmin = () => createAdminClient(
 );
 
 /**
- * Fetches all forms with linked event details and submission counts.
+ * Fetches all forms with linked event details, submission counts, and unprocessed flags.
  */
 export async function getForms() {
   await requirePermission('submissions:view_test');
@@ -19,14 +19,14 @@ export async function getForms() {
 
   const { data, error } = await supabase
     .from('forms')
-    .select('*, events:events!forms_event_id_fkey(id, title_zh, title_en, code, short_id, status), submissions(is_test)')
+    .select('*, events:events!forms_event_id_fkey(id, title_zh, title_en, code, short_id, status), submissions(is_test, is_processed)')
     .order('created_at', { ascending: false });
 
   // Fallback query if FK relationship cache is still refreshing
   if (error) {
     const { data: fallbackForms, error: fallbackError } = await supabase
       .from('forms')
-      .select('*, submissions(is_test)')
+      .select('*, submissions(is_test, is_processed)')
       .order('created_at', { ascending: false });
 
     if (fallbackError) throw new Error(fallbackError.message);
@@ -50,11 +50,17 @@ export async function getForms() {
       const testCount = subs.filter((s: any) => s.is_test).length;
       const realCount = subs.filter((s: any) => !s.is_test).length;
       
+      const unprocessedRealCount = subs.filter((s: any) => !s.is_test && !s.is_processed).length;
+      const unprocessedTotalCount = subs.filter((s: any) => !s.is_processed).length;
+      const hasUnprocessed = realCount > 0 ? unprocessedRealCount > 0 : unprocessedTotalCount > 0;
+      
       return {
         ...form,
         events: form.event_id ? eventsMap[form.event_id] || null : null,
         real_count: realCount,
-        test_count: testCount
+        test_count: testCount,
+        unprocessed_count: realCount > 0 ? unprocessedRealCount : unprocessedTotalCount,
+        has_unprocessed: hasUnprocessed,
       };
     });
   }
@@ -64,10 +70,16 @@ export async function getForms() {
     const testCount = subs.filter((s: any) => s.is_test).length;
     const realCount = subs.filter((s: any) => !s.is_test).length;
     
+    const unprocessedRealCount = subs.filter((s: any) => !s.is_test && !s.is_processed).length;
+    const unprocessedTotalCount = subs.filter((s: any) => !s.is_processed).length;
+    const hasUnprocessed = realCount > 0 ? unprocessedRealCount > 0 : unprocessedTotalCount > 0;
+
     return {
       ...form,
       real_count: realCount,
-      test_count: testCount
+      test_count: testCount,
+      unprocessed_count: realCount > 0 ? unprocessedRealCount : unprocessedTotalCount,
+      has_unprocessed: hasUnprocessed,
     };
   });
 }
