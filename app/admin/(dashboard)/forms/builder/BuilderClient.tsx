@@ -554,9 +554,14 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                   <CoverBannerPicker
                     bannerUrl={formConfig.bannerImageUrl || null}
+                    aspectRatio={16 / 5}
+                    aspectRatioLabel="16:5"
                     disabled={isReadOnly}
                     onOpenPicker={() => setIsMediaPickerOpen(true)}
                     onRemoveBanner={() => setFormConfig({ ...formConfig, bannerImageUrl: '' })}
+                    onCropSuccess={(croppedAsset) => {
+                      setFormConfig({ ...formConfig, bannerImageUrl: croppedAsset.file_url });
+                    }}
                   />
 
                   <hr className="border-gray-100" />

@@ -285,3 +285,33 @@ export async function getAssetPermissionsAction(): Promise<{
     canDelete: hasPermission(roles, 'assets:delete'),
   };
 }
+
+/**
+ * Fetches an image server-side and converts it to a clean data URL
+ * to prevent CORS failures and tainted canvas errors during cropping.
+ */
+export async function fetchImageForCropAction(
+  imageUrl: string
+): Promise<{ dataUrl?: string; error?: string }> {
+  const { user, roles } = await getAuthenticatedUserAndRoles();
+
+  if (!user || !hasPermission(roles, 'assets:view')) {
+    return { error: 'Permission denied: You do not have permission to view assets.' };
+  }
+
+  try {
+    const res = await fetch(imageUrl, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`Failed to load image from CDN (HTTP ${res.status})`);
+    }
+
+    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    return { dataUrl: `data:${contentType};base64,${base64}` };
+  } catch (err: any) {
+    console.error('Error fetching image for crop:', err);
+    return { error: err.message || 'Failed to load image for cropping.' };
+  }
+}
