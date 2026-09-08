@@ -2,7 +2,16 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PlusCircle, Trash2, LayoutTemplate, Settings2, Loader2, Lock, AlertTriangle } from 'lucide-react';
+import { 
+  PlusCircle, 
+  Trash2, 
+  LayoutTemplate, 
+  Settings2, 
+  Loader2, 
+  Lock, 
+  AlertTriangle,
+  CalendarDays 
+} from 'lucide-react';
 import { saveFormSchema, getFormSchema, getEventsForFormBuilder, FormEventOption } from './actions';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import MarkdownEditor from '@/components/shared/MarkdownEditor';
@@ -14,6 +23,7 @@ import EditorLayout from '@/components/admin/editor/EditorLayout';
 import EditorHeader from '@/components/admin/editor/EditorHeader';
 import CoverBannerPicker from '@/components/admin/editor/CoverBannerPicker';
 import UrlSlugInspector from '@/components/admin/editor/UrlSlugInspector';
+import EventPickerModal from '@/components/admin/forms/EventPickerModal';
 
 import QuestionCanvasItem, { FormField, FieldType } from '@/components/admin/forms/QuestionCanvasItem';
 import ChoicesConfigurator, { FieldOption } from '@/components/admin/forms/ChoicesConfigurator';
@@ -54,8 +64,9 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
   const [viewMode, setViewMode] = useState<'form' | 'success'>('form');
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
 
-  // Real Database Events List
+  // Real Database Events List & Picker State
   const [availableEvents, setAvailableEvents] = useState<FormEventOption[]>([]);
+  const [showEventPicker, setShowEventPicker] = useState(false);
 
   const [formConfig, setFormConfig] = useState({
     internalName: 'Untitled Form',
@@ -70,7 +81,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
     interimEventCode: '',
     isStandalone: false,
     bannerImageUrl: '',
-    bannerOriginalImageUrl: '', // Retains master uncropped image URL
+    bannerOriginalImageUrl: '',
     successTitleEn: 'Submission Successful',
     successTitleZh: '提交成功',
     successMessageEn: 'Thank you. Your submission has been securely received.\n\n{{TOKEN_BOX}}',
@@ -587,37 +598,35 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                       required
                     />
 
-                    {/* MANDATORY EVENT SELECTOR */}
+                    {/* MANDATORY EVENT SELECTOR (MODAL TRIGGER) */}
                     <div className="space-y-2">
-                      <FormSelect
-                        label="Linked Event *"
-                        value={formConfig.eventId}
-                        disabled={isReadOnly}
-                        onChange={(e) => {
-                          const newEventId = e.target.value;
-                          const evt = availableEvents.find((item) => item.id === newEventId);
-                          setFormConfig({
-                            ...formConfig,
-                            eventId: newEventId,
-                            interimEventCode: evt?.code || '',
-                          });
-                        }}
-                        required
-                      >
-                        <option value="">-- Choose Linked Event * --</option>
-                        {availableEvents.map((evt) => (
-                          <option key={evt.id} value={evt.id}>
-                            {evt.title_zh} {evt.code ? `[${evt.code}]` : ''} ({evt.status})
-                          </option>
-                        ))}
-                      </FormSelect>
+                      <label className="block text-sm font-semibold text-gray-950">Linked Event *</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => setShowEventPicker(true)}
+                          className={`flex-1 px-3.5 py-2.5 bg-white text-left text-xs font-semibold text-gray-800 border rounded-xl transition-colors flex items-center justify-between cursor-pointer ${
+                            formConfig.eventId
+                              ? 'border-indigo-300 bg-indigo-50/20'
+                              : 'border-gray-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          <span className="truncate">
+                            {selectedEvent
+                              ? `${selectedEvent.title_zh} [${selectedEvent.code || 'NO-CODE'}]`
+                              : '-- Select an event from database --'}
+                          </span>
+                          <CalendarDays className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
+                        </button>
+                      </div>
 
                       {selectedEvent && (
                         <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 flex items-center justify-between">
                           <div>
                             <span className="text-xs font-bold text-gray-900 block">Event Code Namespace</span>
                             <span className="text-[11px] text-gray-500">
-                              Tokens generated: <code className="font-bold text-indigo-700 font-mono">[{selectedEvent.code || 'NO-CODE'}]-XXXX-XXXX</code>
+                              Tokens: <code className="font-bold text-indigo-700 font-mono">[{selectedEvent.code || 'MMC'}]-XXXX-XXXX</code>
                             </span>
                           </div>
                           <span className="px-2 py-1 bg-white font-mono font-bold text-indigo-600 rounded-md border border-indigo-200 text-xs shadow-2xs">
@@ -944,6 +953,20 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
         }
         allowedCategory="image"
         title="Select Cover Banner from Media Pool"
+      />
+
+      {/* EXTRACTED EVENT PICKER MODAL */}
+      <EventPickerModal
+        isOpen={showEventPicker && !isReadOnly}
+        onClose={() => setShowEventPicker(false)}
+        selectedEventId={formConfig.eventId}
+        onSelectEvent={(evt) => {
+          setFormConfig({
+            ...formConfig,
+            eventId: evt.id,
+            interimEventCode: evt.code || '',
+          });
+        }}
       />
     </>
   );

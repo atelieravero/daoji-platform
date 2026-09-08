@@ -12,6 +12,7 @@ export type RegistrationMode = 'internal_form' | 'external_url' | 'not_required'
 export type EventLanguage = 'cantonese' | 'mandarin' | 'english' | 'thai';
 
 export interface LivestreamConfig {
+  mode?: 'auto' | 'manual';
   zoom_url?: string | null;
   zoom_meeting_id?: string | null;
   zoom_passcode?: string | null;
@@ -45,6 +46,12 @@ export interface VenueRecord {
   created_at: string;
 }
 
+export interface LinkedFormSummary {
+  id: string;
+  slug: string | null;
+  status: string;
+}
+
 export interface EventRecord {
   id: string;
   short_id: string;
@@ -69,6 +76,7 @@ export interface EventRecord {
   venue_override_zh: string | null;
   venue_override_en: string | null;
   is_livestream: boolean;
+  is_livestream_live: boolean;
   livestream_config: LivestreamConfig | null;
   registration_mode: RegistrationMode;
   linked_form_id: string | null;
@@ -80,18 +88,17 @@ export interface EventRecord {
   banner_original_asset_id: string | null;
   status: EventStatus;
   is_featured: boolean;
+  is_standalone: boolean;
   created_at: string;
   updated_at: string;
-  // Joined relations
+  // Joined & resolved relations
   venues?: VenueRecord | null;
   organizers?: OrganizerRecord | null;
   banner_asset?: { file_url: string } | null;
   banner_original_asset?: { file_url: string } | null;
+  linked_form?: LinkedFormSummary | null;
 }
 
-/**
- * Internal helper to authenticate request and resolve role assignments.
- */
 async function getAuthenticatedUserAndRoles() {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -113,9 +120,6 @@ async function getAuthenticatedUserAndRoles() {
   return { user, roles: (member.roles || []) as Role[], supabase };
 }
 
-/**
- * Action to resolve current user permissions for event dashboard modules.
- */
 export async function getEventPermissionsAction(): Promise<{
   canView: boolean;
   canCreate: boolean;
@@ -137,9 +141,32 @@ export async function getEventPermissionsAction(): Promise<{
   };
 }
 
-// ==========================================
-// ORGANIZER ACTIONS
-// ==========================================
+export async function toggleLivestreamLiveAction(
+  eventId: string,
+  isLive: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
+  if (!user || !hasPermission(roles, 'events:edit')) {
+    return { success: false, error: 'Permission denied to toggle livestream.' };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('events')
+      .update({ is_livestream_live: isLive, updated_at: new Date().toISOString() })
+      .eq('id', eventId);
+
+    if (error) throw error;
+
+    revalidatePath('/admin/events');
+    revalidatePath('/[locale]/events', 'page');
+    revalidatePath('/zh/events');
+    revalidatePath('/en/events');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to toggle live state.' };
+  }
+}
 
 export async function listOrganizersAction(): Promise<{ data: OrganizerRecord[]; error?: string }> {
   const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
@@ -147,11 +174,7 @@ export async function listOrganizersAction(): Promise<{ data: OrganizerRecord[];
     return { data: [], error: 'Permission denied.' };
   }
 
-  const { data, error } = await supabase
-    .from('organizers')
-    .select('*')
-    .order('name_en', { ascending: true });
-
+  const { data, error } = await supabase.from('organizers').select('*').order('name_en', { ascending: true });
   if (error) return { data: [], error: error.message };
   return { data: (data as OrganizerRecord[]) || [] };
 }
@@ -213,21 +236,13 @@ export async function deleteOrganizerAction(id: string): Promise<{ success: bool
   }
 }
 
-// ==========================================
-// VENUE ACTIONS
-// ==========================================
-
 export async function listVenuesAction(): Promise<{ data: VenueRecord[]; error?: string }> {
   const { user, roles, supabase } = await getAuthenticatedUserAndRoles();
   if (!user || !hasPermission(roles, 'events:view')) {
     return { data: [], error: 'Permission denied.' };
   }
 
-  const { data, error } = await supabase
-    .from('venues')
-    .select('*')
-    .order('name_zh', { ascending: true });
-
+  const { data, error } = await supabase.from('venues').select('*').order('name_zh', { ascending: true });
   if (error) return { data: [], error: error.message };
   return { data: (data as VenueRecord[]) || [] };
 }
@@ -273,10 +288,6 @@ export async function upsertVenueAction(venue: Partial<VenueRecord>): Promise<{ 
     return { success: false, error: err.message || 'Failed to save venue.' };
   }
 }
-
-// ==========================================
-// EVENT ACTIONS
-// ==========================================
 
 export async function listEventsAction(params: {
   status?: string;
@@ -388,6 +399,7 @@ export async function saveEventAction(eventData: Partial<EventRecord>): Promise<
       venue_override_zh: eventData.is_in_person ? (eventData.venue_override_zh?.trim() || null) : null,
       venue_override_en: eventData.is_in_person ? (eventData.venue_override_en?.trim() || null) : null,
       is_livestream: Boolean(eventData.is_livestream),
+      is_livestream_live: Boolean(eventData.is_livestream_live),
       livestream_config: (eventData.is_livestream ? eventData.livestream_config : null) as Json | null,
       registration_mode: registrationMode,
       code,
@@ -400,6 +412,7 @@ export async function saveEventAction(eventData: Partial<EventRecord>): Promise<
       banner_original_asset_id: eventData.banner_original_asset_id || null,
       status: eventData.status || 'draft',
       is_featured: Boolean(eventData.is_featured),
+      is_standalone: Boolean(eventData.is_standalone),
       slug: slug || null,
       updated_at: new Date().toISOString(),
     };

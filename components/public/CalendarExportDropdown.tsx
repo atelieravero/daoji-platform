@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar as CalendarIcon, Download, ExternalLink, ChevronDown } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { 
   downloadICSFile, 
   getGoogleCalendarUrl, 
@@ -24,6 +25,7 @@ interface CalendarExportDropdownProps {
 }
 
 export default function CalendarExportDropdown({ event }: CalendarExportDropdownProps) {
+  const t = useTranslations('EventDetail');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -66,8 +68,8 @@ export default function CalendarExportDropdown({ event }: CalendarExportDropdown
         onClick={() => setIsOpen(!isOpen)}
         className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white/90 hover:bg-white text-stone-700 text-xs font-semibold rounded-xl border border-stone-200/80 shadow-xs backdrop-blur-xs transition-colors cursor-pointer"
       >
-        <CalendarIcon className="w-3.5 h-3.5 text-[#A65D24]" />
-        <span>加入日曆 (Add to Calendar)</span>
+        <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+        <span>{t('addToCalendar')}</span>
         <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
       </button>
 
@@ -78,18 +80,18 @@ export default function CalendarExportDropdown({ event }: CalendarExportDropdown
             target="_blank"
             rel="noreferrer"
             onClick={() => setIsOpen(false)}
-            className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-stone-700 hover:bg-[#FAF5F0] hover:text-[#A65D24] transition-colors"
+            className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-stone-700 hover:bg-surface-cream hover:text-primary transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
-            <span>Google Calendar (網頁日曆)</span>
+            <span>{t('googleCalendar')}</span>
           </a>
           <button
             type="button"
             onClick={handleDownload}
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-stone-700 hover:bg-[#FAF5F0] hover:text-[#A65D24] transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-stone-700 hover:bg-surface-cream hover:text-primary transition-colors cursor-pointer text-left"
           >
             <Download className="w-3.5 h-3.5 text-stone-400" />
-            <span>Apple / Outlook (.ics 下載)</span>
+            <span>{t('appleOutlookIcs')}</span>
           </button>
         </div>
       )}

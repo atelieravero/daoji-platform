@@ -138,7 +138,11 @@ export async function updateFormStatus(id: string, newStatus: string) {
   if (updateError) throw new Error('Failed to update form status.');
   
   revalidatePath('/admin/forms');
+  revalidatePath('/admin/events');
   revalidatePath('/admin/logs');
+  revalidatePath('/[locale]/events', 'page');
+  revalidatePath('/zh/events');
+  revalidatePath('/en/events');
 }
 
 /**

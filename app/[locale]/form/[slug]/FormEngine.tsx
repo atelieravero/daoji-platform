@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
 import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw, Hash } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
+import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
 import enDict from '@/messages/en.json';
 import zhDict from '@/messages/zh.json';
@@ -977,28 +978,11 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
   return (
     <>
-      {isStandalone && (
-        <>
-          <style>{`
-            header, footer, nav { display: none !important; }
-          `}</style>
-          <div className="fixed top-4 right-4 md:top-8 md:right-8 z-50">
-            <button 
-              type="button"
-              onClick={() => {
-                const newLocale = locale === 'en' ? 'zh' : 'en';
-                const newPath = window.location.pathname.replace(`/${locale}`, `/${newLocale}`);
-                const urlParams = new URLSearchParams(window.location.search);
-                urlParams.set('standalone', 'true');
-                window.location.href = newPath + '?' + urlParams.toString();
-              }}
-              className="px-4 py-2 bg-white/80 backdrop-blur border border-stone-200 shadow-sm rounded-full text-sm font-medium text-stone-700 hover:text-primary transition-colors flex items-center cursor-pointer"
-            >
-              {locale === 'en' ? '中文' : 'English'}
-            </button>
-          </div>
-        </>
-      )}
+      <StandaloneNotifier
+        isStandalone={Boolean(isStandalone)}
+        locale={locale}
+        forceStandaloneParam
+      />
       {renderScreen()}
     </>
   );

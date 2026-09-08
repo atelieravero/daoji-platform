@@ -1,7 +1,11 @@
 # Daoji Platform - Project Map
 
 ## Active Sprint
-*   [ ] `16-events-registration-hub.md` - Operational Events domain (`/admin/events`), venues registry with dual map routing (Google Maps / Amap), recurrence rules with blackout date exclusions, polymorphic 3-state CTA engine, `unlisted` direct-link event status, N:N article timeline linking, `.ics`/Google Calendar export, and public landing pages (`/events/[id_or_slug]`) *(in-progress, not yet deployed)*.
+*   [ ] `16-events-registration-hub.md` - Operational Events domain:
+    *   [x] Admin Events table (`EventsClient.tsx`) with quick livestream broadcast toggle.
+    *   [x] Event Editor (`EventEditor.tsx`) with master banner retention, manual canvas cropper to `derivatives/crops/`, recurrence rules, blackout dates, and extracted `FormPickerModal`, `VenueModal`, and `OrganizerModal`.
+    *   [x] Public Event Detail page (`/events/[id_or_slug]`) with dynamic form status resolution, new-tab registration trigger, manual/auto livestream gateway, dual navigation maps (Google Maps / Amap), `.ics`/Google Calendar exports, bilingual fallback chains, and zero-flash standalone mode.
+    *   [ ] Public Events Calendar Hub (`/events/page.tsx`) with standalone new-window detachment and date filtering *(next step)*.
 
 ## Backlog
 *   [ ] `17-articles-pages-news-feed.md` - Editorial Content Pages (`content_pages`), Markdown editor with `<MediaPicker/>`, bulletin feed (`/news`), static pages (`/[id_or_slug]`), and multi-event update attachments via `event_articles`[cite: 42].
@@ -11,10 +15,10 @@
 
 ## Completed
 *   [x] `20-forms-event-scoping-and-builder-hardening.md` - Decoupled applicant sequence numbers & tokens to `event_code` scope, enforced mandatory event linkage with relational forms table metadata (`[CODE] Title`), integrated MediaPicker into form cover and MarkdownEditor, introduced number field type with decimal precision, added `forms:view_schema` read-only mode, and enabled RFC 3986 vanity URL slug characters *(deployed to production)*.
-*   [x] `19-admin-design-system-and-component-extraction.md` - Admin workspace UI design system unification (Indigo palette), extraction of shared list view primitives (`AdminPageHeader`, `AdminTableToolbar`, `ShareQrModal`, `StatusBadgeSelect`), editor primitives (`EditorLayout`, `EditorHeader`, `BilingualCanvas`, `CoverBannerPicker`, `UrlSlugInspector`), and Media Pool deduplication[cite: 42].
-*   [x] `15-storage-taxonomy-rbac-foundation.md` - Core database migration, `nanoid(8)` generator, centralized RBAC matrix expansion, R2 Media Pool (`/admin/assets` on `cdn.ajahnyiu.org` with 100MB direct presigned PUT uploads), reusable `<MediaPicker/>`, Route Group `(dashboard)` isolation, Taxonomy Manager (`/admin/tags`), and silent denial UI patterns[cite: 42].
+*   [x] `19-admin-design-system-and-component-extraction.md` - Admin workspace UI design system unification (Indigo palette), extraction of shared list view primitives, editor primitives, and Media Pool deduplication[cite: 42].
+*   [x] `15-storage-taxonomy-rbac-foundation.md` - Core database migration, `nanoid(8)` generator, centralized RBAC matrix expansion, R2 Media Pool with direct presigned PUT uploads, reusable `<MediaPicker/>`, Taxonomy Manager, and silent denial UI patterns[cite: 42].
 *   [x] `14-system-audit-logs.md` - Automated PostgreSQL CDC trigger audit trail for `forms` and `team_members` mutations with GitHub-style delta diff Explorer and human-readable entity labels[cite: 42].
-*   [x] `13-strict-file-privacy.md` - Segregate test/real submission file uploads via folder paths (`submissions/test/` vs `submissions/real/`) and enforce strict RBAC routing on document downloads[cite: 42].
+*   [x] `13-strict-file-privacy.md` - Segregate test/real submission file uploads via folder paths and enforce strict RBAC routing[cite: 42].
 *   [x] `12-team-rbac-matrix.md` - Team RBAC, Hybrid Auth, & Form State Immutability[cite: 42].
 *   [x] `11-form-slug-routing.md` - Form Slug Routing & Edge Caching[cite: 42].
 *   [x] `10-dynamic-seo-metadata.md` - Dynamic Nature & Metadata Architecture (Chinese-First Priority)[cite: 42].

@@ -255,6 +255,8 @@ export type Database = {
           is_featured: boolean
           is_in_person: boolean | null
           is_livestream: boolean | null
+          is_livestream_live: boolean
+          is_standalone: boolean
           languages: string[] | null
           linked_form_id: string | null
           livestream_config: Json | null
@@ -293,6 +295,8 @@ export type Database = {
           is_featured?: boolean
           is_in_person?: boolean | null
           is_livestream?: boolean | null
+          is_livestream_live?: boolean
+          is_standalone?: boolean
           languages?: string[] | null
           linked_form_id?: string | null
           livestream_config?: Json | null
@@ -331,6 +335,8 @@ export type Database = {
           is_featured?: boolean
           is_in_person?: boolean | null
           is_livestream?: boolean | null
+          is_livestream_live?: boolean
+          is_standalone?: boolean
           languages?: string[] | null
           linked_form_id?: string | null
           livestream_config?: Json | null

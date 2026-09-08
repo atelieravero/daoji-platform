@@ -1,12 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { Menu, X, Globe, Leaf, ArrowUpRight, ChevronDown } from 'lucide-react';
 
 interface DynamicPageLink {
   href: string;
   label: Record<'en' | 'zh', string>;
 }
+
+interface ShellContextType {
+  isStandalone: boolean;
+  setIsStandalone: (val: boolean) => void;
+}
+
+const PublicShellContext = createContext<ShellContextType>({
+  isStandalone: false,
+  setIsStandalone: () => {},
+});
+
+export const usePublicShell = () => useContext(PublicShellContext);
 
 interface PublicShellProps {
   children: React.ReactNode;
@@ -31,9 +43,8 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
     const nextLocale = locale === 'en' ? 'zh' : 'en';
     if (typeof window !== 'undefined') {
         const currentPath = window.location.pathname;
-        const currentSearch = window.location.search; // Preserves query params like ?id=123
+        const currentSearch = window.location.search;
         const newPath = currentPath.replace(/^\/(en|zh)/, `/${nextLocale}`);
-        
         window.location.href = (newPath || `/${nextLocale}`) + currentSearch;
     }
     setIsMobileMenuOpen(false);
@@ -58,16 +69,10 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a 
-              href={`/${locale}/events`}
-              className="text-sm font-medium text-stone-500 hover:text-primary transition-colors"
-            >
+            <a href={`/${locale}/events`} className="text-sm font-medium text-stone-500 hover:text-primary transition-colors">
               {t.events}
             </a>
-            <a 
-              href={`/${locale}/resources`}
-              className="text-sm font-medium text-stone-500 hover:text-primary transition-colors"
-            >
+            <a href={`/${locale}/resources`} className="text-sm font-medium text-stone-500 hover:text-primary transition-colors">
               {t.resources}
             </a>
 
@@ -114,11 +119,7 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
             >
-              {isMobileMenuOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
-              ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
-              )}
+              {isMobileMenuOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
             </button>
           </div>
         </div>
@@ -130,15 +131,12 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
           <div className="px-4 pt-2 pb-6 space-y-1">
             <a href={`/${locale}/events`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-surface-cream hover:text-primary">{t.events}</a>
             <a href={`/${locale}/resources`} onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 rounded-xl text-base font-medium text-stone-800 hover:bg-surface-cream hover:text-primary">{t.resources}</a>
-            
             <div className="px-3 py-2 text-xs font-semibold text-stone-400 uppercase tracking-wider mt-2">{t.about}</div>
-            
             {dynamicAboutPages?.map((page, i) => (
               <a key={i} href={`/${locale}${page.href}`} onClick={() => setIsMobileMenuOpen(false)} className="block px-6 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-surface-cream hover:text-primary">
                 {page.label[locale]}
               </a>
             ))}
-
             <div className="mt-4 pt-4 border-t border-stone-100">
               <button 
                 onClick={toggleLanguage}
@@ -156,7 +154,6 @@ function Navbar({ dynamicAboutPages = [], locale = 'en', dictionary }: { dynamic
 }
 
 function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?: DynamicPageLink[], locale?: 'en' | 'zh', dictionary?: any }) {
-  
   const t = dictionary?.Footer || {
     orgName: locale === 'en' ? 'Maggapaṭipadā Meditation Centre' : '道跡禪院',
     tagline: locale === 'en' ? 'Cultivating stillness in a moving world.' : '在喧囂的世界中培育寧靜。',
@@ -175,9 +172,7 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
               <Leaf className="w-5 h-5" />
               <span className="font-bold text-lg tracking-tight text-stone-800">{t.orgName}</span>
             </div>
-            <p className="text-stone-500 text-sm max-w-xs leading-relaxed">
-              {t.tagline}
-            </p>
+            <p className="text-stone-500 text-sm max-w-xs leading-relaxed">{t.tagline}</p>
           </div>
 
           {/* Footer Links */}
@@ -189,7 +184,6 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
             ))}
           </div>
         </div>
-        
         <div className="mt-12 pt-8 border-t border-stone-100 text-center text-sm text-stone-400">
           <p>&copy; {currentYear} {t.orgName}. {t.rights}</p>
         </div>
@@ -199,13 +193,17 @@ function Footer({ footerPages = [], locale = 'en', dictionary }: { footerPages?:
 }
 
 export default function PublicShell({ children, dynamicAboutPages, footerPages, locale = 'en', dictionary }: PublicShellProps) {
+  const [isStandalone, setIsStandalone] = useState(false);
+
   return (
-    <div className="min-h-screen flex flex-col bg-surface-base font-sans text-stone-800 selection:bg-surface-dark selection:text-primary">
-      <Navbar dynamicAboutPages={dynamicAboutPages} locale={locale} dictionary={dictionary} />
-      <main className="flex-grow flex flex-col">
-        {children}
-      </main>
-      <Footer footerPages={footerPages} locale={locale} dictionary={dictionary} />
-    </div>
+    <PublicShellContext.Provider value={{ isStandalone, setIsStandalone }}>
+      <div className="min-h-screen flex flex-col bg-surface-base font-sans text-stone-800 selection:bg-surface-dark selection:text-primary">
+        {!isStandalone && <Navbar dynamicAboutPages={dynamicAboutPages} locale={locale} dictionary={dictionary} />}
+        <main className="flex-grow flex flex-col">
+          {children}
+        </main>
+        {!isStandalone && <Footer footerPages={footerPages} locale={locale} dictionary={dictionary} />}
+      </div>
+    </PublicShellContext.Provider>
   );
 }
