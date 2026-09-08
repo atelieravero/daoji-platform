@@ -30,7 +30,6 @@ export async function generateMetadata({ params }: EventPageProps) {
   if (!event) return {};
 
   const isZh = locale !== 'en';
-  // Coerce null to undefined to satisfy ConstructMetadataProps
   const title = (isZh ? (event.title_zh || event.title_en) : (event.title_en || event.title_zh)) || undefined;
   const description = (isZh ? (event.summary_zh || event.summary_en) : (event.summary_en || event.summary_zh)) || undefined;
 
@@ -57,7 +56,6 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
     notFound();
   }
 
-  // Guaranteed string type for JSX and image alt attributes
   const title = (isZh ? (event.title_zh || event.title_en) : (event.title_en || event.title_zh)) || '';
   const body = isZh ? (event.body_zh || event.body_en) : (event.body_en || event.body_zh);
   const venue = event.venues;

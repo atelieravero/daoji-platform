@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar as CalendarIcon, Download, ExternalLink, ChevronDown } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { 
   downloadICSFile, 
   getGoogleCalendarUrl, 
@@ -26,6 +26,9 @@ interface CalendarExportDropdownProps {
 
 export default function CalendarExportDropdown({ event }: CalendarExportDropdownProps) {
   const t = useTranslations('EventDetail');
+  const locale = useLocale();
+  const isZh = locale !== 'en';
+
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -47,9 +50,21 @@ export default function CalendarExportDropdown({ event }: CalendarExportDropdown
     blackoutDates: event.blackoutDates,
   };
 
+  // Construct localized blackout notice keeping raw YYYY-MM-DD dates
+  const blackoutNotice = (event.blackoutDates && event.blackoutDates.length > 0)
+    ? t('blackoutNotice', {
+        dates: event.blackoutDates.join(isZh ? '、' : ', '),
+      })
+    : null;
+
+  // Append blackout notice to event description separated by double newline
+  const fullDescription = [event.summary, blackoutNotice]
+    .filter(Boolean)
+    .join('\n\n');
+
   const meta: CalendarExportMetadata = {
     title: event.title,
-    description: event.summary || undefined,
+    description: fullDescription || undefined,
     location: event.venueName || undefined,
     url: event.url,
   };
