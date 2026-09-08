@@ -3,7 +3,9 @@
 import React, { useState, useMemo } from 'react';
 import { 
   RefreshCw, ChevronRight, ChevronDown, Copy, Check, 
-  Columns, AlignJustify, Maximize2, Minimize2, FileText, Users 
+  Columns, AlignJustify, Maximize2, Minimize2, FileText, Users,
+  Calendar, Image as ImageIcon, MapPin, Building2, FileSpreadsheet,
+  Tag as TagIcon, BookOpen
 } from 'lucide-react';
 import { getAuditLogs } from './actions';
 import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
@@ -414,34 +416,107 @@ function GitHubDiffViewer({ oldValues, newValues, operation }: DiffViewerProps) 
 }
 
 function formatEntityDisplay(log: any) {
-  const isForm = log.table_name === 'forms';
-  const isTeam = log.table_name === 'team_members';
-
+  const tableName = log.table_name;
+  const val = log.new_values || log.old_values || {};
   let primaryTitle = log.record_label;
 
-  if (!primaryTitle || primaryTitle === log.record_id) {
-    const val = log.new_values || log.old_values || {};
-    if (isForm) {
-      primaryTitle = val.title || val.slug || `Form (${log.record_id.slice(0, 8)})`;
-    } else if (isTeam) {
-      primaryTitle = val.display_name 
-        ? `${val.display_name} (${val.email || ''})` 
-        : val.email || `Member (${log.record_id.slice(0, 8)})`;
-    } else {
-      primaryTitle = log.record_id;
-    }
+  let Icon = FileText;
+  let iconColor = 'text-gray-400';
+
+  switch (tableName) {
+    case 'events':
+      Icon = Calendar;
+      iconColor = 'text-indigo-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.title_zh || val.title_en || `Event (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'assets':
+      Icon = ImageIcon;
+      iconColor = 'text-pink-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.file_name || val.alt_text_zh || val.alt_text_en || `Asset (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'venues':
+      Icon = MapPin;
+      iconColor = 'text-amber-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.name_zh || val.name_en || `Venue (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'organizers':
+      Icon = Building2;
+      iconColor = 'text-stone-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.name_en || val.name_zh || `Organizer (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'forms':
+      Icon = FileSpreadsheet;
+      iconColor = 'text-emerald-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.title || val.slug || `Form (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'team_members':
+      Icon = Users;
+      iconColor = 'text-slate-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.display_name 
+          ? `${val.display_name} (${val.email || ''})` 
+          : val.email || `Member (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'tags':
+      Icon = TagIcon;
+      iconColor = 'text-purple-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.name_zh || val.name_en || `Tag (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'content_pages':
+      Icon = FileText;
+      iconColor = 'text-sky-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.title_zh || val.title_en || `Article (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    case 'resources':
+      Icon = BookOpen;
+      iconColor = 'text-amber-500';
+      if (!primaryTitle || primaryTitle === log.record_id) {
+        primaryTitle = val.title_zh || val.title_en || `Resource (${log.record_id.slice(0, 8)})`;
+      }
+      break;
+
+    default:
+      Icon = FileText;
+      iconColor = 'text-gray-400';
+      if (!primaryTitle) primaryTitle = log.record_id;
+      break;
   }
 
-  const val = log.new_values || log.old_values || {};
   let subContext = '';
-  if (isForm && val.slug) {
+  if (tableName === 'forms' && val.slug) {
     subContext = `slug: /${val.slug}`;
-  } else {
+  } else if (tableName === 'events' && val.slug) {
+    subContext = `slug: /events/${val.slug}`;
+  } else if (log.record_id) {
     subContext = `id: ${log.record_id.slice(0, 8)}...`;
   }
 
   return {
-    icon: isForm ? FileText : Users,
+    icon: Icon,
+    iconColor,
     primaryTitle,
     subContext,
   };
@@ -582,7 +657,7 @@ export default function LogsClient({ initialLogs = [] }: { initialLogs: any[] })
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4 text-gray-400 shrink-0" />
+                        <Icon className={`w-4 h-4 shrink-0 ${entity.iconColor}`} />
                         <div>
                           <div className="font-semibold text-gray-900 font-sans truncate max-w-sm">
                             {entity.primaryTitle}
