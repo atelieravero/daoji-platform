@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS assets (
     height INT,
     alt_text_zh TEXT,
     alt_text_en TEXT,
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -97,6 +98,7 @@ CREATE TABLE IF NOT EXISTS venues (
     amap_url TEXT,
     transport_guide_zh TEXT,
     transport_guide_en TEXT,
+    timezone TEXT NOT NULL DEFAULT 'Asia/Hong_Kong',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -136,6 +138,7 @@ CREATE TABLE IF NOT EXISTS events (
     venue_override_zh TEXT,
     venue_override_en TEXT,
     is_livestream BOOLEAN NOT NULL DEFAULT FALSE,
+    is_livestream_live BOOLEAN NOT NULL DEFAULT FALSE,
     livestream_config JSONB,
     registration_mode TEXT NOT NULL DEFAULT 'internal_form' CHECK (registration_mode IN ('internal_form', 'external_url', 'not_required')),
     linked_form_id UUID,
@@ -144,8 +147,10 @@ CREATE TABLE IF NOT EXISTS events (
     cta_label_zh TEXT,
     cta_label_en TEXT,
     banner_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    banner_original_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'unlisted', 'archived')),
     is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    is_standalone BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -284,12 +289,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- Assets
 CREATE INDEX IF NOT EXISTS idx_assets_mime_type ON assets(mime_type);
 CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assets_is_system ON assets(is_system);
 
 -- Tags & Taggables
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_slug_unique ON tags(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_tags_short_id ON tags(short_id);
 CREATE INDEX IF NOT EXISTS idx_tags_is_pillar ON tags(is_pillar);
 CREATE INDEX IF NOT EXISTS idx_taggables_lookup ON taggables(taggable_id, taggable_type);
+
+-- Venues & Organizers
+CREATE INDEX IF NOT EXISTS idx_venues_name_zh ON venues(name_zh);
+CREATE INDEX IF NOT EXISTS idx_organizers_name_en ON organizers(name_en);
 
 -- Events
 CREATE INDEX IF NOT EXISTS idx_events_code ON events(code);
@@ -298,6 +308,9 @@ CREATE INDEX IF NOT EXISTS idx_events_short_id ON events(short_id);
 CREATE INDEX IF NOT EXISTS idx_events_status_dates ON events(status, start_date ASC);
 CREATE INDEX IF NOT EXISTS idx_events_organizer ON events(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_events_venue ON events(venue_id);
+CREATE INDEX IF NOT EXISTS idx_events_banner_original ON events(banner_original_asset_id);
+CREATE INDEX IF NOT EXISTS idx_events_is_standalone ON events(is_standalone);
+CREATE INDEX IF NOT EXISTS idx_events_is_featured ON events(is_featured);
 
 -- Forms & Submissions
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
