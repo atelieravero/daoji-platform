@@ -49,7 +49,7 @@
     "livestreamConcluded": "直播已結束",
     "nextLivestream": "下次直播於 {date} {time}",
     "joinLivestream": "進入線上直播",
-    "noRegistrationRequired": "無需預先報名・自由入座",
+    "noRegistrationRequired": "無需報名",
     "openingSoon": "即將開放報名",
     "registrationClosed": "報名截止",
     "registerExternal": "前往外部報名",
