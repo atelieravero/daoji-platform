@@ -58,7 +58,7 @@ export default function BilingualCanvas({
                 activeLang === 'zh' ? 'bg-white text-indigo-600 shadow-xs' : 'text-gray-600'
               }`}
             >
-              中文 (Traditional)
+              中文
             </button>
             <button
               type="button"
@@ -74,11 +74,11 @@ export default function BilingualCanvas({
 
         <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-8 space-y-6 max-w-2xl mx-auto w-full">
           <div className="border-b border-gray-100 pb-3">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">中文內容 (Traditional)</span>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">中文內容</span>
           </div>
 
           <FormInput
-            label="標題 (Title - 中文) *"
+            label="標題"
             placeholder="請輸入中文標題..."
             value={titleZh}
             onChange={(e) => onTitleZhChange(e.target.value)}
@@ -86,7 +86,7 @@ export default function BilingualCanvas({
           />
 
           <div>
-            <label className="block text-sm font-semibold text-gray-950 mb-1.5">簡介摘要 (Summary - 中文)</label>
+            <label className="block text-sm font-semibold text-gray-950 mb-1.5">簡介摘要</label>
             <p className="text-[11px] text-gray-500 mb-2">用於卡片預覽及社群分享簡介。</p>
             <textarea
               rows={2}
@@ -124,7 +124,7 @@ export default function BilingualCanvas({
                 activeLang === 'zh' ? 'bg-white text-indigo-600 shadow-xs' : 'text-gray-600'
               }`}
             >
-              中文 (Traditional)
+              中文
             </button>
             <button
               type="button"
@@ -144,14 +144,14 @@ export default function BilingualCanvas({
           </div>
 
           <FormInput
-            label="Title (English)"
+            label="Title"
             placeholder="Enter English title..."
             value={titleEn}
             onChange={(e) => onTitleEnChange(e.target.value)}
           />
 
           <div>
-            <label className="block text-sm font-semibold text-gray-950 mb-1.5">Summary Snippet (English)</label>
+            <label className="block text-sm font-semibold text-gray-950 mb-1.5">Summary Snippet</label>
             <p className="text-[11px] text-gray-500 mb-2">Used for card previews and OpenGraph tags.</p>
             <textarea
               rows={2}
