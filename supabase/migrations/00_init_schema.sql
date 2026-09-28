@@ -279,8 +279,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     actor_name TEXT NOT NULL DEFAULT 'system',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT audit_logs_operation_check 
-      CHECK (UPPER(operation) IN ('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'PUBLISH', 'ARCHIVE', 'UNLIST'))
+      CHECK (UPPER(operation) IN ('CREATE', 'UPDATE', 'DELETE', 'PUBLISH', 'ARCHIVE', 'UNLIST'))
 );
+
+-- Normalize historical rows in existing deployments
+UPDATE audit_logs 
+SET operation = 'CREATE' 
+WHERE operation = 'INSERT';
 
 -- ==============================================================================
 -- 7. PERFORMANCE INDEXES
@@ -451,15 +456,16 @@ BEGIN
         v_record_id := OLD.id::TEXT;
         v_old_values := to_jsonb(OLD);
         v_record_label := COALESCE(
-            v_old_values->>'title_zh',
-            v_old_values->>'title',
-            v_old_values->>'name_zh',
-            v_old_values->>'file_name',
-            v_old_values->>'name_en',
-            v_old_values->>'name',
-            v_old_values->>'display_name',
-            v_old_values->>'slug',
-            v_old_values->>'email',
+            NULLIF(v_old_values->>'title_zh', ''),
+            NULLIF(v_old_values->>'title_en', ''),
+            NULLIF(v_old_values->>'title', ''),
+            NULLIF(v_old_values->>'name_zh', ''),
+            NULLIF(v_old_values->>'name_en', ''),
+            NULLIF(v_old_values->>'file_name', ''),
+            NULLIF(v_old_values->>'name', ''),
+            NULLIF(v_old_values->>'display_name', ''),
+            NULLIF(v_old_values->>'slug', ''),
+            NULLIF(v_old_values->>'email', ''),
             v_record_id
         );
     ELSE
@@ -469,20 +475,21 @@ BEGIN
             v_old_values := to_jsonb(OLD);
         END IF;
         v_record_label := COALESCE(
-            v_new_values->>'title_zh',
-            v_new_values->>'title',
-            v_new_values->>'name_zh',
-            v_new_values->>'file_name',
-            v_new_values->>'name_en',
-            v_new_values->>'name',
-            v_new_values->>'display_name',
-            v_new_values->>'slug',
-            v_new_values->>'email',
+            NULLIF(v_new_values->>'title_zh', ''),
+            NULLIF(v_new_values->>'title_en', ''),
+            NULLIF(v_new_values->>'title', ''),
+            NULLIF(v_new_values->>'name_zh', ''),
+            NULLIF(v_new_values->>'name_en', ''),
+            NULLIF(v_new_values->>'file_name', ''),
+            NULLIF(v_new_values->>'name', ''),
+            NULLIF(v_new_values->>'display_name', ''),
+            NULLIF(v_new_values->>'slug', ''),
+            NULLIF(v_new_values->>'email', ''),
             v_record_id
         );
     END IF;
 
-    -- 3. Write immutable audit log
+    -- 3. Write immutable audit log (strictly records 'CREATE' for all insert operations)
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
         INSERT INTO audit_logs (
             actor_id,
