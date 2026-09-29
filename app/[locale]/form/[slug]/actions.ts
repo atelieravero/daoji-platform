@@ -45,8 +45,9 @@ export async function verifyApplicantToken(token: string, eventCodeOrId: string,
   }
 
   const supabase = getSupabaseAdmin();
+  const cleanToken = token ? token.replace(/\s+/g, '').toUpperCase() : '';
   
-  if (!token || !eventCodeOrId) {
+  if (!cleanToken || !eventCodeOrId) {
     return { valid: false, message: 'Token and Event Code are required.' };
   }
 
@@ -60,7 +61,7 @@ export async function verifyApplicantToken(token: string, eventCodeOrId: string,
   const { data: existingSubmissions, error } = await supabase
     .from('submissions')
     .select('id, is_test')
-    .eq('applicant_token', token.trim())
+    .eq('applicant_token', cleanToken)
     .eq('event_code', targetCode)
     .limit(1);
 
@@ -95,14 +96,17 @@ export async function submitPublicForm(payload: {
     if (evt?.code) resolvedCode = evt.code;
   }
 
-  let activeToken = payload.applicant_token;
+  // Sanitize active token by stripping all whitespace
+  let activeToken = payload.applicant_token
+    ? payload.applicant_token.replace(/\s+/g, '').toUpperCase()
+    : undefined;
 
   if (activeToken) {
     if (!payload.is_test) {
       const { data: existingSubmissions, error: tokenError } = await supabase
         .from('submissions')
         .select('id, is_test')
-        .eq('applicant_token', activeToken.trim())
+        .eq('applicant_token', activeToken)
         .eq('event_code', resolvedCode)
         .limit(1);
 

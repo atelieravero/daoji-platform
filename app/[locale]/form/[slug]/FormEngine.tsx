@@ -38,7 +38,10 @@ interface FormEngineProps {
 export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  
+  // Sanitize token from URL query string
+  const rawUrlToken = searchParams.get('token');
+  const token = rawUrlToken ? rawUrlToken.replace(/\s+/g, '').toUpperCase() : null;
   const isTest = searchParams.get('test') === 'true';
 
   const [form] = useState<any>(initialForm);
@@ -119,13 +122,14 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
   const handlePreGateVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualToken) return;
+    const cleanToken = manualToken.replace(/\s+/g, '').toUpperCase();
+    if (!cleanToken) return;
     setIsPreGateVerifying(true);
     setPreGateError(null);
     try {
-      const res = await verifyApplicantToken(manualToken, form.event_id, isTest);
+      const res = await verifyApplicantToken(cleanToken, form.event_id, isTest);
       if (res.valid) {
-        setValidatedToken(manualToken); 
+        setValidatedToken(cleanToken); 
         setIsPreGatePassed(true);
       } else {
         setPreGateError(t.invalidToken); 
@@ -138,10 +142,12 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   };
 
   const handleInlineVerify = async (dataKey: string, tokenVal: string) => {
-    if (!tokenVal) return;
+    const cleanToken = (tokenVal || '').replace(/\s+/g, '').toUpperCase();
+    if (!cleanToken) return;
+    handleInputChange(dataKey, cleanToken);
     setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: true, verified: false, error: null } }));
     try {
-      const res = await verifyApplicantToken(tokenVal, form.event_id, isTest);
+      const res = await verifyApplicantToken(cleanToken, form.event_id, isTest);
       if (res.valid) {
         setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: true, error: null } }));
       } else {
@@ -394,12 +400,15 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     setErrorMessage(null);
 
     try {
+      const rawTokenVal = form.is_followup ? (validatedToken || undefined) : (token || inlineTokenVal || undefined);
+      const applicantToken = rawTokenVal ? rawTokenVal.replace(/\s+/g, '').toUpperCase() : undefined;
+
       const response = await submitPublicForm({
         form_id: form.id,
         event_id: form.event_id,
         answers: activeAnswers, 
         is_test: isTest,
-        applicant_token: form.is_followup ? (validatedToken || undefined) : (token || inlineTokenVal || undefined),
+        applicant_token: applicantToken,
         interim_event_code: form.schema?.interimEventCode || 'MMC'
       });
       
@@ -525,7 +534,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
               <input
                 type="text"
                 value={manualToken}
-                onChange={(e) => setManualToken(e.target.value.toUpperCase())}
+                onChange={(e) => setManualToken(e.target.value.replace(/\s+/g, '').toUpperCase())}
                 placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
                 className="w-full px-4 py-3.5 rounded-xl border border-stone-300 text-center font-mono text-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 transition-shadow"
               />
@@ -855,7 +864,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                                   type="text"
                                   required={field.required}
                                   value={activeAnswers[field.dataKey] || ''}
-                                  onChange={(e) => handleInputChange(field.dataKey, e.target.value.toUpperCase())}
+                                  onChange={(e) => handleInputChange(field.dataKey, e.target.value.replace(/\s+/g, '').toUpperCase())}
                                   disabled={inlineTokens[field.dataKey]?.verified && !isTest}
                                   placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
                                   className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
