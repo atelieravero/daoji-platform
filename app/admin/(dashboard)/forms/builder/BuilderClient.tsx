@@ -10,7 +10,8 @@ import {
   Loader2, 
   Lock, 
   AlertTriangle,
-  CalendarDays 
+  CalendarDays,
+  ShieldCheck 
 } from 'lucide-react';
 import { saveFormSchema, getFormSchema, getEventsForFormBuilder, FormEventOption } from './actions';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
@@ -160,6 +161,10 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
     setFields(fields.map((f) => (f.id === activeFieldId ? { ...f, ...updates } : f)));
   };
 
+  const isAnchorLocked = !formConfig.isFollowUp && Boolean(
+    activeField?.is_identity_name || activeField?.is_identity_phone
+  );
+
   const moveField = (index: number, direction: 'up' | 'down') => {
     if (isReadOnly) return;
     if (direction === 'up' && index === 0) return;
@@ -291,6 +296,15 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
     try {
       const eventCodeToSave = selectedEvent?.code || formConfig.interimEventCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+      // Sanitize fields: strip anchor booleans if form is follow-up
+      const sanitizedFields = fields.map((f) => {
+        if (formConfig.isFollowUp) {
+          const { is_identity_name, is_identity_phone, ...rest } = f;
+          return rest;
+        }
+        return f;
+      });
+
       const payload = {
         event_id: formConfig.eventId,
         slug: cleanSlug,
@@ -311,7 +325,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
           successTitleZh: formConfig.successTitleZh,
           successMessageEn: formConfig.successMessageEn,
           successMessageZh: formConfig.successMessageZh,
-          fields: fields,
+          fields: sanitizedFields,
         },
       };
 
@@ -646,7 +660,18 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                       <button
                         type="button"
                         disabled={isReadOnly}
-                        onClick={() => setFormConfig({ ...formConfig, isFollowUp: !formConfig.isFollowUp })}
+                        onClick={() => {
+                          const nextFollowUp = !formConfig.isFollowUp;
+                          setFormConfig({ ...formConfig, isFollowUp: nextFollowUp });
+                          // Clear identity anchor flags across all questions when switching to Follow-up
+                          if (nextFollowUp) {
+                            setFields(fields.map(f => ({
+                              ...f,
+                              is_identity_name: false,
+                              is_identity_phone: false
+                            })));
+                          }
+                        }}
                         className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
                           isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
                         } ${formConfig.isFollowUp ? 'bg-indigo-600' : 'bg-gray-200'}`}
@@ -772,48 +797,56 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                   <hr className="border-gray-100" />
 
                   <div className="space-y-4">
-                    <FormSelect
-                      label="Field Format"
-                      value={activeField.type}
-                      disabled={isReadOnly}
-                      onChange={(e) => {
-                        const newType = e.target.value as FieldType;
-                        updateActiveField({
-                          type: newType,
-                          dataKey: newType === 'info' ? '' : activeField.dataKey || `question_${fields.length + 1}`,
-                          decimals: newType === 'number' ? 2 : undefined,
-                          options:
-                            ['select', 'radio', 'checkbox'].includes(newType) && !activeField.options
-                              ? [{ value: 'opt_1', labelEn: 'Option 1', labelZh: '選項 1' }]
-                              : activeField.options,
-                        });
-                      }}
-                      icon={Settings2}
-                    >
-                      <optgroup label="Text & Numbers">
-                        <option value="text">Short Text</option>
-                        <option value="number">Number / Amount (數字 / 金額)</option>
-                        <option value="textarea">Long Paragraph</option>
-                        <option value="email">Email Address</option>
-                        <option value="mobile">Mobile Number</option>
-                      </optgroup>
-                      <optgroup label="Choices">
-                        <option value="select">Dropdown Menu</option>
-                        <option value="radio">Single Choice (Radio)</option>
-                        <option value="checkbox">Multiple Choice (Checkboxes)</option>
-                      </optgroup>
-                      <optgroup label="Verification">
-                        <option value="applicant_token">Applicant Token (Verify)</option>
-                      </optgroup>
-                      <optgroup label="Other">
-                        <option value="date">Date Picker</option>
-                        <option value="time">Time</option>
-                        <option value="file">File Upload</option>
-                      </optgroup>
-                      <optgroup label="Layout">
-                        <option value="info">Informational Text Block</option>
-                      </optgroup>
-                    </FormSelect>
+                    <div className="space-y-1.5">
+                      <FormSelect
+                        label="Field Format"
+                        value={activeField.type}
+                        disabled={isReadOnly || isAnchorLocked}
+                        onChange={(e) => {
+                          const newType = e.target.value as FieldType;
+                          updateActiveField({
+                            type: newType,
+                            dataKey: newType === 'info' ? '' : activeField.dataKey || `question_${fields.length + 1}`,
+                            decimals: newType === 'number' ? 2 : undefined,
+                            options:
+                              ['select', 'radio', 'checkbox'].includes(newType) && !activeField.options
+                                ? [{ value: 'opt_1', labelEn: 'Option 1', labelZh: '選項 1' }]
+                                : activeField.options,
+                          });
+                        }}
+                        icon={Settings2}
+                      >
+                        <optgroup label="Text & Numbers">
+                          <option value="text">Short Text</option>
+                          <option value="number">Number / Amount (數字 / 金額)</option>
+                          <option value="textarea">Long Paragraph</option>
+                          <option value="email">Email Address</option>
+                          <option value="mobile">Mobile Number</option>
+                        </optgroup>
+                        <optgroup label="Choices">
+                          <option value="select">Dropdown Menu</option>
+                          <option value="radio">Single Choice (Radio)</option>
+                          <option value="checkbox">Multiple Choice (Checkboxes)</option>
+                        </optgroup>
+                        <optgroup label="Verification">
+                          <option value="applicant_token">Applicant Token (Verify)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                          <option value="date">Date Picker</option>
+                          <option value="time">Time</option>
+                          <option value="file">File Upload</option>
+                        </optgroup>
+                        <optgroup label="Layout">
+                          <option value="info">Informational Text Block</option>
+                        </optgroup>
+                      </FormSelect>
+
+                      {isAnchorLocked && (
+                        <p className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/60 p-2 rounded-lg font-medium leading-relaxed">
+                          Field format is locked while designated as an Identity Anchor. Uncheck the anchor toggle below to modify format.
+                        </p>
+                      )}
+                    </div>
                     
                     {/* NUMBER CONFIGURATION INSPECTOR */}
                     {activeField.type === 'number' && (
@@ -890,6 +923,84 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                           <span
                             className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
                               activeField.required ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* IDENTITY ANCHOR TOGGLE: FULL NAME (APPLICATION FORMS & SHORT TEXT ONLY) */}
+                    {!formConfig.isFollowUp && activeField.type === 'text' && (
+                      <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div className="pr-4">
+                          <div className="flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-sm font-medium text-gray-900">Identity Anchor: Full Name</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Designates this field for applicant self-service token recovery. Only one question can serve as the name anchor.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => {
+                            const nextVal = !activeField.is_identity_name;
+                            setFields(
+                              fields.map((f) => {
+                                if (f.id === activeFieldId) {
+                                  return { ...f, is_identity_name: nextVal };
+                                }
+                                return nextVal ? { ...f, is_identity_name: false } : f;
+                              })
+                            );
+                          }}
+                          className={`relative inline-flex h-5 w-9 rounded-full transition-colors shrink-0 ${
+                            isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                          } ${activeField.is_identity_name ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                              activeField.is_identity_name ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* IDENTITY ANCHOR TOGGLE: MOBILE NUMBER (APPLICATION FORMS & MOBILE ONLY) */}
+                    {!formConfig.isFollowUp && activeField.type === 'mobile' && (
+                      <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div className="pr-4">
+                          <div className="flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-sm font-medium text-gray-900">Identity Anchor: Mobile Number</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Designates this field for token recovery (matches rightmost 8 digits). Only one question can serve as the mobile anchor.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => {
+                            const nextVal = !activeField.is_identity_phone;
+                            setFields(
+                              fields.map((f) => {
+                                if (f.id === activeFieldId) {
+                                  return { ...f, is_identity_phone: nextVal };
+                                }
+                                return nextVal ? { ...f, is_identity_phone: false } : f;
+                              })
+                            );
+                          }}
+                          className={`relative inline-flex h-5 w-9 rounded-full transition-colors shrink-0 ${
+                            isReadOnly ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                          } ${activeField.is_identity_phone ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                              activeField.is_identity_phone ? 'translate-x-4' : 'translate-x-0'
                             }`}
                           />
                         </button>

@@ -42,7 +42,7 @@ export async function getFormAndSubmissions(formId: string) {
 }
 
 export async function toggleSubmissionProcessedStatus(submissionId: string, currentStatus: boolean) {
-  await requirePermission('submissions:manage');
+  await requirePermission('submissions:process');
   const admin = getSupabaseAdmin();
 
   const { error } = await admin
@@ -56,10 +56,25 @@ export async function toggleSubmissionProcessedStatus(submissionId: string, curr
   return { success: true, newStatus: !currentStatus };
 }
 
+export async function toggleSubmissionArchivedStatus(submissionId: string, currentStatus: boolean) {
+  await requirePermission('submissions:archive');
+  const admin = getSupabaseAdmin();
+
+  const { error } = await admin
+    .from('submissions')
+    .update({ is_archived: !currentStatus })
+    .eq('id', submissionId);
+
+  if (error) throw new Error('Failed to update archive status.');
+
+  revalidatePath('/admin/forms/[form_id]/submissions', 'page');
+  return { success: true, newStatus: !currentStatus };
+}
+
 export async function bulkMarkAsProcessed(submissionIds: string[]) {
   if (!submissionIds || submissionIds.length === 0) return { success: true };
 
-  const { profile } = await requirePermission('submissions:manage');
+  const { profile } = await requirePermission('submissions:process');
   const userRoles = profile.roles || [];
   
   const canExportTest = hasPermission(userRoles, 'submissions:export_test');

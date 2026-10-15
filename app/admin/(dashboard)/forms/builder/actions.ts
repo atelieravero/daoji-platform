@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth-guards';
 import { hasPermission, Role } from '@/lib/permissions';
 import { revalidatePath } from 'next/cache';
+import { canonicalizeApplicantName, canonicalizePhoneSuffix } from '@/lib/applicant-identity';
 
 export interface FormEventOption {
   id: string;
@@ -87,7 +88,8 @@ export async function getFormSchema(id: string) {
 }
 
 /**
- * Saves or updates form schema (strictly requires forms:edit & draft status).
+ * Saves or updates form schema (strictly requires forms:edit & draft status),
+ * and recalculates identity anchor fields on all existing submissions.
  */
 export async function saveFormSchema(payload: {
   event_id?: string | null;
@@ -104,7 +106,6 @@ export async function saveFormSchema(payload: {
     throw new Error('Validation Error: A linked event is required for every form.');
   }
 
-  // Removed updated_at to match the live forms table schema
   const cleanPayload: Record<string, any> = {
     title: payload.title,
     slug: payload.slug,
@@ -159,8 +160,36 @@ export async function saveFormSchema(payload: {
     throw new Error(error.message || 'Failed to save form schema.');
   }
 
+  // Recalculate identity anchor columns on all submissions for this form
+  if (savedId) {
+    const fields = Array.isArray(payload.schema?.fields) ? payload.schema.fields : [];
+    const nameField = fields.find((f: any) => f.is_identity_name);
+    const phoneField = fields.find((f: any) => f.is_identity_phone);
+
+    const { data: existingSubmissions, error: subFetchError } = await supabase
+      .from('submissions')
+      .select('id, response')
+      .eq('form_id', savedId);
+
+    if (!subFetchError && existingSubmissions && existingSubmissions.length > 0) {
+      for (const row of existingSubmissions) {
+        const resp = (row.response || {}) as Record<string, any>;
+        const newName = nameField?.dataKey ? canonicalizeApplicantName(resp[nameField.dataKey]) : null;
+        const newPhone = phoneField?.dataKey ? canonicalizePhoneSuffix(resp[phoneField.dataKey]) : null;
+
+        await (supabase.from('submissions') as any)
+          .update({
+            applicant_name: newName || null,
+            applicant_phone_suffix: newPhone || null,
+          })
+          .eq('id', row.id);
+      }
+    }
+  }
+
   // Revalidate admin views and public edge caches
   revalidatePath('/admin/forms');
+  revalidatePath(`/admin/forms/${savedId}/submissions`);
   revalidatePath('/admin/logs');
   revalidatePath(`/[locale]/form/${cleanPayload.slug}`, 'page');
   revalidatePath(`/zh/form/${cleanPayload.slug}`);

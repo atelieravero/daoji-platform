@@ -3,9 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Download, Filter, Eye, EyeOff, CheckCircle2, Circle, 
-  Check, Settings2, ChevronUp, ChevronDown, Beaker 
+  Check, Settings2, ChevronUp, ChevronDown, Beaker, Archive 
 } from 'lucide-react';
-import { getFormAndSubmissions, toggleSubmissionProcessedStatus, bulkMarkAsProcessed } from './actions';
+import { 
+  getFormAndSubmissions, 
+  toggleSubmissionProcessedStatus, 
+  toggleSubmissionArchivedStatus, 
+  bulkMarkAsProcessed 
+} from './actions';
 import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
 import AdminTableToolbar from '@/components/admin/shared/AdminTableToolbar';
 import AdminTableCard from '@/components/admin/shared/AdminTableCard';
@@ -17,7 +22,18 @@ interface ColumnDef {
   isMeta: boolean;
 }
 
-export default function SubmissionsClient({ form_id, permissions }: { form_id: string; permissions: any }) {
+interface SubmissionsClientProps {
+  form_id: string;
+  permissions: {
+    canViewTest?: boolean;
+    canViewReal?: boolean;
+    canExport?: boolean;
+    canProcess?: boolean;
+    canArchive?: boolean;
+  };
+}
+
+export default function SubmissionsClient({ form_id, permissions }: SubmissionsClientProps) {
   const [formConfig, setFormConfig] = useState<any>(null);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +42,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [filterProcessed, setFilterProcessed] = useState(false);
+  const [filterArchived, setFilterArchived] = useState(false);
   const [showExportToast, setShowToast] = useState(false);
 
   // Column Management States
@@ -106,12 +123,26 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
   };
 
   const toggleProcessed = async (sub: any) => {
-    setSubmissions((subs) => subs.map((s) => (s.id === sub.id ? { ...s, is_processed: !s.is_processed } : s)));
+    if (!permissions.canProcess) return;
+    const nextStatus = !sub.is_processed;
+    setSubmissions((subs) => subs.map((s) => (s.id === sub.id ? { ...s, is_processed: nextStatus } : s)));
     try {
       await toggleSubmissionProcessedStatus(sub.id, sub.is_processed || false);
     } catch (e) {
       setSubmissions((subs) => subs.map((s) => (s.id === sub.id ? { ...s, is_processed: sub.is_processed } : s)));
       alert('Failed to update status in database.');
+    }
+  };
+
+  const toggleArchived = async (sub: any) => {
+    if (!permissions.canArchive) return;
+    const nextStatus = !sub.is_archived;
+    setSubmissions((subs) => subs.map((s) => (s.id === sub.id ? { ...s, is_archived: nextStatus } : s)));
+    try {
+      await toggleSubmissionArchivedStatus(sub.id, sub.is_archived || false);
+    } catch (e) {
+      setSubmissions((subs) => subs.map((s) => (s.id === sub.id ? { ...s, is_archived: sub.is_archived } : s)));
+      alert('Failed to update archive status in database.');
     }
   };
 
@@ -128,7 +159,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
     if (selectedRows.length === 0) return;
 
     const activeCols = columns.filter((c) => c.visible);
-    const headersArray = ['Event', 'Form', 'Is Test', ...activeCols.map((c) => escapeCSV(c.label))];
+    const headersArray = ['Event', 'Form', 'Is Test', 'Is Archived', ...activeCols.map((c) => escapeCSV(c.label))];
     const headers = headersArray.join(',');
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
@@ -141,6 +172,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
       const eventIdVal = escapeCSV(rawEventCode);
       const formTitleVal = escapeCSV(formConfig?.title || '');
       const isTestVal = escapeCSV(sub.is_test ? 'TRUE' : 'FALSE');
+      const isArchivedVal = escapeCSV(sub.is_archived ? 'TRUE' : 'FALSE');
 
       const rowValues = activeCols.map((c) => {
         if (c.id === 'created_at') return escapeCSV(new Date(sub.created_at).toLocaleString());
@@ -159,7 +191,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
         return escapeCSV(rawVal);
       });
 
-      return [eventIdVal, formTitleVal, isTestVal, ...rowValues].join(',');
+      return [eventIdVal, formTitleVal, isTestVal, isArchivedVal, ...rowValues].join(',');
     });
 
     const csvString = [headers, ...csvRows].join('\n');
@@ -172,10 +204,12 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
     URL.revokeObjectURL(url);
 
     try {
-      await bulkMarkAsProcessed(selectedRows);
-      setSubmissions((subs) =>
-        subs.map((sub) => (selectedRows.includes(sub.id) ? { ...sub, is_processed: true } : sub))
-      );
+      if (permissions.canProcess) {
+        await bulkMarkAsProcessed(selectedRows);
+        setSubmissions((subs) =>
+          subs.map((sub) => (selectedRows.includes(sub.id) ? { ...sub, is_processed: true } : sub))
+        );
+      }
       setSelectedRows([]);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -186,13 +220,15 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
 
   const filteredSubmissions = submissions.filter((sub) => {
     if (filterProcessed && sub.is_processed) return false;
+    if (filterArchived && sub.is_archived) return false;
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const tokenMatch = (sub.applicant_token || '').toLowerCase().includes(term);
       const seqMatch = sub.applicant_seq_num && String(sub.applicant_seq_num).includes(term);
+      const nameMatch = (sub.applicant_name || '').toLowerCase().includes(term);
       const dataMatch = JSON.stringify(sub.response || {}).toLowerCase().includes(term);
-      return tokenMatch || seqMatch || dataMatch;
+      return tokenMatch || seqMatch || nameMatch || dataMatch;
     }
 
     return true;
@@ -238,7 +274,7 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
       <AdminTableToolbar
         search={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search data or tokens..."
+        searchPlaceholder="Search data, names, or tokens..."
       >
         <button
           type="button"
@@ -251,6 +287,19 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
         >
           <Filter className={`w-4 h-4 mr-2 ${filterProcessed ? 'text-indigo-600' : 'text-gray-500'}`} />
           Hide Processed
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterArchived(!filterArchived)}
+          className={`inline-flex items-center px-3 py-2 border shadow-xs text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+            filterArchived
+              ? 'bg-amber-50 border-amber-200 text-amber-700'
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Archive className={`w-4 h-4 mr-2 ${filterArchived ? 'text-amber-600' : 'text-gray-500'}`} />
+          Hide Archived
         </button>
 
         {/* COLUMN MANAGER POPOVER */}
@@ -326,8 +375,11 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
                   checked={filteredSubmissions.length > 0 && selectedRows.length === filteredSubmissions.length}
                 />
               </th>
-              <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-100">
+              <th scope="col" className="px-5 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-100">
                 Processed
+              </th>
+              <th scope="col" className="px-5 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-100">
+                Archived
               </th>
 
               {hasTestData && (
@@ -357,7 +409,11 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
               <tr
                 key={sub.id}
                 className={`transition-colors group ${
-                  selectedRows.includes(sub.id) ? 'bg-indigo-50/50' : 'hover:bg-gray-50/80'
+                  selectedRows.includes(sub.id)
+                    ? 'bg-indigo-50/50'
+                    : sub.is_archived
+                    ? 'bg-amber-50/30 hover:bg-amber-50/50'
+                    : 'hover:bg-gray-50/80'
                 } ${sub.is_processed ? 'opacity-60' : ''}`}
               >
                 <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
@@ -369,8 +425,8 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
                   />
                 </td>
 
-                <td className="px-6 py-4 whitespace-nowrap text-center border-r border-gray-100">
-                  {permissions.canManage ? (
+                <td className="px-5 py-4 whitespace-nowrap text-center border-r border-gray-100">
+                  {permissions.canProcess ? (
                     <button
                       type="button"
                       onClick={() => toggleProcessed(sub)}
@@ -390,6 +446,35 @@ export default function SubmissionsClient({ form_id, permissions }: { form_id: s
                       ) : (
                         <Circle className="w-5 h-5 text-gray-300" />
                       )}
+                    </div>
+                  )}
+                </td>
+
+                <td className="px-5 py-4 whitespace-nowrap text-center border-r border-gray-100">
+                  {permissions.canArchive ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleArchived(sub)}
+                      className={`focus:outline-none focus:ring-2 focus:ring-amber-500 rounded-md p-1 transition-transform active:scale-95 cursor-pointer ${
+                        sub.is_archived
+                          ? 'text-amber-700 bg-amber-100 hover:bg-amber-200'
+                          : 'text-gray-300 hover:text-gray-500'
+                      }`}
+                      title={
+                        sub.is_archived
+                          ? 'Archived: Excluded from challenge token recovery. Click to reactivate.'
+                          : 'Active: Eligible for challenge token recovery. Click to archive.'
+                      }
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <div
+                      className={`inline-flex rounded-md p-1 ${
+                        sub.is_archived ? 'text-amber-700 bg-amber-100' : 'text-gray-300'
+                      }`}
+                    >
+                      <Archive className="w-4 h-4" />
                     </div>
                   )}
                 </td>

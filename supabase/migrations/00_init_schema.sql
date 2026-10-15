@@ -189,9 +189,12 @@ CREATE TABLE IF NOT EXISTS submissions (
     event_code TEXT NOT NULL,
     applicant_token TEXT,
     applicant_seq_num INTEGER,
+    applicant_name TEXT,
+    applicant_phone_suffix VARCHAR(8),
     response JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_test BOOLEAN DEFAULT FALSE,
     is_processed BOOLEAN DEFAULT FALSE,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -323,6 +326,7 @@ CREATE INDEX IF NOT EXISTS idx_forms_event_id ON forms(event_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_event_code_token ON submissions(event_code, applicant_token);
 CREATE INDEX IF NOT EXISTS idx_submissions_event_code_seq ON submissions(event_code, applicant_seq_num DESC);
 CREATE INDEX IF NOT EXISTS idx_submissions_form_date ON submissions(form_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_submissions_challenge_lookup ON submissions(event_code, applicant_phone_suffix, applicant_name, is_archived, is_test);
 
 -- Content Pages & Resources
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_pages_slug_unique ON content_pages(slug) WHERE slug IS NOT NULL;

@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   GripVertical, GitBranch, AlertCircle, ChevronUp, ChevronDown, 
-  Smartphone, Calendar, Clock, UploadCloud, KeyRound, Hash 
+  Smartphone, Calendar, Clock, UploadCloud, KeyRound, Hash, ShieldCheck 
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import { FieldOption } from './ChoicesConfigurator';
@@ -38,6 +38,8 @@ export interface FormField {
   max?: number;
   options?: FieldOption[];
   condition?: { match: 'AND' | 'OR'; rules: LogicRule[] };
+  is_identity_name?: boolean;
+  is_identity_phone?: boolean;
 }
 
 interface QuestionCanvasItemProps {
@@ -71,11 +73,24 @@ export default function QuestionCanvasItem({
       }`}
     >
       {/* BADGES */}
-      {field.condition && field.condition.rules.length > 0 && (
-        <div className="absolute -top-3 left-4 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center shadow-xs">
-          <GitBranch className="w-3 h-3 mr-1" /> Conditional
-        </div>
-      )}
+      <div className="absolute -top-3 left-4 flex items-center gap-1.5 flex-wrap">
+        {field.condition && field.condition.rules.length > 0 && (
+          <div className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center shadow-xs">
+            <GitBranch className="w-3 h-3 mr-1" /> Conditional
+          </div>
+        )}
+        {field.is_identity_name && (
+          <div className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 flex items-center shadow-xs">
+            <ShieldCheck className="w-3 h-3 mr-1 text-amber-700" /> Anchor: Name
+          </div>
+        )}
+        {field.is_identity_phone && (
+          <div className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 flex items-center shadow-xs">
+            <ShieldCheck className="w-3 h-3 mr-1 text-amber-700" /> Anchor: Mobile
+          </div>
+        )}
+      </div>
+
       {isInvalid && (
         <div className="absolute -top-3 right-4 bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200 flex items-center shadow-xs">
           <AlertCircle className="w-3 h-3 mr-1 text-red-600" /> Missing Key or Value
@@ -162,7 +177,7 @@ export default function QuestionCanvasItem({
         ) : field.type === 'mobile' ? (
           <div className="relative">
             <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input type="tel" disabled placeholder="+852..." className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
+            <input type="tel" disabled placeholder="+852 1234 5678" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white" />
           </div>
         ) : field.type === 'date' ? (
           <div className="relative">
@@ -188,7 +203,7 @@ export default function QuestionCanvasItem({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <KeyRound className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-              <input type="text" disabled placeholder="MMC-XXXX-XXXX" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white font-mono" />
+              <input type="text" disabled placeholder="[CODE]-1234-5678" className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 bg-white font-mono" />
             </div>
             <button disabled className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg border border-gray-200">
               Verify

@@ -1,24 +1,60 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { s3Client } from "@/lib/s3/client";
-import { randomUUID } from "crypto";
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3Client } from '@/lib/s3/client';
+import { randomUUID } from 'crypto';
+import {
+  canonicalizeApplicantName,
+  canonicalizePhoneSuffix,
+  generateNumericToken,
+} from '@/lib/applicant-identity';
 
 const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function generateMagicToken(prefix: string = 'MMC'): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
-  let token = `${prefix}-`;
-  for (let i = 0; i < 8; i++) {
-    if (i === 4) token += '-';
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
+/**
+ * Resolves an event UUID or raw code string into the canonical uppercase event_code.
+ */
+async function resolveEventCode(
+  supabase: SupabaseClient,
+  eventCodeOrId?: string | null,
+  fallback: string = 'MMC'
+): Promise<string> {
+  const raw = (eventCodeOrId || '').trim();
+  if (!raw) return fallback;
+
+  if (raw.includes('-') && raw.length === 36) {
+    const { data: evt } = await supabase
+      .from('events')
+      .select('code')
+      .eq('id', raw)
+      .single();
+    if (evt?.code) return evt.code.trim().toUpperCase();
   }
-  return token;
+
+  return raw.toUpperCase();
+}
+
+/**
+ * Normalizes a raw 8-digit string or full token into [EVENT_CODE]-DDDD-DDDD.
+ */
+function normalizeApplicantToken(rawToken: string | undefined | null, eventCode: string): string {
+  const clean = (rawToken || '').replace(/\s+/g, '').toUpperCase();
+  if (!clean) return '';
+
+  const prefix = `${eventCode}-`;
+  const body = clean.startsWith(prefix) ? clean.slice(prefix.length) : clean;
+  const digitsOnly = body.replace(/\D/g, '');
+
+  if (digitsOnly.length === 8) {
+    return `${eventCode}-${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4)}`;
+  }
+
+  return clean;
 }
 
 export async function getPublicForm(slug: string) {
@@ -37,25 +73,23 @@ export async function getPublicForm(slug: string) {
 }
 
 /**
- * Validates applicant tokens scoped by event_code.
+ * Validates applicant tokens scoped by event_code and environment mode (is_test).
  */
-export async function verifyApplicantToken(token: string, eventCodeOrId: string, isTest: boolean = false) {
-  if (isTest) {
-    return { valid: true };
-  }
-
+export async function verifyApplicantToken(
+  token: string,
+  eventCodeOrId: string,
+  isTest: boolean = false
+) {
   const supabase = getSupabaseAdmin();
-  const cleanToken = token ? token.replace(/\s+/g, '').toUpperCase() : '';
-  
-  if (!cleanToken || !eventCodeOrId) {
+  if (!token || !eventCodeOrId) {
     return { valid: false, message: 'Token and Event Code are required.' };
   }
 
-  // Resolve event_code if UUID was passed
-  let targetCode = eventCodeOrId.trim();
-  if (targetCode.includes('-') && targetCode.length === 36) {
-    const { data: evt } = await supabase.from('events').select('code').eq('id', targetCode).single();
-    if (evt?.code) targetCode = evt.code;
+  const targetCode = await resolveEventCode(supabase, eventCodeOrId, '');
+  const cleanToken = normalizeApplicantToken(token, targetCode);
+
+  if (!cleanToken || !targetCode) {
+    return { valid: false, message: 'Token and Event Code are required.' };
   }
 
   const { data: existingSubmissions, error } = await supabase
@@ -63,21 +97,86 @@ export async function verifyApplicantToken(token: string, eventCodeOrId: string,
     .select('id, is_test')
     .eq('applicant_token', cleanToken)
     .eq('event_code', targetCode)
+    .eq('is_archived', false)
+    .eq('is_test', Boolean(isTest))
     .limit(1);
 
   if (error || !existingSubmissions || existingSubmissions.length === 0) {
     return { valid: false, message: 'Invalid or expired access token for this event code.' };
   }
 
-  if (existingSubmissions[0].is_test === true) {
-    return { valid: false, message: 'Test tokens cannot be used for live applications.' };
-  }
-
-  return { valid: true };
+  return { valid: true, token: cleanToken };
 }
 
 /**
- * Submits public form record scoped to event_code.
+ * Self-service identity challenge recovery:
+ * Recovers an applicant's token using Name and Mobile suffix (last 8 digits).
+ * Fails if 0 or >1 non-archived matches are found.
+ */
+export async function recoverApplicantToken(params: {
+  eventCode: string;
+  name: string;
+  phone: string;
+  isTest?: boolean;
+}): Promise<{ success: boolean; token?: string; error?: string }> {
+  const supabase = getSupabaseAdmin();
+  const cleanName = canonicalizeApplicantName(params.name);
+  const cleanPhone = canonicalizePhoneSuffix(params.phone);
+  const isTest = Boolean(params.isTest);
+
+  if (!cleanName || !cleanPhone) {
+    return { 
+      success: false, 
+      error: 'Please provide both your full name and an 8+ digit phone number.' 
+    };
+  }
+
+  const targetCode = await resolveEventCode(supabase, params.eventCode, '');
+  if (!targetCode) {
+    return { success: false, error: 'Event code is required.' };
+  }
+
+  const { data: matches, error } = await supabase
+    .from('submissions')
+    .select('applicant_token, applicant_name, applicant_phone_suffix')
+    .eq('event_code', targetCode)
+    .eq('applicant_name', cleanName)
+    .eq('applicant_phone_suffix', cleanPhone)
+    .eq('is_archived', false)
+    .eq('is_test', isTest)
+    .not('applicant_name', 'is', null)
+    .neq('applicant_name', '')
+    .not('applicant_phone_suffix', 'is', null)
+    .neq('applicant_phone_suffix', '');
+
+  if (error) {
+    console.error('Error recovering applicant token:', error);
+    return { success: false, error: 'Failed to verify identity. Please try again.' };
+  }
+
+  if (!matches || matches.length === 0) {
+    return { 
+      success: false, 
+      error: 'No matching application found. Please verify your name and phone number.' 
+    };
+  }
+
+  if (matches.length > 1) {
+    return { 
+      success: false, 
+      error: 'Multiple active applications found with these details. Please contact the organizers directly.' 
+    };
+  }
+
+  return { 
+    success: true, 
+    token: matches[0].applicant_token 
+  };
+}
+
+/**
+ * Submits public form record scoped to event_code, populates identity anchors,
+ * and provisions 8-digit numeric magic tokens.
  */
 export async function submitPublicForm(payload: {
   form_id: string;
@@ -88,49 +187,70 @@ export async function submitPublicForm(payload: {
   interim_event_code?: string;
 }) {
   const supabase = getSupabaseAdmin();
+  const isTest = Boolean(payload.is_test);
 
-  // Resolve true event_code
-  let resolvedCode = payload.interim_event_code || 'MMC';
-  if (payload.event_id) {
-    const { data: evt } = await supabase.from('events').select('code').eq('id', payload.event_id).single();
-    if (evt?.code) resolvedCode = evt.code;
-  }
+  // 1. Resolve canonical event code
+  const resolvedCode = await resolveEventCode(
+    supabase,
+    payload.event_id,
+    payload.interim_event_code || 'MMC'
+  );
 
-  // Sanitize active token by stripping all whitespace
-  let activeToken = payload.applicant_token
-    ? payload.applicant_token.replace(/\s+/g, '').toUpperCase()
-    : undefined;
+  // 2. Resolve token (normalize existing or generate new 8-digit numeric token)
+  let activeToken = normalizeApplicantToken(payload.applicant_token, resolvedCode) || undefined;
 
   if (activeToken) {
-    if (!payload.is_test) {
-      const { data: existingSubmissions, error: tokenError } = await supabase
-        .from('submissions')
-        .select('id, is_test')
-        .eq('applicant_token', activeToken)
-        .eq('event_code', resolvedCode)
-        .limit(1);
+    const { data: existingSubmissions, error: tokenError } = await supabase
+      .from('submissions')
+      .select('id, is_test')
+      .eq('applicant_token', activeToken)
+      .eq('event_code', resolvedCode)
+      .eq('is_archived', false)
+      .eq('is_test', isTest)
+      .limit(1);
 
-      if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
-        throw new Error('Invalid or expired access token for this event code.');
-      }
-
-      if (existingSubmissions[0].is_test === true) {
-        throw new Error('Test tokens cannot be used for live applications.');
-      }
+    if (tokenError || !existingSubmissions || existingSubmissions.length === 0) {
+      throw new Error('Invalid or expired access token for this event code.');
     }
   } else {
-    activeToken = generateMagicToken(resolvedCode);
+    activeToken = generateNumericToken(resolvedCode);
   }
 
+  // 3. Resolve identity anchors from form schema (only for initial application forms)
+  const { data: formRecord } = await supabase
+    .from('forms')
+    .select('schema, is_followup')
+    .eq('id', payload.form_id)
+    .single();
+
+  let applicantName: string | null = null;
+  let applicantPhoneSuffix: string | null = null;
+
+  if (!formRecord?.is_followup) {
+    const fields = formRecord?.schema?.fields || [];
+    const nameField = fields.find((f: any) => f.is_identity_name);
+    const phoneField = fields.find((f: any) => f.is_identity_phone);
+
+    const rawName = nameField ? payload.answers[nameField.dataKey] : null;
+    const rawPhone = phoneField ? payload.answers[phoneField.dataKey] : null;
+
+    applicantName = canonicalizeApplicantName(rawName) || null;
+    applicantPhoneSuffix = canonicalizePhoneSuffix(rawPhone) || null;
+  }
+
+  // 4. Ingest submission record
   const { error: insertError } = await supabase
     .from('submissions')
     .insert([{
       form_id: payload.form_id,
       event_id: payload.event_id,
       event_code: resolvedCode,
-      response: payload.answers, 
-      applicant_token: activeToken, 
-      is_test: payload.is_test || false, 
+      response: payload.answers,
+      applicant_token: activeToken,
+      applicant_name: applicantName,
+      applicant_phone_suffix: applicantPhoneSuffix,
+      is_archived: false,
+      is_test: isTest,
     }]);
 
   if (insertError) {

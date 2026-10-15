@@ -1,9 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { submitPublicForm, verifyApplicantToken, getPresignedUploadUrl } from './actions';
-import { Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, RotateCcw, Hash } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { 
+  submitPublicForm, 
+  verifyApplicantToken, 
+  getPresignedUploadUrl, 
+  recoverApplicantToken 
+} from './actions';
+import { 
+  Loader2, CheckCircle2, AlertCircle, Smartphone, Calendar, 
+  Clock, KeyRound, Copy, Check, UploadCloud, CheckSquare, 
+  RotateCcw, User, Search, X 
+} from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
@@ -13,7 +22,7 @@ import zhDict from '@/messages/zh.json';
 const parseMobileString = (raw: string) => {
   const digits = raw.replace(/\D/g, '');
   let ccLength = 0;
-  if (['1','7'].includes(digits.substring(0,1))) ccLength = 1;
+  if (['1', '7'].includes(digits.substring(0, 1))) ccLength = 1;
   else if (/^(2[07]|3[0-469]|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58])/.test(digits)) ccLength = 2;
   else if (digits.length >= 3) ccLength = 3;
   else ccLength = digits.length;
@@ -30,13 +39,128 @@ const formatPhoneDisplay = (raw: string) => {
   return cc + ' ' + rest;
 };
 
+// Strictly extracts up to 8 numeric digits (0-9) and formats with a readability hyphen (e.g., "1234-5678")
+const extractTokenDigits = (raw: string, eventCode?: string) => {
+  if (!raw) return '';
+  const upper = raw.trim().toUpperCase();
+  const prefix = eventCode ? `${eventCode.toUpperCase()}-` : '';
+  const body = prefix && upper.startsWith(prefix) ? upper.slice(prefix.length) : upper;
+  return body.replace(/\D/g, '').slice(0, 8);
+};
+
+const formatTokenBodyDisplay = (raw: string, eventCode?: string) => {
+  const digits = extractTokenDigits(raw, eventCode);
+  if (digits.length > 4) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+  return digits;
+};
+
+const buildFullToken = (eventCode: string, rawBody: string) => {
+  const digits = extractTokenDigits(rawBody, eventCode);
+  if (!digits) return '';
+  if (digits.length > 4) {
+    return `${eventCode}-${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+  return `${eventCode}-${digits}`;
+};
+
+// Reusable DRY Mobile Phone Input Control ([+][CC] [Number])
+function MobilePhoneInput({
+  value,
+  onChange,
+  required,
+  placeholder = '852 1234 5678',
+}: {
+  value: string;
+  onChange: (formattedValue: string) => void;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative flex items-center">
+      <Smartphone className="absolute left-3.5 w-4 h-4 text-stone-400" />
+      <span className="absolute left-10 text-stone-800 text-sm font-medium pointer-events-none">+</span>
+      <input
+        type="tel"
+        required={required}
+        value={value ? formatPhoneDisplay(value) : ''}
+        onChange={(e) => {
+          const { digits, ccLength } = parseMobileString(e.target.value);
+          if (digits.length === 0) onChange('');
+          else if (digits.length > ccLength) onChange(`${digits.substring(0, ccLength)}-${digits.substring(ccLength)}`);
+          else onChange(digits);
+        }}
+        placeholder={placeholder}
+        className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+      />
+    </div>
+  );
+}
+
+// Reusable DRY 8-Digit Token Input Control ([EVENT_CODE - ] [1234-5678])
+function TokenDigitsInput({
+  eventCode,
+  value,
+  onChangeDigits,
+  placeholder = '1234-5678',
+  size = 'sm',
+  isVerified = false,
+  isError = false,
+  required = false,
+}: {
+  eventCode: string;
+  value: string;
+  onChangeDigits: (formattedBody: string) => void;
+  placeholder?: string;
+  size?: 'sm' | 'lg';
+  isVerified?: boolean;
+  isError?: boolean;
+  required?: boolean;
+}) {
+  const isLg = size === 'lg';
+  const borderClass = isVerified
+    ? 'border-emerald-500 bg-emerald-50/40 focus-within:ring-2 focus-within:ring-emerald-500/40 focus-within:border-emerald-500'
+    : isError
+    ? 'border-red-300 bg-white focus-within:ring-2 focus-within:ring-red-500/40 focus-within:border-red-500'
+    : 'border-stone-300 bg-white focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary';
+
+  return (
+    <div
+      className={`flex flex-1 items-stretch overflow-hidden border transition-shadow ${
+        isLg ? 'rounded-2xl shadow-2xs' : 'rounded-xl'
+      } ${borderClass}`}
+    >
+      <div
+        className={`bg-stone-100 flex items-center text-stone-600 font-mono font-bold border-r border-stone-200 select-none shrink-0 ${
+          isLg ? 'px-4 text-base tracking-wider' : 'px-3 text-xs'
+        }`}
+      >
+        {eventCode} -
+      </div>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]{4}-?[0-9]{4}"
+        maxLength={9}
+        required={required}
+        value={formatTokenBodyDisplay(value, eventCode)}
+        onChange={(e) => onChangeDigits(formatTokenBodyDisplay(e.target.value, eventCode))}
+        placeholder={placeholder}
+        className={`w-full font-mono outline-none bg-transparent placeholder:text-stone-300 ${
+          isVerified ? 'text-emerald-900 font-semibold' : 'text-stone-800'
+        } ${isLg ? 'px-4 py-3.5 text-lg tracking-widest' : 'px-3 py-2.5 text-sm tracking-wider'}`}
+      />
+    </div>
+  );
+}
+
 interface FormEngineProps {
   initialForm: any;
   locale: string;
 }
 
 export default function FormEngine({ initialForm, locale }: FormEngineProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   
   // Sanitize token from URL query string
@@ -45,13 +169,16 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const isTest = searchParams.get('test') === 'true';
 
   const [form] = useState<any>(initialForm);
+  const eventCode = form?.events?.code || form?.schema?.interimEventCode || 'MMC';
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
 
-  const [manualToken, setManualToken] = useState('');
+  // Pre-gate state (stores 8-digit body, e.g. "1234-5678")
+  const [manualTokenBody, setManualTokenBody] = useState('');
   const [isPreGateVerifying, setIsPreGateVerifying] = useState(false);
   const [preGateError, setPreGateError] = useState<string | null>(null);
   const [isPreGatePassed, setIsPreGatePassed] = useState(false);
@@ -60,8 +187,16 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const [isUrlTokenVerifying, setIsUrlTokenVerifying] = useState(false);
   const [hasCheckedUrlToken, setHasCheckedUrlToken] = useState(false);
 
-  const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean, verified: boolean, error: string | null }>>({});
-  const [uploadStates, setUploadStates] = useState<Record<string, { isUploading: boolean, progress: number, error?: string }>>({});
+  // Challenge Recovery Modal state (shared between Pre-Gate and Inline Token Questions)
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveryName, setRecoveryName] = useState('');
+  const [recoveryPhone, setRecoveryPhone] = useState('');
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryTargetKey, setRecoveryTargetKey] = useState<string | null>(null); // null = pre-gate, string = field.dataKey
+
+  const [inlineTokens, setInlineTokens] = useState<Record<string, { verifying: boolean; verified: boolean; error: string | null }>>({});
+  const [uploadStates, setUploadStates] = useState<Record<string, { isUploading: boolean; progress: number; error?: string }>>({});
   const [isCopied, setIsCopied] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
@@ -71,6 +206,43 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const formSuccessKey = `daoji_form_success_${form.id}`;
 
   const isStandalone = form?.schema?.isStandalone || searchParams.get('standalone') === 'true';
+
+  const handleInputChange = (dataKey: string, value: any) => {
+    setAnswers((prev) => {
+      const updatedAnswers = { ...prev, [dataKey]: value };
+      if (formStorageKey) sessionStorage.setItem(formStorageKey, JSON.stringify(updatedAnswers));
+      return updatedAnswers;
+    });
+  };
+
+  /**
+   * Unified handler to apply a verified token to either the Pre-Gate (targetKey === null)
+   * or an Inline Applicant Token Question (targetKey === field.dataKey).
+   */
+  const applyVerifiedToken = (rawFullToken: string, targetKey: string | null) => {
+    const normalized = buildFullToken(eventCode, rawFullToken);
+    if (targetKey) {
+      handleInputChange(targetKey, normalized);
+      setInlineTokens((prev) => ({
+        ...prev,
+        [targetKey]: { verifying: false, verified: true, error: null },
+      }));
+    } else {
+      setValidatedToken(normalized);
+      setManualTokenBody(formatTokenBodyDisplay(normalized, eventCode));
+      setPreGateError(null);
+      setIsPreGatePassed(true);
+    }
+  };
+
+  /**
+   * Unified trigger to open the Challenge Recovery Modal for either Pre-Gate or Inline Question.
+   */
+  const openRecoveryModal = (targetKey: string | null) => {
+    setRecoveryTargetKey(targetKey);
+    setRecoveryError(null);
+    setShowRecoveryModal(true);
+  };
 
   useEffect(() => {
     if (formSuccessKey) {
@@ -96,18 +268,18 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     }
   }, [formStorageKey, isSubmitted]);
 
+  // URL-provided token auto-verification
   useEffect(() => {
     let isMounted = true;
     if (form?.is_followup && token && !hasCheckedUrlToken) {
       setIsUrlTokenVerifying(true);
       verifyApplicantToken(token, form.event_id, isTest)
-        .then(res => {
+        .then((res) => {
           if (!isMounted) return;
           if (res.valid) {
-            setValidatedToken(token); 
-            setIsPreGatePassed(true);
+            applyVerifiedToken(res.token || token, null);
           } else {
-            setPreGateError(t.invalidToken); 
+            setPreGateError(t.invalidToken);
           }
         })
         .catch(() => { if (isMounted) setPreGateError(t.invalidToken); })
@@ -120,19 +292,21 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     return () => { isMounted = false; };
   }, [form, token, hasCheckedUrlToken, isTest, t.invalidToken]);
 
+  // Pre-gate verification
   const handlePreGateVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanToken = manualToken.replace(/\s+/g, '').toUpperCase();
-    if (!cleanToken) return;
+    const digits = extractTokenDigits(manualTokenBody, eventCode);
+    if (digits.length !== 8) return;
+
+    const fullToken = buildFullToken(eventCode, digits);
     setIsPreGateVerifying(true);
     setPreGateError(null);
     try {
-      const res = await verifyApplicantToken(cleanToken, form.event_id, isTest);
+      const res = await verifyApplicantToken(fullToken, form.event_id, isTest);
       if (res.valid) {
-        setValidatedToken(cleanToken); 
-        setIsPreGatePassed(true);
+        applyVerifiedToken(res.token || fullToken, null);
       } else {
-        setPreGateError(t.invalidToken); 
+        setPreGateError(t.invalidToken);
       }
     } catch (err) {
       setPreGateError(t.invalidToken);
@@ -141,30 +315,67 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     }
   };
 
-  const handleInlineVerify = async (dataKey: string, tokenVal: string) => {
-    const cleanToken = (tokenVal || '').replace(/\s+/g, '').toUpperCase();
-    if (!cleanToken) return;
-    handleInputChange(dataKey, cleanToken);
-    setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: true, verified: false, error: null } }));
+  // Inline token question verification
+  const handleInlineVerify = async (dataKey: string, currentVal: string) => {
+    const digits = extractTokenDigits(currentVal, eventCode);
+    if (digits.length !== 8) return;
+
+    const fullToken = buildFullToken(eventCode, digits);
+    handleInputChange(dataKey, fullToken);
+    setInlineTokens((prev) => ({ ...prev, [dataKey]: { verifying: true, verified: false, error: null } }));
     try {
-      const res = await verifyApplicantToken(cleanToken, form.event_id, isTest);
+      const res = await verifyApplicantToken(fullToken, form.event_id, isTest);
       if (res.valid) {
-        setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: true, error: null } }));
+        applyVerifiedToken(res.token || fullToken, dataKey);
       } else {
-        setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } })); 
+        setInlineTokens((prev) => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } }));
       }
     } catch (err) {
-      setInlineTokens(prev => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } }));
+      setInlineTokens((prev) => ({ ...prev, [dataKey]: { verifying: false, verified: false, error: t.invalidToken } }));
+    }
+  };
+
+  // Challenge Recovery Handler (shared by Pre-Gate and Inline Question)
+  const handleExecuteRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryName.trim() || !recoveryPhone.trim()) {
+      setRecoveryError((t as any).recoveryErrorMissing);
+      return;
+    }
+
+    setIsRecovering(true);
+    setRecoveryError(null);
+
+    try {
+      const res = await recoverApplicantToken({
+        eventCode,
+        name: recoveryName,
+        phone: recoveryPhone,
+        isTest,
+      });
+
+      if (res.success && res.token) {
+        applyVerifiedToken(res.token, recoveryTargetKey);
+        setShowRecoveryModal(false);
+        setRecoveryName('');
+        setRecoveryPhone('');
+      } else {
+        setRecoveryError((t as any).recoveryErrorFailed);
+      }
+    } catch (err: any) {
+      setRecoveryError((t as any).recoveryErrorFailed);
+    } finally {
+      setIsRecovering(false);
     }
   };
 
   const handleFileUpload = async (dataKey: string, file: File) => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: (t as any).fileSizeLimit } }));
+      setUploadStates((prev) => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: (t as any).fileSizeLimit } }));
       return;
     }
-    setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
+    setUploadStates((prev) => ({ ...prev, [dataKey]: { isUploading: true, progress: 0, error: undefined } }));
 
     try {
       const res = await getPresignedUploadUrl(file.name, file.type, isTest);
@@ -177,7 +388,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         xhr.setRequestHeader('Content-Type', file.type);
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: true, progress: Math.round((e.loaded / e.total) * 100) } }));
+            setUploadStates((prev) => ({ ...prev, [dataKey]: { isUploading: true, progress: Math.round((e.loaded / e.total) * 100) } }));
           }
         };
         xhr.onload = () => {
@@ -189,9 +400,9 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       });
 
       handleInputChange(dataKey, res.fileKey);
-      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 100 } }));
+      setUploadStates((prev) => ({ ...prev, [dataKey]: { isUploading: false, progress: 100 } }));
     } catch (err: any) {
-      setUploadStates(prev => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: err.message } }));
+      setUploadStates((prev) => ({ ...prev, [dataKey]: { isUploading: false, progress: 0, error: err.message } }));
     }
   };
 
@@ -325,14 +536,6 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     return match === 'OR' ? evaluations.some(Boolean) : evaluations.every(Boolean);
   };
 
-  const handleInputChange = (dataKey: string, value: any) => {
-    setAnswers(prev => {
-      const updatedAnswers = { ...prev, [dataKey]: value };
-      if (formStorageKey) sessionStorage.setItem(formStorageKey, JSON.stringify(updatedAnswers));
-      return updatedAnswers;
-    });
-  };
-
   const activeAnswers: Record<string, any> = {};
   const visibleFields = (form?.schema?.fields || []).filter((field: any) => {
     const isVisible = shouldShowField(field, activeAnswers);
@@ -344,8 +547,8 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     e.preventDefault();
     if (!form) return;
 
-    if (Object.values(uploadStates).some(s => s.isUploading)) {
-      setErrorMessage((t as any).waitFileUpload); 
+    if (Object.values(uploadStates).some((s) => s.isUploading)) {
+      setErrorMessage((t as any).waitFileUpload);
       return;
     }
 
@@ -387,8 +590,9 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
     const tokenFields = visibleFields.filter((f: any) => f.type === 'applicant_token');
     for (const f of tokenFields) {
-      const isFilled = !!activeAnswers[f.dataKey];
-      const isVerified = isTest ? isFilled : inlineTokens[f.dataKey]?.verified;
+      const digits = extractTokenDigits(activeAnswers[f.dataKey], eventCode);
+      const isFilled = digits.length > 0;
+      const isVerified = inlineTokens[f.dataKey]?.verified;
       if ((f.required && !isVerified) || (isFilled && !isVerified)) {
         setErrorMessage(t.verifyRequired);
         return;
@@ -409,7 +613,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         answers: activeAnswers, 
         is_test: isTest,
         applicant_token: applicantToken,
-        interim_event_code: form.schema?.interimEventCode || 'MMC'
+        interim_event_code: eventCode
       });
       
       let newToken = null;
@@ -452,7 +656,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
     setIsSubmitted(false);
     setGeneratedToken(null);
-    setManualToken('');
+    setManualTokenBody('');
     setValidatedToken(null);
     setIsPreGatePassed(false);
     setHasCheckedUrlToken(true);
@@ -511,6 +715,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       );
     }
 
+    // PRE-GATE TOKEN SCREEN
     if (form.is_followup && !isPreGatePassed && !isSubmitted) {
       if (isUrlTokenVerifying) {
         return (
@@ -524,40 +729,64 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       }
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-sm border border-stone-200">
+          <div className="max-w-md w-full bg-white p-8 sm:p-10 rounded-3xl shadow-sm border border-stone-200">
             <div className="flex items-center justify-center w-14 h-14 bg-primary/10 text-primary rounded-full mb-6 mx-auto">
               <KeyRound className="w-7 h-7" />
             </div>
             <h1 className="text-2xl font-bold text-stone-800 text-center mb-2">{t.tokenGateTitle}</h1>
             <p className="text-sm text-stone-500 text-center leading-relaxed">{t.tokenGateSubtitle}</p>
-            <form onSubmit={handlePreGateVerify} className="mt-8">
-              <input
-                type="text"
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value.replace(/\s+/g, '').toUpperCase())}
-                placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
-                className="w-full px-4 py-3.5 rounded-xl border border-stone-300 text-center font-mono text-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 transition-shadow"
-              />
+            
+            <form onSubmit={handlePreGateVerify} noValidate className="mt-8 space-y-4">
+              <div>
+                <TokenDigitsInput
+                  eventCode={eventCode}
+                  value={manualTokenBody}
+                  onChangeDigits={(formatted) => {
+                    setManualTokenBody(formatted);
+                    if (preGateError) setPreGateError(null);
+                  }}
+                  placeholder={(t as any).tokenPlaceholder || '1234-5678'}
+                  size="lg"
+                  isError={Boolean(preGateError)}
+                />
+                <p className="text-[11px] text-stone-400 mt-1.5 px-1">
+                  {(t as any).tokenPrefixHint}
+                </p>
+              </div>
+
               {preGateError && (
-                <div className="mt-3 p-3 bg-red-50 text-red-600 rounded-lg text-sm flex items-center justify-center text-center font-medium">
-                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center justify-center text-center font-medium">
+                  <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
                   {preGateError}
                 </div>
               )}
+
               <button
                 type="submit"
-                disabled={isPreGateVerifying || !manualToken}
-                className="w-full mt-6 py-3.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 flex items-center justify-center cursor-pointer"
+                disabled={isPreGateVerifying || extractTokenDigits(manualTokenBody, eventCode).length !== 8}
+                className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl shadow-xs transition-colors focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-40 flex items-center justify-center cursor-pointer"
               >
                 {isPreGateVerifying && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
                 {isPreGateVerifying ? t.verifying : t.verify}
               </button>
+
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => openRecoveryModal(null)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-primary transition-colors cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{(t as any).forgotTokenPrompt}</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
       );
     }
 
+    // SUCCESS SCREEN
     if (isSubmitted) {
       const successTitle = locale === 'zh' 
         ? (form.schema?.successTitleZh || form.schema?.successTitleEn || t.successTitle) 
@@ -571,7 +800,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+          <div className="max-w-2xl w-full bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
             {form.schema?.bannerImageUrl && (
               <img 
                 src={form.schema.bannerImageUrl} 
@@ -598,7 +827,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                   className="inline-flex items-center text-sm font-medium text-stone-400 hover:text-stone-600 transition-colors focus:outline-none cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  {(t as any).submitAnother || 'Submit another response'}
+                  {(t as any).submitAnother}
                 </button>
               </div>
             </div>
@@ -614,17 +843,18 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       ? (form.schema?.subtitleZh || form.schema?.subtitleEn || '') 
       : (form.schema?.subtitleEn || form.schema?.subtitleZh || '');
 
+    // ACTIVE FORM CANVAS
     return (
       <div className={`min-h-screen py-12 px-4 sm:px-6 font-sans transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
         <div className="max-w-2xl mx-auto">
           {isTest && (
-            <div className="mb-6 bg-amber-50 border-2 border-amber-300 text-amber-900 px-5 py-4 rounded-xl text-sm font-bold flex items-center shadow-lg">
-              <AlertCircle className="w-6 h-6 mr-3 text-amber-600 flex-shrink-0" />
-              {(t as any).testModeBanner || 'TEST MODE ACTIVE (Submissions will be tagged as test data)'}
+            <div className="mb-6 bg-amber-50 border-2 border-amber-300 text-amber-900 px-5 py-4 rounded-2xl text-sm font-bold flex items-center shadow-lg">
+              <AlertCircle className="w-6 h-6 mr-3 text-amber-600 shrink-0" />
+              {(t as any).testModeBanner}
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden mb-6">
+          <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden mb-6">
             {form.schema?.bannerImageUrl && (
               <img 
                 src={form.schema.bannerImageUrl} 
@@ -639,7 +869,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {visibleFields.map((field: any) => {
               const fieldLabel = locale === 'zh' 
                 ? (field.labelZh || field.labelEn || field.title || field.dataKey || '') 
@@ -705,21 +935,11 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                       placeholder="..."
                     />
                   ) : field.type === 'mobile' ? (
-                    <div className="relative mt-2 flex items-center">
-                      <Smartphone className="absolute left-3.5 w-4 h-4 text-stone-400" />
-                      <span className="absolute left-10 text-stone-800 text-sm font-medium pointer-events-none">+</span>
-                      <input
-                        type="tel"
+                    <div className="mt-2">
+                      <MobilePhoneInput
                         required={field.required}
-                        value={activeAnswers[field.dataKey] ? formatPhoneDisplay(activeAnswers[field.dataKey]) : ''}
-                        onChange={(e) => {
-                          const { digits, ccLength } = parseMobileString(e.target.value);
-                          if (digits.length === 0) handleInputChange(field.dataKey, '');
-                          else if (digits.length > ccLength) handleInputChange(field.dataKey, `${digits.substring(0, ccLength)}-${digits.substring(ccLength)}`);
-                          else handleInputChange(field.dataKey, digits);
-                        }}
-                        className="w-full pl-14 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
-                        placeholder="852 1234 5678"
+                        value={activeAnswers[field.dataKey] || ''}
+                        onChange={(val) => handleInputChange(field.dataKey, val)}
                       />
                     </div>
                   ) : field.type === 'date' ? (
@@ -791,7 +1011,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                       {activeAnswers[field.dataKey] ? (
                         <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                           <div className="flex items-center truncate">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2 flex-shrink-0" />
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2 shrink-0" />
                             <span className="text-sm font-medium text-emerald-700 truncate">
                               {activeAnswers[field.dataKey].split('/').pop() || (t as any).uploadedFile}
                             </span>
@@ -800,10 +1020,10 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                             type="button"
                             onClick={() => {
                               handleInputChange(field.dataKey, null);
-                              setUploadStates(prev => {
-                                 const next = {...prev};
-                                 delete next[field.dataKey];
-                                 return next;
+                              setUploadStates((prev) => {
+                                const next = { ...prev };
+                                delete next[field.dataKey];
+                                return next;
                               });
                             }}
                             className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0 cursor-pointer"
@@ -851,45 +1071,72 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
                   ) : field.type === 'applicant_token' ? (
                     <div className="mt-3 space-y-2.5">
                       {(() => {
-                        const hasValue = !!activeAnswers[field.dataKey];
-                        const isFieldVerified = isTest ? hasValue : inlineTokens[field.dataKey]?.verified;
-                        const isError = inlineTokens[field.dataKey]?.error;
+                        const rawVal = activeAnswers[field.dataKey] || '';
+                        const digitCount = extractTokenDigits(rawVal, eventCode).length;
+                        const tokenState = inlineTokens[field.dataKey];
+                        const isFieldVerified = Boolean(tokenState?.verified);
+                        const isVerifying = Boolean(tokenState?.verifying);
+                        const isError = tokenState?.error;
 
                         return (
                           <>
                             <div className="flex gap-2">
-                              <div className="relative flex-1">
-                                <KeyRound className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
-                                <input
-                                  type="text"
-                                  required={field.required}
-                                  value={activeAnswers[field.dataKey] || ''}
-                                  onChange={(e) => handleInputChange(field.dataKey, e.target.value.replace(/\s+/g, '').toUpperCase())}
-                                  disabled={inlineTokens[field.dataKey]?.verified && !isTest}
-                                  placeholder={t.tokenPlaceholder ? t.tokenPlaceholder.replace('MMC', form?.schema?.interimEventCode || 'MMC') : `${form?.schema?.interimEventCode || 'MMC'}-XXXX-XXXX`}
-                                  className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none transition-shadow ${
-                                    isFieldVerified ? 'border-emerald-500 bg-emerald-50 text-emerald-900' : isError ? 'border-red-300 focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-stone-800 bg-white' : 'border-stone-300 focus:ring-2 focus:ring-primary/50 focus:border-primary text-stone-800 bg-white'
-                                  }`}
-                                />
-                              </div>
+                              <TokenDigitsInput
+                                eventCode={eventCode}
+                                value={rawVal}
+                                required={field.required}
+                                isVerified={isFieldVerified}
+                                isError={Boolean(isError)}
+                                placeholder={(t as any).tokenPlaceholder || '1234-5678'}
+                                onChangeDigits={(formatted) => {
+                                  handleInputChange(field.dataKey, formatted ? `${eventCode}-${formatted}` : '');
+                                  if (tokenState?.verified || tokenState?.error) {
+                                    setInlineTokens((prev) => ({
+                                      ...prev,
+                                      [field.dataKey]: { verifying: false, verified: false, error: null },
+                                    }));
+                                  }
+                                }}
+                              />
                               <button
                                 type="button"
-                                onClick={() => handleInlineVerify(field.dataKey, activeAnswers[field.dataKey])}
-                                disabled={!hasValue || inlineTokens[field.dataKey]?.verifying || isFieldVerified}
+                                onClick={() => handleInlineVerify(field.dataKey, rawVal)}
+                                disabled={digitCount !== 8 || isVerifying || isFieldVerified}
                                 className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px] cursor-pointer"
                               >
-                                {inlineTokens[field.dataKey]?.verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : isFieldVerified ? <Check className="w-5 h-5 text-emerald-600" /> : t.verify}
+                                {isVerifying ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : isFieldVerified ? (
+                                  <Check className="w-5 h-5 text-emerald-600" />
+                                ) : (
+                                  t.verify
+                                )}
                               </button>
                             </div>
-                            {isError && !isTest && (
-                              <p className="text-xs text-red-500 font-medium flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {isError}</p>
-                            )}
-                            {isFieldVerified && !isTest && (
-                              <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}</p>
-                            )}
-                            {isFieldVerified && isTest && (
-                              <p className="text-xs text-emerald-600 font-medium flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {(t as any).testAutoVerified}</p>
-                            )}
+
+                            <div className="flex items-center justify-between pt-1">
+                              <div>
+                                {isError && (
+                                  <p className="text-xs text-red-500 font-medium flex items-center">
+                                    <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {isError}
+                                  </p>
+                                )}
+                                {isFieldVerified && (
+                                  <p className="text-xs text-emerald-600 font-medium flex items-center">
+                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <button
+                                type="button"
+                                onClick={() => openRecoveryModal(field.dataKey)}
+                                className="text-xs font-semibold text-stone-500 hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Search className="w-3 h-3" />
+                                <span>{(t as any).forgotTokenShort}</span>
+                              </button>
+                            </div>
                           </>
                         );
                       })()}
@@ -966,7 +1213,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
             {errorMessage && (
               <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl flex items-center">
-                <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+                <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                 {errorMessage}
               </div>
             )}
@@ -992,7 +1239,100 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         locale={locale}
         forceStandaloneParam
       />
+
       {renderScreen()}
+
+      {/* SHARED CHALLENGE RETRIEVAL MODAL (PRE-GATE & INLINE TOKEN QUESTION) */}
+      {showRecoveryModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-5 border border-stone-100 relative">
+            <button
+              type="button"
+              onClick={() => setShowRecoveryModal(false)}
+              className="absolute top-5 right-5 p-2 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-100 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">
+                  {(t as any).recoveryModalTitle}
+                </h3>
+                <p className="text-xs text-stone-500">
+                  {(t as any).recoveryModalSubtitle}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleExecuteRecovery} noValidate className="space-y-4 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                  {(t as any).recoveryFullNameLabel} *
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    required
+                    value={recoveryName}
+                    onChange={(e) => {
+                      setRecoveryName(e.target.value);
+                      if (recoveryError) setRecoveryError(null);
+                    }}
+                    placeholder={(t as any).recoveryFullNamePlaceholder}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                  {(t as any).recoveryPhoneLabel} *
+                </label>
+                <MobilePhoneInput
+                  required
+                  value={recoveryPhone}
+                  onChange={(val) => {
+                    setRecoveryPhone(val);
+                    if (recoveryError) setRecoveryError(null);
+                  }}
+                  placeholder={(t as any).recoveryPhonePlaceholder || '852 1234 5678'}
+                />
+              </div>
+
+              {recoveryError && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs flex items-center font-medium">
+                  <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+                  {recoveryError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRecoveryModal(false)}
+                  disabled={isRecovering}
+                  className="px-4 py-2.5 text-xs font-semibold text-stone-500 hover:text-stone-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  {(t as any).recoveryCancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRecovering || !recoveryName.trim() || !recoveryPhone.trim()}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center cursor-pointer"
+                >
+                  {isRecovering && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                  {isRecovering ? (t as any).recoverySubmitting : (t as any).recoverySubmit}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

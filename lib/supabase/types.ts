@@ -554,6 +554,8 @@ export type Database = {
       }
       submissions: {
         Row: {
+          applicant_name: string | null
+          applicant_phone_suffix: string | null
           applicant_seq_num: number | null
           applicant_token: string
           created_at: string
@@ -561,11 +563,14 @@ export type Database = {
           event_id: string
           form_id: string
           id: string
+          is_archived: boolean
           is_processed: boolean | null
           is_test: boolean | null
           response: Json
         }
         Insert: {
+          applicant_name?: string | null
+          applicant_phone_suffix?: string | null
           applicant_seq_num?: number | null
           applicant_token: string
           created_at?: string
@@ -573,11 +578,14 @@ export type Database = {
           event_id: string
           form_id: string
           id?: string
+          is_archived?: boolean
           is_processed?: boolean | null
           is_test?: boolean | null
           response?: Json
         }
         Update: {
+          applicant_name?: string | null
+          applicant_phone_suffix?: string | null
           applicant_seq_num?: number | null
           applicant_token?: string
           created_at?: string
@@ -585,6 +593,7 @@ export type Database = {
           event_id?: string
           form_id?: string
           id?: string
+          is_archived?: boolean
           is_processed?: boolean | null
           is_test?: boolean | null
           response?: Json

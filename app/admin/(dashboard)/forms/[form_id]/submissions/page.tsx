@@ -7,7 +7,6 @@ interface PageProps {
 }
 
 export default async function SubmissionsPage(props: PageProps) {
-  // Support both Next.js 15 (Promise params) and Next.js 14 (object params)
   const resolvedParams = await Promise.resolve(props.params);
   const formId = resolvedParams.form_id || resolvedParams.id;
 
@@ -23,7 +22,8 @@ export default async function SubmissionsPage(props: PageProps) {
     canViewTest: hasPermission(profile.roles, 'submissions:view_test'),
     canViewReal: hasPermission(profile.roles, 'submissions:view_real'),
     canExport: hasPermission(profile.roles, 'submissions:export_real') || hasPermission(profile.roles, 'submissions:export_test'),
-    canManage: hasPermission(profile.roles, 'submissions:manage'),
+    canProcess: hasPermission(profile.roles, 'submissions:process'),
+    canArchive: hasPermission(profile.roles, 'submissions:archive'),
   };
 
   return <SubmissionsClient form_id={formId} permissions={permissions} />;

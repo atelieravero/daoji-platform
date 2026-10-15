@@ -53,11 +53,8 @@ export const ROLE_DEFINITIONS: { id: Role; label: string; description: string }[
 // Defines which roles are allowed to assign/revoke a specific target role.
 // ============================================================================
 export const ROLE_ASSIGNMENT_AUTHORITY: Record<Role, Role[]> = {
-  // Empty array = No one can assign this via UI (must be done directly in DB)
   super_admin: [], 
-  // Only Super Admins can promote someone to Team Manager
   team_manager: ['super_admin'], 
-  // Both Super Admins and Team Managers can assign standard operational roles
   form_editor: ['super_admin', 'team_manager'],
   content_editor: ['super_admin', 'team_manager'],
   event_coordinator: ['super_admin', 'team_manager'],
@@ -72,7 +69,8 @@ export type SystemAction =
   // Forms & Submissions
   | 'forms:view' | 'forms:view_schema' | 'forms:create' | 'forms:edit' | 'forms:delete' | 'forms:update_status'
   | 'submissions:view_real' | 'submissions:view_test' | 'submissions:export_real' 
-  | 'submissions:export_test' | 'submissions:manage' 
+  | 'submissions:export_test' | 'submissions:manage'
+  | 'submissions:process' | 'submissions:archive'
   
   // Team & Administration
   | 'team:view' | 'team:manage_workers' | 'team:manage_managers'
@@ -119,7 +117,8 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
     'submissions:view_test', 
     'submissions:export_real', 
     'submissions:export_test', 
-    'submissions:manage'
+    'submissions:manage',
+    'submissions:process'
   ],
   content_editor: [
     'assets:view', 
@@ -154,6 +153,8 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
     'submissions:view_test',
     'submissions:export_real',
     'submissions:export_test',
+    'submissions:process',
+    'submissions:archive',
     'assets:view',
     'assets:upload',
     'tags:view',
@@ -176,7 +177,7 @@ export const ROLE_PERMISSIONS: Partial<Record<Role, SystemAction[]>> = {
     'articles:view',
     'resources:view'
   ]
-}
+};
 
 export function hasPermission(userRoles: string[] | undefined | null, action: SystemAction): boolean {
   if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) return false;
