@@ -316,6 +316,7 @@ CREATE INDEX IF NOT EXISTS idx_events_short_id ON events(short_id);
 CREATE INDEX IF NOT EXISTS idx_events_status_dates ON events(status, start_date ASC);
 CREATE INDEX IF NOT EXISTS idx_events_organizer ON events(organizer_id);
 CREATE INDEX IF NOT EXISTS idx_events_venue ON events(venue_id);
+CREATE INDEX IF NOT EXISTS idx_events_linked_form ON events(linked_form_id);
 CREATE INDEX IF NOT EXISTS idx_events_banner_original ON events(banner_original_asset_id);
 CREATE INDEX IF NOT EXISTS idx_events_is_standalone ON events(is_standalone);
 CREATE INDEX IF NOT EXISTS idx_events_is_featured ON events(is_featured);
@@ -345,7 +346,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_email ON audit_logs(actor_email)
 CREATE INDEX IF NOT EXISTS idx_audit_logs_record_label ON audit_logs(record_label);
 
 -- ==============================================================================
--- 8. ROW LEVEL SECURITY (RLS) POLICIES
+-- 8. ROW LEVEL SECURITY (RLS) POLICIES & TABLE GRANTS
 -- ==============================================================================
 
 ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
@@ -362,31 +363,93 @@ ALTER TABLE resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
--- 8.1 Public Read Policies
-CREATE POLICY "Public read for assets" ON assets FOR SELECT USING (true);
-CREATE POLICY "Public read for tags" ON tags FOR SELECT USING (true);
-CREATE POLICY "Public read for taggables" ON taggables FOR SELECT USING (true);
-CREATE POLICY "Public read for venues" ON venues FOR SELECT USING (true);
-CREATE POLICY "Public read for organizers" ON organizers FOR SELECT USING (true);
-CREATE POLICY "Public read for published/unlisted events" ON events FOR SELECT USING (status IN ('published', 'unlisted'));
-CREATE POLICY "Public read for published content_pages" ON content_pages FOR SELECT USING (status = 'published');
-CREATE POLICY "Public read for event_articles" ON event_articles FOR SELECT USING (true);
-CREATE POLICY "Public read for published resources" ON resources FOR SELECT USING (status = 'published');
-CREATE POLICY "Public read for forms" ON forms FOR SELECT USING (true);
+-- 8.1 Explicit Schema & Table Grants (Ensures PostgREST joins work for anon & authenticated)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
--- 8.2 Authenticated Staff Full Access Policies
+GRANT SELECT ON
+  public.assets,
+  public.tags,
+  public.taggables,
+  public.venues,
+  public.organizers,
+  public.events,
+  public.forms,
+  public.content_pages,
+  public.event_articles,
+  public.resources
+TO anon, authenticated;
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
+
+-- 8.2 Public Read Policies (Idempotent)
+DROP POLICY IF EXISTS "Public read for assets" ON assets;
+CREATE POLICY "Public read for assets" ON assets FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for tags" ON tags;
+CREATE POLICY "Public read for tags" ON tags FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for taggables" ON taggables;
+CREATE POLICY "Public read for taggables" ON taggables FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for venues" ON venues;
+CREATE POLICY "Public read for venues" ON venues FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for organizers" ON organizers;
+CREATE POLICY "Public read for organizers" ON organizers FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for published/unlisted events" ON events;
+CREATE POLICY "Public read for published/unlisted events" ON events FOR SELECT TO public USING (status IN ('published', 'unlisted'));
+
+DROP POLICY IF EXISTS "Public read for published content_pages" ON content_pages;
+CREATE POLICY "Public read for published content_pages" ON content_pages FOR SELECT TO public USING (status = 'published');
+
+DROP POLICY IF EXISTS "Public read for event_articles" ON event_articles;
+CREATE POLICY "Public read for event_articles" ON event_articles FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for published resources" ON resources;
+CREATE POLICY "Public read for published resources" ON resources FOR SELECT TO public USING (status = 'published');
+
+DROP POLICY IF EXISTS "Public read for forms" ON forms;
+CREATE POLICY "Public read for forms" ON forms FOR SELECT TO public USING (true);
+
+-- 8.3 Authenticated Staff Full Access Policies (Idempotent)
+DROP POLICY IF EXISTS "Authenticated staff full access assets" ON assets;
 CREATE POLICY "Authenticated staff full access assets" ON assets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access tags" ON tags;
 CREATE POLICY "Authenticated staff full access tags" ON tags FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access taggables" ON taggables;
 CREATE POLICY "Authenticated staff full access taggables" ON taggables FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access venues" ON venues;
 CREATE POLICY "Authenticated staff full access venues" ON venues FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access organizers" ON organizers;
 CREATE POLICY "Authenticated staff full access organizers" ON organizers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access events" ON events;
 CREATE POLICY "Authenticated staff full access events" ON events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access forms" ON forms;
 CREATE POLICY "Authenticated staff full access forms" ON forms FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access submissions" ON submissions;
 CREATE POLICY "Authenticated staff full access submissions" ON submissions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access content_pages" ON content_pages;
 CREATE POLICY "Authenticated staff full access content_pages" ON content_pages FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access event_articles" ON event_articles;
 CREATE POLICY "Authenticated staff full access event_articles" ON event_articles FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access resources" ON resources;
 CREATE POLICY "Authenticated staff full access resources" ON resources FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access team_members" ON team_members;
 CREATE POLICY "Authenticated staff full access team_members" ON team_members FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access audit_logs" ON audit_logs;
 CREATE POLICY "Authenticated staff full access audit_logs" ON audit_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ==============================================================================

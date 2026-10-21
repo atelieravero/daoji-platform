@@ -23,9 +23,11 @@ These eight architectural conventions define how this platform solves specific o
    * **Identity Anchors (Application Forms Only):** On initial application forms (`is_followup = false`), form builders can designate one `text` question as `Identity Anchor: Full Name` (`is_identity_name`) and one `mobile` question as `Identity Anchor: Mobile Number` (`is_identity_phone`). Question type dropdowns are locked while designated as anchors. Saving the form recalculates anchor columns (`applicant_name`, `applicant_phone_suffix`) across existing submissions.
    * **Self-Service Challenge Recovery:** Applicants who misplace their token can challenge either the follow-up pre-gate or an inline `applicant_token` question via `<TokenRecoveryModal/>` using their Name and Mobile Number. The server canonicalizes the name (all spaces/punctuation stripped, lowercased) and phone (suffix-8 digits) and verifies that **exactly one non-archived match exists** with non-empty anchor values. Real mode matches against real submissions; test mode matches against test submissions.
 
-4. **Dynamic Registration State Inheritance:**
+4. **Dynamic Registration State Inheritance & Cookie-Safe Public Joins:**
    * When an event is set to `registration_mode: 'internal_form'`, the public action button's state (`upcoming`, `open`, `closed`) and destination URL are not stored statically on the event.
-   * **Resolution:** `lib/events.ts` joins the linked form and dynamically derives the operational status from `forms.status` (`draft` $\rightarrow$ Upcoming, `open` $\rightarrow$ Open, `closed` $\rightarrow$ Closed). When clicked, registration buttons always open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+   * **Single-Round-Trip Resolution:** `lib/events.ts` joins `linked_form:forms!linked_form_id(id, slug, status)` directly inside the `events` query and dynamically derives the operational status from `forms.status` (`draft` $\rightarrow$ Upcoming, `open` $\rightarrow$ Open, `closed` $\rightarrow$ Closed). When clicked, registration buttons always open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+   * **RLS & Table Grants:** Publicly joined tables (`forms`, `venues`, `organizers`, `assets`, `content_pages`, `event_articles`) require both `TO public` SELECT RLS policies and explicit `GRANT SELECT ... TO anon, authenticated` privileges so PostgREST joins never silently resolve to `null` for unauthenticated visitors.
+   * **Auth-Cookie Isolation:** Because `createClient()` forwards browser cookies, signed-in admins visiting public pages trigger `authenticated` RLS policies (`USING (true)`). Public resolvers in `lib/events.ts` explicitly filter joined relations (such as `article.status === 'published'`) in application code so signed-in admins and anonymous visitors always see identical public data.
 
 5. **Recurring Livestream Engine with Calendar Projection:**
    * Supports Zoom, YouTube, and Facebook Live simultaneously.
@@ -38,7 +40,7 @@ These eight architectural conventions define how this platform solves specific o
 
 7. **Immutable Short IDs vs. Mutable Vanity Slugs:**
    * Every public entity generates an immutable 8-character Base62 `short_id` (`nanoid(8)`).
-   * Slugs are optional, mutable, and sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`). Route resolvers query `WHERE short_id = $1 OR slug = $1`. Changing a slug never breaks existing inbound links or printed QR codes.
+   * Slugs are optional, mutable, and sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`). Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`) so special characters like dots (`.`) never break filter parsing. Changing a slug never breaks existing inbound links or printed QR codes.
 
 8. **Silent Denial RBAC & Immutable Forms:**
    * Permissions are strictly enforced server-side via `lib/permissions.ts`. Unauthorized UI controls (such as delete buttons) are silently omitted from the DOM rather than triggering disruptive error redirects.
@@ -50,7 +52,7 @@ These eight architectural conventions define how this platform solves specific o
 ## Tech Stack & Infrastructure
 * **Framework:** Next.js (App Router, Server Actions, Route Groups).
 * **Styling:** Tailwind CSS (v4 `@theme inline` with Daoji Ochre brand palette).
-* **Database & Auth:** Supabase (PostgreSQL with RLS, pg_crypto, and CDC audit triggers).
+* **Database & Auth:** Supabase (PostgreSQL with idempotent RLS policies, explicit `anon`/`authenticated` table grants, `pgcrypto`, and CDC audit triggers).
 * **Storage:** Dual Cloudflare R2 bucket architecture via `@aws-sdk/client-s3`:
   * *Private Bucket:* Encrypted applicant file uploads partitioned into `submissions/test/` vs `submissions/real/`.
   * *Public CDN Bucket:* Custom domain `https://cdn.ajahnyiu.org` for media pool assets and cropped banners.
@@ -102,7 +104,7 @@ These eight architectural conventions define how this platform solves specific o
 * **Location Channels:**
   * *In-Person:* `is_in_person` (boolean), `venue_id` (FK $\rightarrow$ `venues.id`), `venue_override_zh`, `venue_override_en`.
   * *Livestream:* `is_livestream` (boolean), `is_livestream_live` (boolean, manual override), `livestream_config` (JSONB: `mode` ['auto' | 'manual'], zoom, youtube, facebook URLs, meeting IDs, passcodes, open minutes).
-* **Registration Gate:** `registration_mode` (`internal_form` | `external_url` | `not_required`), `code` (1–8 uppercase alphanumeric, required for forms), `linked_form_id` (FK $\rightarrow$ `forms.id`), `external_url`, `registration_status`, `cta_label_zh`, `cta_label_en`.
+* **Registration Gate:** `registration_mode` (`internal_form` | `external_url` | `not_required`), `code` (1–8 uppercase alphanumeric, required for forms), `linked_form_id` (FK $\rightarrow$ `forms.id`, indexed via `idx_events_linked_form`), `external_url`, `registration_status`, `cta_label_zh`, `cta_label_en`.
 * **Media & Shell:** `banner_asset_id` (cropped), `banner_original_asset_id` (master), `status` (`draft` | `published` | `unlisted` | `archived`), `is_featured`, `is_standalone`.
 
 ### 2. `forms` & `submissions` (Dynamic Form Engine)
