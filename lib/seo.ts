@@ -37,6 +37,13 @@ export function constructMetadata({
   // MOD: Only use the passed title, no appended branding.
   const formattedTitle = title ? title : defaultTitle;
 
+  // --- NORMALIZE IMAGE URL TO ABSOLUTE ---
+  let imageUrl = image || `${baseUrl}/og-default.jpg`;
+  if (imageUrl && !imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+    const cleanImagePath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+    imageUrl = `${baseUrl}${cleanImagePath}`;
+  }
+
   return {
     title: formattedTitle,
     description: description || defaultDescription,
@@ -57,10 +64,9 @@ export function constructMetadata({
       title: title || defaultTitle,
       description: description || defaultDescription,
       url: canonicalUrl,
-      // MOD: siteName removed to de-brand the origin
       images: [
         {
-          url: image || `${baseUrl}/og-default.jpg`,
+          url: imageUrl,
           width: 1200,
           height: 630,
           alt: title || defaultTitle,
@@ -75,7 +81,7 @@ export function constructMetadata({
       card: 'summary_large_image',
       title: title || defaultTitle,
       description: description || defaultDescription,
-      images: [image || `${baseUrl}/og-default.jpg`],
+      images: [imageUrl],
     },
   };
 }
