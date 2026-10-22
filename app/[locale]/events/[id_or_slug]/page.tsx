@@ -1,4 +1,5 @@
 import React from 'react';
+import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -17,35 +18,22 @@ interface EventPageProps {
   params: Promise<{ locale: string; id_or_slug: string }>;
 }
 
-function toPlainTextExcerpt(markdown?: string | null, maxLength: number = 150): string | undefined {
-  if (!markdown) return undefined;
-  const plain = markdown
-    .replace(/!\[.*?\]\(.*?\)/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[#>*_`~-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!plain) return undefined;
-  return plain.length > maxLength ? `${plain.slice(0, maxLength)}...` : plain;
-}
-
-export async function generateMetadata({ params }: EventPageProps) {
+export async function generateMetadata({ params }: EventPageProps): Promise<Metadata> {
   const { locale, id_or_slug } = await params;
   const event = await getPublicEventByIdOrSlug(id_or_slug);
-  if (!event) return {};
+  if (!event) {
+    return constructMetadata({ locale, title: 'Not Found' });
+  }
 
   const isZh = locale !== 'en';
   const title = (isZh ? (event.title_zh || event.title_en) : (event.title_en || event.title_zh)) || undefined;
-  const rawSummary = isZh ? (event.summary_zh || event.summary_en) : (event.summary_en || event.summary_zh);
-  const rawBody = isZh ? (event.body_zh || event.body_en) : (event.body_en || event.body_zh);
-  const description = rawSummary?.trim() || toPlainTextExcerpt(rawBody);
-  const imageUrl = event.banner_asset?.file_url || undefined;
+  const description = (isZh ? (event.summary_zh || event.summary_en) : (event.summary_en || event.summary_zh)) || undefined;
 
   return constructMetadata({
     title,
-    description,
-    image: imageUrl,
-    path: `/events/${event.slug || event.short_id}`,
+    description: description ? description.substring(0, 150) : undefined,
+    image: event.banner_asset?.file_url || undefined,
+    path: `events/${event.slug || event.short_id}`,
     locale,
   });
 }
