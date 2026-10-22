@@ -13,15 +13,20 @@ import EventActionPortal from '@/components/public/EventActionPortal';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
-const LANGUAGE_MAP: Record<string, { zh: string; en: string }> = {
-  cantonese: { zh: '粵語', en: 'Cantonese' },
-  mandarin: { zh: '華語普通話', en: 'Mandarin' },
-  english: { zh: '英語', en: 'English' },
-  thai: { zh: '泰語', en: 'Thai' },
-};
-
 interface EventPageProps {
   params: Promise<{ locale: string; id_or_slug: string }>;
+}
+
+function toPlainTextExcerpt(markdown?: string | null, maxLength: number = 150): string | undefined {
+  if (!markdown) return undefined;
+  const plain = markdown
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#>*_`~-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!plain) return undefined;
+  return plain.length > maxLength ? `${plain.slice(0, maxLength)}...` : plain;
 }
 
 export async function generateMetadata({ params }: EventPageProps) {
@@ -31,12 +36,15 @@ export async function generateMetadata({ params }: EventPageProps) {
 
   const isZh = locale !== 'en';
   const title = (isZh ? (event.title_zh || event.title_en) : (event.title_en || event.title_zh)) || undefined;
-  const description = (isZh ? (event.summary_zh || event.summary_en) : (event.summary_en || event.summary_zh)) || undefined;
+  const rawSummary = isZh ? (event.summary_zh || event.summary_en) : (event.summary_en || event.summary_zh);
+  const rawBody = isZh ? (event.body_zh || event.body_en) : (event.body_en || event.body_zh);
+  const description = rawSummary?.trim() || toPlainTextExcerpt(rawBody);
+  const imageUrl = event.banner_asset?.file_url || undefined;
 
   return constructMetadata({
     title,
     description,
-    image: event.banner_asset?.file_url || undefined,
+    image: imageUrl,
     path: `/events/${event.slug || event.short_id}`,
     locale,
   });
