@@ -110,7 +110,7 @@
     "forgotTokenShort": "Forgot token?",
     "recoveryModalTitle": "Retrieve Application Token",
     "recoveryModalSubtitle": "Verify with the name & phone from your application.",
-    "recoveryFullNameLabel": "Full Name",
+    "recoveryFullNameLabel": "Full Name (as used in your application)",
     "recoveryFullNamePlaceholder": "e.g. David Chan",
     "recoveryPhoneLabel": "Mobile Number",
     "recoveryPhonePlaceholder": "852 1234 5678",

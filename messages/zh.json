@@ -110,7 +110,7 @@
     "forgotTokenShort": "忘記代碼？",
     "recoveryModalTitle": "找回申請代碼",
     "recoveryModalSubtitle": "請輸入初次報名時填寫的姓名與電話",
-    "recoveryFullNameLabel": "中文或英文全名",
+    "recoveryFullNameLabel": "您的全名（與報名中填寫的姓名一致）",
     "recoveryFullNamePlaceholder": "例如：陳大文",
     "recoveryPhoneLabel": "流動電話號碼",
     "recoveryPhonePlaceholder": "852 1234 5678",
