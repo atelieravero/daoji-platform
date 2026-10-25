@@ -23,11 +23,10 @@ These eight architectural conventions define how this platform solves specific o
    * **Identity Anchors (Application Forms Only):** On initial application forms (`is_followup = false`), form builders can designate one `text` question as `Identity Anchor: Full Name` (`is_identity_name`) and one `mobile` question as `Identity Anchor: Mobile Number` (`is_identity_phone`). Question type dropdowns are locked while designated as anchors. Saving the form recalculates anchor columns (`applicant_name`, `applicant_phone_suffix`) across existing submissions.
    * **Self-Service Challenge Recovery:** Applicants who misplace their token can challenge either the follow-up pre-gate or an inline `applicant_token` question via `<TokenRecoveryModal/>` using their Name and Mobile Number. The server canonicalizes the name (all spaces/punctuation stripped, lowercased) and phone (suffix-8 digits) and verifies that **exactly one non-archived match exists** with non-empty anchor values. Real mode matches against real submissions; test mode matches against test submissions.
 
-4. **Dynamic Registration State Inheritance & Cookie-Safe Public Joins:**
+4. **Dynamic Registration State Inheritance & Crawler-Safe Public Resolution:**
    * When an event is set to `registration_mode: 'internal_form'`, the public action button's state (`upcoming`, `open`, `closed`) and destination URL are not stored statically on the event.
-   * **Single-Round-Trip Resolution:** `lib/events.ts` joins `linked_form:forms!linked_form_id(id, slug, status)` directly inside the `events` query and dynamically derives the operational status from `forms.status` (`draft` $\rightarrow$ Upcoming, `open` $\rightarrow$ Open, `closed` $\rightarrow$ Closed). When clicked, registration buttons always open in a new tab (`target="_blank" rel="noopener noreferrer"`).
-   * **RLS & Table Grants:** Publicly joined tables (`forms`, `venues`, `organizers`, `assets`, `content_pages`, `event_articles`) require both `TO public` SELECT RLS policies and explicit `GRANT SELECT ... TO anon, authenticated` privileges so PostgREST joins never silently resolve to `null` for unauthenticated visitors.
-   * **Auth-Cookie Isolation:** Because `createClient()` forwards browser cookies, signed-in admins visiting public pages trigger `authenticated` RLS policies (`USING (true)`). Public resolvers in `lib/events.ts` explicitly filter joined relations (such as `article.status === 'published'`) in application code so signed-in admins and anonymous visitors always see identical public data.
+   * **Resolution:** `lib/events.ts` uses `getSupabaseAdmin()` (mirroring `getPublicForm` in `app/[locale]/form/[slug]/actions.ts`) to resolve public events, `banner_asset`, `venues`, `organizers`, and `linked_form` on the server without cookie or RLS discrepancies for anonymous visitors and social link preview crawlers (WhatsApp, WeChat, iMessage, Telegram). It dynamically derives the operational status from `forms.status` (`draft` $\rightarrow$ Upcoming, `open` $\rightarrow$ Open, `closed` $\rightarrow$ Closed). When clicked, registration buttons always open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+   * **Explicit Status Filtering:** Public resolvers in `lib/events.ts` explicitly filter `events.status` (`published`, `unlisted`) and joined `event_articles` (`article.status === 'published'`) so signed-in admins and anonymous visitors always see identical public data.
 
 5. **Recurring Livestream Engine with Calendar Projection:**
    * Supports Zoom, YouTube, and Facebook Live simultaneously.
@@ -111,6 +110,7 @@ These eight architectural conventions define how this platform solves specific o
 * **`forms`:** `id` (UUID PK), `slug`, `event_id` (UUID FK $\rightarrow$ `events.id` ON DELETE SET NULL), `title`, `is_followup` (token-gated), `status` (`draft` | `open` | `closed`), `schema` (JSONB: fields, validation, conditions, token-box positioning, anchor designations `is_identity_name` and `is_identity_phone`).
 * **`submissions`:** 
   * `id` (UUID PK), `form_id` (FK), `event_id`, `event_code`.
+  * `locale`: Nullable `TEXT` recording the exact route locale code (`zh`, `en`, etc.) used when submitting the form, with no default assumption.
   * `applicant_token`: 8-digit numeric token (`[CODE]-DDDD-DDDD`).
   * `applicant_seq_num`: Sequential counter scoped to `event_code`.
   * `applicant_name`: Canonicalized full name (all whitespace/punctuation stripped, lowercase).

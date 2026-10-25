@@ -175,8 +175,8 @@ export async function recoverApplicantToken(params: {
 }
 
 /**
- * Submits public form record scoped to event_code, populates identity anchors,
- * and provisions 8-digit numeric magic tokens.
+ * Submits public form record scoped to event_code, records the raw locale code,
+ * populates identity anchors, and provisions 8-digit numeric magic tokens.
  */
 export async function submitPublicForm(payload: {
   form_id: string;
@@ -185,6 +185,7 @@ export async function submitPublicForm(payload: {
   is_test?: boolean;
   applicant_token?: string;
   interim_event_code?: string;
+  locale?: string | null;
 }) {
   const supabase = getSupabaseAdmin();
   const isTest = Boolean(payload.is_test);
@@ -238,13 +239,14 @@ export async function submitPublicForm(payload: {
     applicantPhoneSuffix = canonicalizePhoneSuffix(rawPhone) || null;
   }
 
-  // 4. Ingest submission record
+  // 4. Ingest submission record with original locale code
   const { error: insertError } = await supabase
     .from('submissions')
     .insert([{
       form_id: payload.form_id,
       event_id: payload.event_id,
       event_code: resolvedCode,
+      locale: payload.locale ?? null,
       response: payload.answers,
       applicant_token: activeToken,
       applicant_name: applicantName,

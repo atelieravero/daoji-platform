@@ -321,6 +321,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         is_test: isTest,
         applicant_token: applicantToken,
         interim_event_code: eventCode,
+        locale: locale,
       });
 
       let newToken = null;

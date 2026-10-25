@@ -566,6 +566,7 @@ export type Database = {
           is_archived: boolean
           is_processed: boolean | null
           is_test: boolean | null
+          locale: string | null
           response: Json
         }
         Insert: {
@@ -581,6 +582,7 @@ export type Database = {
           is_archived?: boolean
           is_processed?: boolean | null
           is_test?: boolean | null
+          locale?: string | null
           response?: Json
         }
         Update: {
@@ -596,6 +598,7 @@ export type Database = {
           is_archived?: boolean
           is_processed?: boolean | null
           is_test?: boolean | null
+          locale?: string | null
           response?: Json
         }
         Relationships: [

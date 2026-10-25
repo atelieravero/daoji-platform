@@ -66,6 +66,7 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
 
         const initialCols: ColumnDef[] = [
           { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
+          { id: 'locale', label: 'locale', visible: true, isMeta: true },
           { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
           { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
         ];
@@ -176,6 +177,7 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
 
       const rowValues = activeCols.map((c) => {
         if (c.id === 'created_at') return escapeCSV(new Date(sub.created_at).toLocaleString());
+        if (c.id === 'locale') return escapeCSV(sub.locale);
         if (c.id === 'applicant_seq_num')
           return escapeCSV(sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-');
         if (c.id === 'applicant_token') return escapeCSV(sub.applicant_token);
@@ -227,8 +229,9 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
       const tokenMatch = (sub.applicant_token || '').toLowerCase().includes(term);
       const seqMatch = sub.applicant_seq_num && String(sub.applicant_seq_num).includes(term);
       const nameMatch = (sub.applicant_name || '').toLowerCase().includes(term);
+      const localeMatch = (sub.locale || '').toLowerCase().includes(term);
       const dataMatch = JSON.stringify(sub.response || {}).toLowerCase().includes(term);
-      return tokenMatch || seqMatch || nameMatch || dataMatch;
+      return tokenMatch || seqMatch || nameMatch || localeMatch || dataMatch;
     }
 
     return true;
@@ -496,6 +499,8 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
 
                     if (col.id === 'created_at') {
                       cellValue = new Date(sub.created_at).toLocaleString();
+                    } else if (col.id === 'locale') {
+                      cellValue = sub.locale || '-';
                     } else if (col.id === 'applicant_seq_num') {
                       cellValue = sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-';
                     } else if (col.id === 'applicant_token') {

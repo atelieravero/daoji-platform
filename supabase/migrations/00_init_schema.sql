@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS submissions (
     form_id UUID NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     event_code TEXT NOT NULL,
+    locale TEXT,
     applicant_token TEXT,
     applicant_seq_num INTEGER,
     applicant_name TEXT,
