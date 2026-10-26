@@ -35,7 +35,7 @@ These eight architectural conventions define how this platform solves specific o
 
 6. **Strict Bilingual Fallback Chain (`current lang > other lang > nil`):**
    * Traditional Chinese (`/zh`) is the primary system locale. If a field lacks content in the requested locale, it gracefully falls back to the alternate language before displaying a placeholder or blank space.
-   * Applied across event titles, markdown descriptions, venue names (`venue_override` $\rightarrow$ `venue.name`), venue addresses, and organizer names.
+   * Applied across event and article titles, markdown descriptions, venue names (`venue_override` $\rightarrow$ `venue.name`), venue addresses, and organizer names.
 
 7. **Immutable Short IDs vs. Mutable Vanity Slugs:**
    * Every public entity generates an immutable 8-character Base62 `short_id` (`nanoid(8)`).
@@ -119,15 +119,20 @@ These eight architectural conventions define how this platform solves specific o
   * `is_archived`: Boolean flag to de-index duplicate or invalid records from challenge recovery.
   * `is_test`, `is_processed`.
 
-### 3. `assets` (Media Pool)
-* `id`, `file_url`, `s3_key`, `file_name`, `mime_type`, `file_size_bytes`, `width`, `height`, `alt_text_zh`, `alt_text_en`, `is_system` (boolean: hides derivative crops from general picker), `created_by`.
+### 3. `content_pages` & `event_articles` (Editorial Content & Updates)
+* **`content_pages`:** `id` (UUID PK), `short_id` (Base62 unique), `slug` (RFC 3986 unique, nullable), `type` (`article` | `page`), `title_zh`, `title_en`, `body_zh`, `body_en`, `cover_asset_id` (FK $\rightarrow$ `assets.id`), `event_id` (FK $\rightarrow$ `events.id`), `is_in_feed` (boolean), `is_pinned_in_feed` (boolean), `status` (`draft` | `published` | `archived`), `published_at`.
+* **`event_articles`:** N:M junction table (`event_id`, `article_id`, `sort_order`) linking articles/updates to multiple events.
 
-### 4. `venues` & `organizers`
+### 4. `assets` (Media Pool) & `tags` / `taggables` (Taxonomy)
+* **`assets`:** `id`, `file_url`, `s3_key`, `file_name`, `mime_type`, `file_size_bytes`, `width`, `height`, `alt_text_zh`, `alt_text_en`, `is_system` (boolean: hides derivative crops from general picker), `created_by`.
+* **`tags` & `taggables`:** `tags` (`id`, `short_id`, `slug`, `name_zh`, `name_en`, `is_pillar`, `color`) joined polymorphically via `taggables` (`tag_id`, `taggable_id`, `taggable_type` IN `'event' | 'content_page' | 'resource' | 'asset'`).
+
+### 5. `venues` & `organizers`
 * **`venues`:** `id`, `name_zh`, `name_en`, `address_zh`, `address_en`, `google_maps_url`, `amap_url` (Mainland China routing), `transport_guide_zh`, `transport_guide_en`, `timezone`.
 * **`organizers`:** `id`, `name_en` (mandatory), `name_zh`, `url`, `description_zh`, `description_en`.
 
-### 5. `audit_logs` (CDC System Ledger)
-* Automated Change Data Capture engine via `log_cdc_mutation()` tracking mutations across `forms`, `events`, `venues`, `organizers`, `assets`, `team_members`, and `tags`.
+### 6. `audit_logs` (CDC System Ledger)
+* Automated Change Data Capture engine via `log_cdc_mutation()` tracking mutations across `forms`, `events`, `venues`, `organizers`, `assets`, `team_members`, `tags`, `content_pages`, and `resources`.
 * Strictly records `CREATE` for all insert operations (check constraint enforced).
 * Tracks `old_values`, `new_values`, `operation` (`CREATE`, `UPDATE`, `DELETE`), actor email/name, and resolved entity titles with visual diffing in the Admin Audit Logs Explorer.
 
@@ -136,4 +141,5 @@ These eight architectural conventions define how this platform solves specific o
 ## Public Routing & Visibility Matrix
 * **Published Events (`status = 'published'`):** Visible in public `/events` calendar listings and accessible via permalink (`/events/[short_id]` or `/events/[slug]`).
 * **Unlisted Events (`status = 'unlisted'`):** Excluded from `/events` calendar listings, but resolve when accessed via direct permalink (for private retreats, member-only programs, and preliminary testing).
-* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace (`/admin/events`).
+* **Published Content Pages (`status = 'published'`):** Accessible via permalink (`/[locale]/news/[id_or_slug]`) and attached event detail pages.
+* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace.

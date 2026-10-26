@@ -1,70 +1,68 @@
-# Sprint 17: Editorial Articles, Static Pages & Bulletin Feed
+# Sprint 17: Editorial Content Pages & Posts (`content_pages`)
 
 ## Objective
-Implement the web-native reading experience for blog reflections, announcements, static pages (About Us, Contact), and event updates:
-1. Build Server Actions for `content_pages` (`type: 'article' | 'page'`) guarded by `articles:*` RBAC permissions.
-2. Develop the administrative Markdown/Notion-style editor with `<MediaPicker/>` integration, cover image selection, feed toggles, and event update linking.
-3. Build the public Bulletin feed (`/news`) with sticky announcement banner support.
-4. Implement public reading routes (`/news/[id_or_slug]` and `/[id_or_slug]`) with dual-lookup resolution and SEO metadata.
-5. Connect attached update posts to Sprint 16’s Event Landing Page timeline.
+Build the administrative editor and public single-page view for Editorial Articles/Posts and Static Pages (`content_pages`). 
+*Note: Directory/hub feeds (`/news`, `/events`, `/resources`, `/tags`) and global filtering are intentionally deferred to Phase 2 until the single Page/Post editor and public view are complete.*
 
 ---
 
-## Scope & Schema Contracts
+## 1. Database Schema Reference (Already in `00_init_schema.sql`)
 
-### 1. Domain Entities & Relations
-*   **`content_pages` Table:**
-    *   Identity: `id` (UUID PK), `short_id` (8-char Base62, auto-generated, unique), `slug` (text, nullable, unique partial index).
-    *   Type: `type` (`page` | `article`).
-    *   Content: `title_zh`, `title_en`, `body_zh` (Markdown), `body_en`.
-    *   Placement: `is_in_feed` (boolean), `is_pinned_in_feed` (boolean).
-    *   Relations: `cover_asset_id` (FK -> `assets.id`), `event_id` (FK -> `events.id`, nullable for 1:N updates).
-    *   Publication: `status` (`draft` | `published` | `archived`), `published_at`, `created_at`, `updated_at`.
-*   **Taxonomy:** Associated with Topic Pillars and Micro-tags via `taggables` (`taggable_type: 'content_page'`).
+### 1.1 `content_pages`
+*   `id`: `UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+*   `short_id`: `TEXT NOT NULL UNIQUE DEFAULT nanoid(8)` (Immutable Base62 identifier)
+*   `slug`: `TEXT` (Optional, mutable, RFC 3986 safe characters, unique partial index `idx_content_pages_slug_unique`)
+*   `type`: `TEXT NOT NULL DEFAULT 'article' CHECK (type IN ('page', 'article'))`
+*   `title_zh`: `TEXT NOT NULL`
+*   `title_en`: `TEXT`
+*   `body_zh`: `TEXT NOT NULL DEFAULT ''`
+*   `body_en`: `TEXT`
+*   `cover_asset_id`: `UUID REFERENCES assets(id) ON DELETE SET NULL`
+*   `event_id`: `UUID REFERENCES events(id) ON DELETE SET NULL` (Legacy/primary event pointer)
+*   `is_in_feed`: `BOOLEAN NOT NULL DEFAULT TRUE`
+*   `is_pinned_in_feed`: `BOOLEAN NOT NULL DEFAULT FALSE`
+*   `status`: `TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived'))`
+*   `published_at`: `TIMESTAMPTZ`
+*   `created_at`, `updated_at`: `TIMESTAMPTZ`
 
-### 2. Dual-Lookup & Routing Contract
-*   **Articles:** `/[locale]/news/[id_or_slug]`
-*   **Static Pages:** `/[locale]/[id_or_slug]` (e.g., `/about`, `/contact`)
-*   **Resolution Query:** `WHERE (short_id = :id_or_slug OR slug = :id_or_slug) AND status = 'published'`.
+*(Optional schema enhancement to evaluate during implementation: whether `summary_zh` / `summary_en`, `cover_original_asset_id`, or `is_standalone` should be added to `content_pages` for parity with `events`.)*
 
----
+### 1.2 `event_articles` (Multi-Event Attachments)
+*   `event_id`: `UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE`
+*   `article_id`: `UUID NOT NULL REFERENCES content_pages(id) ON DELETE CASCADE`
+*   `sort_order`: `INTEGER NOT NULL DEFAULT 0`
+*   `PRIMARY KEY (event_id, article_id)`
 
-## Technical Checklist
-
-### Phase 1: Data Layer & Server Actions (`app/admin/articles/actions.ts`)
-- [ ] Define Zod validation schemas for articles and static pages.
-- [ ] Implement `createArticleAction`: Handles metadata, Markdown body, cover asset, feed switches, and optional `event_id`. Guarded by `articles:create`.
-- [ ] Implement `updateArticleAction`: Updates content, taxonomy, and placement. Guarded by `articles:edit`.
-- [ ] Implement `deleteArticleAction`: Deletes page and associated tag joins. Guarded by `articles:delete`.
-- [ ] Implement `publishArticleAction`: Manages state transitions and sets `published_at`. Guarded by `articles:publish`.
-- [ ] Attach CDC audit triggers to record mutations in `audit_logs`.
-
-### Phase 2: Admin Editorial Interface (`app/admin/articles/`)
-- [ ] **Content List View (`/admin/articles`):** Filters for `Type` (`Article` vs `Page`), `Feed Status`, and `Event Attachment`.
-- [ ] **Markdown Editor (`/admin/articles/new`, `/admin/articles/[id]`):**
-  - Localized Title and Markdown editor.
-  - Toolbar button to trigger `<MediaPicker/>` and insert markdown image links `![alt](url)`.
-  - Cover Image selector via `<MediaPicker/>`.
-  - Placement toggles: `[x] Show in News Feed`, `[x] Pin as Top Announcement`.
-  - **"Attach to Event (Optional)"** dropdown selector.
-  - Tag selector for Topic Pillars and Micro-tags.
-  - Collapsible **"URL & SEO Settings"** panel (`short_id` + optional `slug`).
-
-### Phase 3: Public Reading Experience (`app/[locale]/`)
-- [ ] **Bulletin Feed (`/news`):**
-  - Sticky announcement banner for `is_pinned_in_feed: true` posts.
-  - Chronological stream with date, author, reading time, and Topic Pillar badges.
-  - Interactive Event Context Card on posts linked to an `event_id` with link to `/events/[id_or_slug]`.
-- [ ] **Article Reader (`/news/[id_or_slug]`):** Responsive typography, cover image, and tag pill footer.
-- [ ] **Static Page Renderer (`/[id_or_slug]`):** Clean layout for About Us, Contact, and monastery rules.
-- [ ] **Event Timeline Wiring:** Update `/events/[id_or_slug]` to query and display all attached articles chronologically.
-- [ ] Connect dynamic metadata generation via `constructMetadata` in `lib/seo.ts`.
+### 1.3 `taggables` (Polymorphic Tags)
+*   `tag_id`, `taggable_id`, `taggable_type = 'content_page'`
 
 ---
 
-## Acceptance Criteria
-1. Articles can be drafted, formatted in Markdown, and published with inline images selected from the Media Pool.
-2. Posts linked to an event automatically appear in the timeline of the corresponding `/events/[id_or_slug]` page.
-3. Pinned articles render as priority alert banners at the top of `/news`.
-4. Static pages resolve cleanly via `/[slug]` or `/[short_id]` without appearing in the news feed.
-5. All Server Actions strictly enforce RBAC checks via `requirePermission`.
+## 2. Phase 1 Scope: Admin Editor & Public Single Page/Post
+
+### 2.1 Admin List View (`/admin/articles` or `/admin/pages`)
+*   Built with shared primitives: `<AdminPageHeader/>`, `<AdminTableToolbar/>`, `<AdminTableCard/>`, and `<ShareQrModal/>`.
+*   **Filtering & Search:** Filter by `status` (`all`, `draft`, `published`, `archived`) and `type` (`article` vs `page`), plus debounced title/slug search.
+*   **RBAC:** Guarded by `lib/permissions.ts` (`content:view`, `content:create`, `content:edit`, `content:publish`, `content:delete` — with silent denial for unauthorized actions).
+
+### 2.2 Two-Pane Admin Editor (`ContentPageEditor.tsx`)
+*   **Left Pane (`<BilingualCanvas/>`):**
+    *   Bilingual Title (`title_zh`, `title_en`) and Markdown Body (`body_zh`, `body_en`) with `<MediaPicker/>` image insertion.
+*   **Right Pane (460px Inspector inside `<EditorLayout/>`):**
+    *   **Publishing & Type:** `status` (`draft`, `published`, `archived`), `type` (`article` vs `page`), and `published_at` timestamp (auto-populated on first publish if blank, editable by admin).
+    *   **URL & Permalink (`<UrlSlugInspector/>`):** Displays immutable `short_id` and editable RFC 3986 vanity `slug`.
+    *   **Cover Image (`<CoverBannerPicker/>`):** Connects `cover_asset_id` (and optional master crop retention if enabled).
+    *   **Feed & Display Controls:** `is_in_feed` toggle, `is_pinned_in_feed` toggle.
+    *   **Related Events (`event_articles`):** Multi-event picker allowing an article/update to be attached to one or more operational events (which immediately surfaces under "Related Articles & Updates" on `/[locale]/events/[id_or_slug]`).
+    *   **Taxonomy Tags (`taggables`):** Tag selector syncing `taggable_type = 'content_page'`.
+
+### 2.3 Public Single Page / Post View
+*   **Routing:**
+    *   `/[locale]/news/[id_or_slug]` (Matches existing links rendered on the Public Event Detail page: `href={`/${locale}/news/${art.slug || art.short_id}`}`).
+    *   Evaluate whether `type = 'page'` shares `/[locale]/news/[id_or_slug]` or also resolves at `/[locale]/p/[id_or_slug]` / `/[locale]/[id_or_slug]`.
+*   **Data Resolution (`lib/content-pages.ts`):**
+    *   Uses `getSupabaseAdmin()` (matching `lib/events.ts` and `getPublicForm`) so social crawlers and anonymous users resolve `cover_asset`, attached events, and tags without RLS/cookie discrepancies.
+    *   Dual lookup by `short_id` OR `slug` (`short_id.eq."${decoded}",slug.eq."${decoded}"`), strictly restricted to `status = 'published'`.
+*   **Bilingual Fallback & SEO:**
+    *   Follows `current lang > other lang > nil` for title and markdown body.
+    *   `generateMetadata` uses `constructMetadata` from `lib/seo.ts` with `type: 'article'`, cover image URL, and plain-text excerpt fallback.
