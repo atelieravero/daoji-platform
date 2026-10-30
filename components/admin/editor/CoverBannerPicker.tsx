@@ -1,9 +1,13 @@
+// components/admin/editor/CoverBannerPicker.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { ImageIcon, Trash2, Crop } from 'lucide-react';
 import ImageCropModal from './ImageCropModal';
 import { AssetRecord } from '@/app/admin/(dashboard)/assets/actions';
+
+export const DEFAULT_BANNER_ASPECT_RATIO = 1200 / 630; // 1.91:1 (OpenGraph & Hero standard)
+export const DEFAULT_BANNER_ASPECT_LABEL = '1.91:1';
 
 interface CoverBannerPickerProps {
   label?: string;
@@ -24,8 +28,8 @@ export default function CoverBannerPicker({
   onOpenPicker,
   onRemoveBanner,
   onCropSuccess,
-  aspectRatio = 16 / 9,
-  aspectRatioLabel = '16:9',
+  aspectRatio = DEFAULT_BANNER_ASPECT_RATIO,
+  aspectRatioLabel = DEFAULT_BANNER_ASPECT_LABEL,
   disabled = false,
 }: CoverBannerPickerProps) {
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
@@ -94,7 +98,7 @@ export default function CoverBannerPicker({
               {disabled ? 'No Cover Banner Selected' : 'Select Banner from Media Pool'}
             </span>
             <span className="text-[11px] text-gray-400 mt-0.5">
-              Recommended aspect ratio: {aspectRatioLabel}
+              Recommended aspect ratio: {aspectRatioLabel} (1200×630)
             </span>
           </button>
         )}

@@ -1,3 +1,4 @@
+// components/admin/forms/EventPickerModal.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -7,15 +8,25 @@ import { getEventsForFormBuilder, FormEventOption } from '@/app/admin/(dashboard
 interface EventPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedEventId: string | null;
-  onSelectEvent: (event: FormEventOption) => void;
+  // Single-select mode (used by Form Builder)
+  selectedEventId?: string | null;
+  onSelectEvent?: (event: FormEventOption) => void;
+  // Multi-select mode (used by Content Page / Post Editor)
+  multiSelect?: boolean;
+  selectedEventIds?: string[];
+  onToggleEvent?: (event: FormEventOption) => void;
+  title?: string;
 }
 
 export default function EventPickerModal({
   isOpen,
   onClose,
-  selectedEventId,
+  selectedEventId = null,
   onSelectEvent,
+  multiSelect = false,
+  selectedEventIds = [],
+  onToggleEvent,
+  title,
 }: EventPickerModalProps) {
   const [events, setEvents] = useState<FormEventOption[]>([]);
   const [search, setSearch] = useState('');
@@ -43,6 +54,8 @@ export default function EventPickerModal({
     );
   });
 
+  const modalTitle = title || (multiSelect ? 'Attach Related Events' : 'Select Linked Event');
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150">
@@ -51,7 +64,7 @@ export default function EventPickerModal({
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-sm font-bold text-gray-900">Select Linked Event</h3>
+            <h3 className="text-sm font-bold text-gray-900">{modalTitle}</h3>
           </div>
           <button
             type="button"
@@ -89,13 +102,20 @@ export default function EventPickerModal({
             </div>
           ) : (
             filteredEvents.map((evt) => {
-              const isSelected = selectedEventId === evt.id;
+              const isSelected = multiSelect
+                ? selectedEventIds.includes(evt.id)
+                : selectedEventId === evt.id;
+
               return (
                 <div
                   key={evt.id}
                   onClick={() => {
-                    onSelectEvent(evt);
-                    onClose();
+                    if (multiSelect) {
+                      onToggleEvent?.(evt);
+                    } else {
+                      onSelectEvent?.(evt);
+                      onClose();
+                    }
                   }}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                     isSelected
@@ -125,16 +145,36 @@ export default function EventPickerModal({
                     </div>
                   </div>
 
-                  {isSelected && (
-                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white'
+                        : 'border border-gray-300 bg-white text-transparent'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               );
             })
           )}
         </div>
+
+        {/* FOOTER FOR MULTI-SELECT */}
+        {multiSelect && (
+          <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between shrink-0">
+            <span className="text-xs text-gray-600 font-medium">
+              {selectedEventIds.length} event{selectedEventIds.length === 1 ? '' : 's'} attached
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        )}
 
       </div>
     </div>

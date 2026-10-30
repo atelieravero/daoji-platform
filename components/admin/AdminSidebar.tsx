@@ -140,12 +140,12 @@ export default function AdminSidebar({
 
               {canViewArticles && (
                 <Link
-                  href="/admin/articles"
-                  title={isCollapsed ? 'Articles & Pages' : undefined}
-                  className={navItemClass('/admin/articles')}
+                  href="/admin/content"
+                  title={isCollapsed ? 'Pages & Posts' : undefined}
+                  className={navItemClass('/admin/content')}
                 >
                   <FileText className={`w-4 h-4 shrink-0 text-sky-400 ${!isCollapsed ? 'mr-2.5' : ''}`} />
-                  {!isCollapsed && <span className="truncate">Articles & Pages</span>}
+                  {!isCollapsed && <span className="truncate">Pages & Posts</span>}
                 </Link>
               )}
 

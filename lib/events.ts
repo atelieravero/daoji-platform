@@ -1,3 +1,4 @@
+// lib/events.ts
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { EventRecord } from '@/app/admin/(dashboard)/events/actions';
 
@@ -5,9 +6,11 @@ export interface PublicArticleItem {
   id: string;
   short_id: string;
   slug: string | null;
+  type: 'post' | 'page';
   title_zh: string;
   title_en: string | null;
   summary_zh?: string | null;
+  summary_en?: string | null;
   published_at: string | null;
 }
 
@@ -99,7 +102,7 @@ export async function getPublicEventByIdOrSlug(idOrSlug: string): Promise<Public
     return null;
   }
 
-  // 2. Resolve linked form (if internal_form) and attached published articles in parallel
+  // 2. Resolve linked form (if internal_form) and attached published posts in parallel
   const [formResult, articleLinksResult] = await Promise.all([
     event.registration_mode === 'internal_form' && event.linked_form_id
       ? supabase
@@ -110,7 +113,7 @@ export async function getPublicEventByIdOrSlug(idOrSlug: string): Promise<Public
       : Promise.resolve({ data: null }),
     supabase
       .from('event_articles')
-      .select('sort_order, article:content_pages(id, short_id, slug, title_zh, title_en, published_at, status)')
+      .select('sort_order, article:content_pages(id, short_id, slug, type, title_zh, title_en, summary_zh, summary_en, published_at, status)')
       .eq('event_id', event.id)
       .order('sort_order', { ascending: true }),
   ]);

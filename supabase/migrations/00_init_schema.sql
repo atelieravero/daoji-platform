@@ -203,21 +203,23 @@ CREATE TABLE IF NOT EXISTS submissions (
 -- 5. EDITORIAL CONTENT & KNOWLEDGE HUB
 -- ==============================================================================
 
--- 5.1 Editorial Content Pages & Articles
+-- 5.1 Editorial Content Pages & Posts
 CREATE TABLE IF NOT EXISTS content_pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
     slug TEXT,
-    type TEXT NOT NULL DEFAULT 'article' CHECK (type IN ('page', 'article')),
+    type TEXT NOT NULL DEFAULT 'post' CHECK (type IN ('page', 'post')),
     title_zh TEXT NOT NULL,
     title_en TEXT,
+    summary_zh TEXT,
+    summary_en TEXT,
     body_zh TEXT NOT NULL DEFAULT '',
     body_en TEXT,
     cover_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
-    event_id UUID REFERENCES events(id) ON DELETE SET NULL,
-    is_in_feed BOOLEAN NOT NULL DEFAULT TRUE,
+    cover_original_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
     is_pinned_in_feed BOOLEAN NOT NULL DEFAULT FALSE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    is_standalone BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'unlisted', 'archived')),
     published_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -333,7 +335,9 @@ CREATE INDEX IF NOT EXISTS idx_submissions_challenge_lookup ON submissions(event
 -- Content Pages & Resources
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_pages_slug_unique ON content_pages(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_content_pages_short_id ON content_pages(short_id);
-CREATE INDEX IF NOT EXISTS idx_content_pages_feed ON content_pages(status, is_in_feed, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_pages_feed ON content_pages(status, is_pinned_in_feed, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_pages_cover_original ON content_pages(cover_original_asset_id);
+CREATE INDEX IF NOT EXISTS idx_content_pages_is_standalone ON content_pages(is_standalone);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_slug_unique ON resources(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_resources_short_id ON resources(short_id);
 CREATE INDEX IF NOT EXISTS idx_resources_status_featured ON resources(status, is_featured, created_at DESC);
@@ -402,7 +406,8 @@ DROP POLICY IF EXISTS "Public read for published/unlisted events" ON events;
 CREATE POLICY "Public read for published/unlisted events" ON events FOR SELECT TO public USING (status IN ('published', 'unlisted'));
 
 DROP POLICY IF EXISTS "Public read for published content_pages" ON content_pages;
-CREATE POLICY "Public read for published content_pages" ON content_pages FOR SELECT TO public USING (status = 'published');
+DROP POLICY IF EXISTS "Public read for published/unlisted content_pages" ON content_pages;
+CREATE POLICY "Public read for published/unlisted content_pages" ON content_pages FOR SELECT TO public USING (status IN ('published', 'unlisted'));
 
 DROP POLICY IF EXISTS "Public read for event_articles" ON event_articles;
 CREATE POLICY "Public read for event_articles" ON event_articles FOR SELECT TO public USING (true);

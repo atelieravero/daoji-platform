@@ -1,7 +1,8 @@
+// app/[locale]/form/[slug]/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getPublicForm } from './actions';
-import { constructMetadata } from '@/lib/seo';
+import { constructMetadata, resolveBilingualText, resolveBilingualExcerpt } from '@/lib/seo';
 import FormEngine from './FormEngine';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string, slug: string }> }): Promise<Metadata> {
@@ -12,36 +13,35 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     return constructMetadata({ locale: resolvedParams.locale, title: 'Not Found' });
   }
 
-  // Follow the Chinese-First Fallback Chain
-  const title = resolvedParams.locale === 'zh' 
-    ? (form.schema?.titleZh || form.schema?.titleEn || form.title)
-    : (form.schema?.titleEn || form.schema?.titleZh || form.title);
-  
-  const description = resolvedParams.locale === 'zh'
-    ? (form.schema?.subtitleZh || form.schema?.subtitleEn)
-    : (form.schema?.subtitleEn || form.schema?.subtitleZh);
+  const title =
+    resolveBilingualText(resolvedParams.locale, form.schema?.titleZh, form.schema?.titleEn) ||
+    form.title;
+
+  const description = resolveBilingualExcerpt({
+    locale: resolvedParams.locale,
+    summaryZh: form.schema?.summaryZh,
+    summaryEn: form.schema?.summaryEn,
+    bodyZh: form.schema?.subtitleZh,
+    bodyEn: form.schema?.subtitleEn,
+    maxLength: 150,
+  });
 
   return constructMetadata({
     title,
-    // Safely truncate the description for SEO cards if it exists
-    description: description ? description.substring(0, 150) : undefined,
+    description,
     image: form.schema?.bannerImageUrl,
     locale: resolvedParams.locale,
-    path: `form/${resolvedParams.slug}`
+    path: `form/${resolvedParams.slug}`,
   });
 }
 
 export default async function PublicFormPage({ params }: { params: Promise<{ locale: string, slug: string }> }) {
   const resolvedParams = await params;
-  
-  // 1. Fetch the form on the server using the dynamic slug
   const form = await getPublicForm(resolvedParams.slug);
 
-  // 2. Safely trigger Next.js's 404 page if the slug doesn't exist
   if (!form) {
     notFound();
   }
 
-  // 3. Pass the fetched data directly to the interactive client engine
   return <FormEngine initialForm={form} locale={resolvedParams.locale} />;
 }

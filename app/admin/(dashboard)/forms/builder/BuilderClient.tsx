@@ -583,8 +583,6 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                   <CoverBannerPicker
                     bannerUrl={formConfig.bannerImageUrl || null}
                     originalBannerUrl={formConfig.bannerOriginalImageUrl || formConfig.bannerImageUrl || null}
-                    aspectRatio={16 / 5}
-                    aspectRatioLabel="16:5"
                     disabled={isReadOnly}
                     onOpenPicker={() => setIsMediaPickerOpen(true)}
                     onRemoveBanner={() => setFormConfig({ ...formConfig, bannerImageUrl: '', bannerOriginalImageUrl: '' })}

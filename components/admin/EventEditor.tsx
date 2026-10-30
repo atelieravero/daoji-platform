@@ -327,7 +327,7 @@ export default function EventEditor({ initialEvent, isNew = false }: EventEditor
             codeBadge={registrationMode === 'internal_form' ? code : undefined}
             isSplitView={isSplitView}
             onToggleSplitView={setIsSplitView}
-            previewUrl={slug || shortId ? `/zh/events/${slug || shortId}` : undefined}
+            previewUrl={slug || shortId ? `/zh/event/${slug || shortId}` : undefined}
             onSave={handleSave}
             isSaving={isSaving}
             saveLabel={isSaving ? 'Saving...' : justSaved ? 'Saved!' : 'Save Changes'}
@@ -378,8 +378,6 @@ export default function EventEditor({ initialEvent, isNew = false }: EventEditor
               <CoverBannerPicker
                 bannerUrl={bannerAssetUrl}
                 originalBannerUrl={bannerOriginalAssetUrl || bannerAssetUrl}
-                aspectRatio={16 / 9}
-                aspectRatioLabel="16:9"
                 onOpenPicker={() => setIsMediaPickerOpen(true)}
                 onRemoveBanner={() => { 
                   setBannerAssetUrl(null); 
@@ -913,7 +911,7 @@ export default function EventEditor({ initialEvent, isNew = false }: EventEditor
                 <UrlSlugInspector
                   slug={slug}
                   onChange={setSlug}
-                  pathPrefix="/events/"
+                  pathPrefix="/event/"
                 />
 
                 <FormToggle

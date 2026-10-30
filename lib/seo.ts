@@ -1,3 +1,4 @@
+// lib/seo.ts
 import { Metadata } from 'next';
 
 interface ConstructMetadataProps {
@@ -7,6 +8,73 @@ interface ConstructMetadataProps {
   locale: string;
   path?: string; 
   type?: 'website' | 'article';
+}
+
+/**
+ * Strips Markdown formatting into a clean single-line plain-text excerpt.
+ */
+export function stripMarkdownToPlainText(markdown?: string | null): string {
+  if (!markdown) return '';
+  return markdown
+    // Remove fenced code blocks
+    .replace(/```[\s\S]*?```/g, ' ')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove images ![alt](url)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    // Replace links [text](url) with text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    // Remove custom red warning markers !!text!!
+    .replace(/!!([^!]+)!!/g, '$1')
+    // Remove template placeholders like {{TOKEN_BOX}}
+    .replace(/\{\{[A-Z0-9_]+\}\}/g, ' ')
+    // Remove HTML tags
+    .replace(/<[^>]+>/g, ' ')
+    // Remove headings, blockquotes, list markers, horizontal rules, emphasis
+    .replace(/^[#>*\-+=\s]+/gm, ' ')
+    .replace(/[*_~]+/g, '')
+    // Collapse whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Enforces strict bilingual fallback chain: current lang > other lang > nil ('')
+ */
+export function resolveBilingualText(
+  locale: string,
+  zh?: string | null,
+  en?: string | null
+): string {
+  const isZh = locale !== 'en';
+  const primary = (isZh ? zh : en)?.trim();
+  if (primary) return primary;
+  const fallback = (isZh ? en : zh)?.trim();
+  return fallback || '';
+}
+
+/**
+ * Resolves explicit summary first (with bilingual fallback),
+ * then falls back to plain-text stripped from the Markdown body.
+ */
+export function resolveBilingualExcerpt(params: {
+  locale: string;
+  summaryZh?: string | null;
+  summaryEn?: string | null;
+  bodyZh?: string | null;
+  bodyEn?: string | null;
+  maxLength?: number;
+}): string | undefined {
+  const { locale, summaryZh, summaryEn, bodyZh, bodyEn, maxLength = 150 } = params;
+
+  const explicitSummary = resolveBilingualText(locale, summaryZh, summaryEn);
+  const rawSource = explicitSummary
+    ? stripMarkdownToPlainText(explicitSummary)
+    : stripMarkdownToPlainText(resolveBilingualText(locale, bodyZh, bodyEn));
+
+  if (!rawSource) return undefined;
+  if (rawSource.length <= maxLength) return rawSource;
+  return `${rawSource.slice(0, maxLength).trim()}…`;
 }
 
 export function constructMetadata({

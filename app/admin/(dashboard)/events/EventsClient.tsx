@@ -145,7 +145,7 @@ export default function EventsClient({ permissions, initialEvents, initialTotal 
         isOpen={Boolean(shareEvent)}
         onClose={() => setShareEvent(null)}
         title="Share Event"
-        url={shareEvent ? `${typeof window !== 'undefined' ? window.location.origin : ''}/zh/events/${shareEvent.slug || shareEvent.short_id}` : ''}
+        url={shareEvent ? `${typeof window !== 'undefined' ? window.location.origin : ''}/zh/event/${shareEvent.slug || shareEvent.short_id}` : ''}
         filename={shareEvent?.slug || shareEvent?.short_id || 'event'}
       />
 
@@ -371,7 +371,7 @@ export default function EventsClient({ permissions, initialEvents, initialTotal 
                       )}
 
                       <a 
-                        href={`/zh/events/${event.slug || event.short_id}`}
+                        href={`/zh/event/${event.slug || event.short_id}`}
                         target="_blank"
                         rel="noreferrer"
                         className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer" 
