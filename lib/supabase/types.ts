@@ -134,15 +134,17 @@ export type Database = {
           body_en: string | null
           body_zh: string
           cover_asset_id: string | null
+          cover_original_asset_id: string | null
           created_at: string
-          event_id: string | null
           id: string
-          is_in_feed: boolean
           is_pinned_in_feed: boolean
+          is_standalone: boolean
           published_at: string | null
           short_id: string
           slug: string | null
           status: string
+          summary_en: string | null
+          summary_zh: string | null
           title_en: string | null
           title_zh: string
           type: string
@@ -152,15 +154,17 @@ export type Database = {
           body_en?: string | null
           body_zh?: string
           cover_asset_id?: string | null
+          cover_original_asset_id?: string | null
           created_at?: string
-          event_id?: string | null
           id?: string
-          is_in_feed?: boolean
           is_pinned_in_feed?: boolean
+          is_standalone?: boolean
           published_at?: string | null
           short_id?: string
           slug?: string | null
           status?: string
+          summary_en?: string | null
+          summary_zh?: string | null
           title_en?: string | null
           title_zh: string
           type?: string
@@ -170,15 +174,17 @@ export type Database = {
           body_en?: string | null
           body_zh?: string
           cover_asset_id?: string | null
+          cover_original_asset_id?: string | null
           created_at?: string
-          event_id?: string | null
           id?: string
-          is_in_feed?: boolean
           is_pinned_in_feed?: boolean
+          is_standalone?: boolean
           published_at?: string | null
           short_id?: string
           slug?: string | null
           status?: string
+          summary_en?: string | null
+          summary_zh?: string | null
           title_en?: string | null
           title_zh?: string
           type?: string
@@ -193,10 +199,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "content_pages_event_id_fkey"
-            columns: ["event_id"]
+            foreignKeyName: "content_pages_cover_original_asset_id_fkey"
+            columns: ["cover_original_asset_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
         ]

@@ -41,7 +41,6 @@
     "blackoutNotice": "Please note: Excluded dates ({dates})",
     "googleMaps": "Google Maps",
     "amap": "Amap",
-    "relatedArticles": "Related Articles & Updates",
     "livestreamAvailable": "Online Livestream Available",
     "livestreamLive": "Livestream is LIVE",
     "livestreamOffline": "Livestream is Offline",
@@ -65,7 +64,8 @@
     "copyId": "Copy ID",
     "copyPasscode": "Copy Passcode",
     "youtubeLive": "YouTube Live Stream",
-    "facebookLive": "Facebook Live Stream"
+    "facebookLive": "Facebook Live Stream",
+    "relatedArticles": "Related Articles & Updates"
   },
   "ApplyForm": {
     "back": "Back to Event",
@@ -119,6 +119,12 @@
     "recoverySubmitting": "Verifying...",
     "recoveryErrorMissing": "Please provide both your full name and mobile number.",
     "recoveryErrorFailed": "Verification failed. Please check your details or contact the organizers."
+  },
+  "PostDetail": {
+    "backToNews": "Back to News & Updates",
+    "publishedOn": "Published on {date}",
+    "relatedEventsTitle": "Related Events",
+    "viewEventDetails": "View Event Details"
   },
   "Languages": {
     "cantonese": "Cantonese",

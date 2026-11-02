@@ -41,7 +41,6 @@
     "blackoutNotice": "特別注意：以下日期暫停活動 ({dates})",
     "googleMaps": "Google Maps",
     "amap": "高德地圖 (Amap)",
-    "relatedArticles": "活動最新公告與報導",
     "livestreamAvailable": "支援線上直播參與",
     "livestreamLive": "線上直播進行中",
     "livestreamOffline": "直播尚未開始",
@@ -65,7 +64,8 @@
     "copyId": "複製 ID",
     "copyPasscode": "複製密碼",
     "youtubeLive": "YouTube 線上直播",
-    "facebookLive": "Facebook 線上直播"
+    "facebookLive": "Facebook 線上直播",
+    "relatedArticles": "活動最新公告與報導"
   },
   "ApplyForm": {
     "back": "返回活動詳情",
@@ -119,6 +119,12 @@
     "recoverySubmitting": "核對中...",
     "recoveryErrorMissing": "請填寫姓名與流動電話號碼。",
     "recoveryErrorFailed": "核對未通過，未找到相符紀錄或找到多筆紀錄。請檢查輸入或聯絡主辦方。"
+  },
+  "PostDetail": {
+    "backToNews": "返回最新消息",
+    "publishedOn": "發佈於 {date}",
+    "relatedEventsTitle": "相關活動與禪修",
+    "viewEventDetails": "查看活動詳情"
   },
   "Languages": {
     "cantonese": "粵語",
