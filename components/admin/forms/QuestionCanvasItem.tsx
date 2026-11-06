@@ -155,8 +155,16 @@ export default function QuestionCanvasItem({
             )}
             {field.required && field.type !== 'info' && <span className="text-red-500 ml-1">*</span>}
           </label>
-          <MarkdownRenderer content={field.descriptionEn} className="text-sm text-gray-500 mt-1" />
-          <MarkdownRenderer content={field.descriptionZh} className="text-sm text-gray-500 mt-1" />
+          <MarkdownRenderer
+            content={field.descriptionEn}
+            baseHeadingLevel={field.type === 'info' ? 4 : 5}
+            className="text-sm text-gray-500 mt-1"
+          />
+          <MarkdownRenderer
+            content={field.descriptionZh}
+            baseHeadingLevel={field.type === 'info' ? 4 : 5}
+            className="text-sm text-gray-500 mt-1"
+          />
         </div>
 
         {/* INPUT MOCK PREVIEWS */}

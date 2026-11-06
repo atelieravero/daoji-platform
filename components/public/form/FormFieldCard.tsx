@@ -59,7 +59,13 @@ export default function FormFieldCard({
     return (
       <div className="bg-surface-cream border border-surface-dark p-6 rounded-2xl">
         <h3 className="text-base font-semibold text-stone-800 mb-1">{fieldLabel}</h3>
-        {fieldDesc && <MarkdownRenderer content={fieldDesc} className="text-sm text-stone-600 mt-2" />}
+        {fieldDesc && (
+          <MarkdownRenderer
+            content={fieldDesc}
+            baseHeadingLevel={4}
+            className="text-sm text-stone-600 mt-2"
+          />
+        )}
       </div>
     );
   }
@@ -69,7 +75,13 @@ export default function FormFieldCard({
       <label className="block text-sm font-semibold text-stone-800">
         {fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
-      {fieldDesc && <MarkdownRenderer content={fieldDesc} className="text-xs text-stone-500" />}
+      {fieldDesc && (
+        <MarkdownRenderer
+          content={fieldDesc}
+          baseHeadingLevel={5}
+          className="text-xs text-stone-500"
+        />
+      )}
 
       {field.type === 'number' ? (
         <div className="relative mt-2">

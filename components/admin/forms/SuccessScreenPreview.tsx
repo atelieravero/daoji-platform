@@ -41,7 +41,11 @@ export default function SuccessScreenPreview({
           <div className="space-y-6">
             {messageEn.split('{{TOKEN_BOX}}').map((part, index, array) => (
               <React.Fragment key={`en-${index}`}>
-                <MarkdownRenderer content={part} className="text-sm text-gray-700" />
+                <MarkdownRenderer
+                  content={part}
+                  baseHeadingLevel={3}
+                  className="text-sm text-gray-700"
+                />
                 {index < array.length - 1 && <MockTokenBox />}
               </React.Fragment>
             ))}
@@ -52,7 +56,11 @@ export default function SuccessScreenPreview({
           <div className="space-y-6">
             {messageZh.split('{{TOKEN_BOX}}').map((part, index, array) => (
               <React.Fragment key={`zh-${index}`}>
-                <MarkdownRenderer content={part} className="text-sm text-gray-700" />
+                <MarkdownRenderer
+                  content={part}
+                  baseHeadingLevel={3}
+                  className="text-sm text-gray-700"
+                />
                 {index < array.length - 1 && <MockTokenBox />}
               </React.Fragment>
             ))}

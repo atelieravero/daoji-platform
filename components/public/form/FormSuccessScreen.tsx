@@ -79,7 +79,11 @@ export default function FormSuccessScreen({
           <div className="text-left">
             {messageParts.map((part: string, index: number, array: string[]) => (
               <React.Fragment key={index}>
-                <MarkdownRenderer content={part} className="text-sm md:text-base text-stone-600" />
+                <MarkdownRenderer
+                  content={part}
+                  baseHeadingLevel={3}
+                  className="text-sm md:text-base text-stone-600"
+                />
                 {index < array.length - 1 && <TokenUIRenderer />}
               </React.Fragment>
             ))}

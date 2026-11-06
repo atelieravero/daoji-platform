@@ -465,8 +465,16 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                       </div>
                       {(formConfig.subtitleEn || formConfig.subtitleZh) && (
                         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                          <MarkdownRenderer content={formConfig.subtitleEn} className="text-sm text-gray-600" />
-                          <MarkdownRenderer content={formConfig.subtitleZh} className="text-sm text-gray-600 mt-2" />
+                          <MarkdownRenderer
+                            content={formConfig.subtitleEn}
+                            baseHeadingLevel={3}
+                            className="text-sm text-gray-600"
+                          />
+                          <MarkdownRenderer
+                            content={formConfig.subtitleZh}
+                            baseHeadingLevel={3}
+                            className="text-sm text-gray-600 mt-2"
+                          />
                         </div>
                       )}
                     </div>

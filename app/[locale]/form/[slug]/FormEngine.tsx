@@ -456,7 +456,13 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
             <div className="p-8">
               <h1 className="text-2xl font-bold text-stone-800">{formTitle}</h1>
-              {formSubtitle && <MarkdownRenderer content={formSubtitle} className="text-sm text-stone-500 mt-3" />}
+              {formSubtitle && (
+                <MarkdownRenderer
+                  content={formSubtitle}
+                  baseHeadingLevel={3}
+                  className="text-sm text-stone-500 mt-3"
+                />
+              )}
             </div>
           </div>
 
