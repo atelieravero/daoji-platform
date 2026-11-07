@@ -1,20 +1,20 @@
 # Daoji Platform - Domain Model & Architecture
 
 ## System Overview & Core Philosophy
-Daoji Platform is the public-facing operational portal and administrative management system for Maggapaṭipadā Meditation Centre (道跡禪院). It serves as a resilient, bilingual bridge connecting retreat applicants and Dhamma students with monastic operations. The platform operates as a high-performance "dumb pipe"—providing schema-driven dynamic application forms, recurring event calendars, multi-platform livestream gateways, and media archives, while deferring complex organizational fulfillment to external databases (Coda).
+Daoji Platform is the public-facing operational portal and administrative management system for Maggapaṭipadā Meditation Centre (道跡禪院). It serves as a resilient, bilingual bridge connecting retreat applicants and Dhamma students with monastic operations. The platform operates as a high-performance "dumb pipe"—providing schema-driven dynamic application forms, recurring event calendars, editorial posts and static pages, multi-platform livestream gateways, and media archives, while deferring complex organizational fulfillment to external databases (Coda).
 
 ---
 
 ## Architectural Quirks & Essential Tweaks (Read First)
-These eight architectural conventions define how this platform solves specific operational, networking, and UX challenges:
+These ten architectural conventions define how this platform solves specific operational, networking, and UX challenges:
 
 1. **Zero-Flash Standalone Shell (`<StandaloneNotifier/>` & `<StandaloneLanguageSwitcher/>`):**
-   * Standalone pages (public forms and standalone event landings) suppress the top navbar, header, and footer without hydration flashes.
+   * Standalone pages (public forms, standalone events, and standalone posts/pages) suppress the top navbar, header, and footer without hydration flashes.
    * **Mechanism:** Rather than waiting for a client-side `useEffect` to unmount shell components, `StandaloneNotifier` synchronously injects an inline `<style>header, footer, nav { display: none !important; }</style>` tag into the initial server-rendered HTML payload.
-   * **Locale Shift Persistence:** The standalone language switcher appends `?standalone=true` when toggling `/zh` $\leftrightarrow$ `/en` to preserve standalone mode across full page reloads.
+   * **Strict DB vs. Query Enforcement:** When `is_standalone = true` on an Event, Post, or Static Page, standalone mode is enforced directly on the server (`forceStandaloneParam={false}`) so visitors cannot exit standalone mode by editing the URL. On public forms, `?standalone=true` is also supported and preserved across `/zh` $\leftrightarrow$ `/en` switches.
 
-2. **Master Asset Retention & Derivative Crop Partitioning:**
-   * Cropping an event banner preserves the original master image indefinitely via `banner_original_asset_id` alongside the active cropped version (`banner_asset_id`).
+2. **Uniform `1.91:1` Master Asset Retention & Derivative Crop Partitioning:**
+   * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages & Posts (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails.
    * **Partitioning:** Cropped derivatives are saved under `derivatives/crops/YYYY/MM/...` with `is_system = true`. The user-facing Media Pool query strictly filters out `is_system = true` to prevent derivative crops from cluttering the asset library.
 
 3. **Event-Code Scoped Submissions, Numeric Tokens & Identity Challenge Recovery:**
@@ -23,28 +23,37 @@ These eight architectural conventions define how this platform solves specific o
    * **Identity Anchors (Application Forms Only):** On initial application forms (`is_followup = false`), form builders can designate one `text` question as `Identity Anchor: Full Name` (`is_identity_name`) and one `mobile` question as `Identity Anchor: Mobile Number` (`is_identity_phone`). Question type dropdowns are locked while designated as anchors. Saving the form recalculates anchor columns (`applicant_name`, `applicant_phone_suffix`) across existing submissions.
    * **Self-Service Challenge Recovery:** Applicants who misplace their token can challenge either the follow-up pre-gate or an inline `applicant_token` question via `<TokenRecoveryModal/>` using their Name and Mobile Number. The server canonicalizes the name (all spaces/punctuation stripped, lowercased) and phone (suffix-8 digits) and verifies that **exactly one non-archived match exists** with non-empty anchor values. Real mode matches against real submissions; test mode matches against test submissions.
 
-4. **Dynamic Registration State Inheritance & Crawler-Safe Public Resolution:**
-   * When an event is set to `registration_mode: 'internal_form'`, the public action button's state (`upcoming`, `open`, `closed`) and destination URL are not stored statically on the event.
-   * **Resolution:** `lib/events.ts` uses `getSupabaseAdmin()` (mirroring `getPublicForm` in `app/[locale]/form/[slug]/actions.ts`) to resolve public events, `banner_asset`, `venues`, `organizers`, and `linked_form` on the server without cookie or RLS discrepancies for anonymous visitors and social link preview crawlers (WhatsApp, WeChat, iMessage, Telegram). It dynamically derives the operational status from `forms.status` (`draft` $\rightarrow$ Upcoming, `open` $\rightarrow$ Open, `closed` $\rightarrow$ Closed). When clicked, registration buttons always open in a new tab (`target="_blank" rel="noopener noreferrer"`).
-   * **Explicit Status Filtering:** Public resolvers in `lib/events.ts` explicitly filter `events.status` (`published`, `unlisted`) and joined `event_articles` (`article.status === 'published'`) so signed-in admins and anonymous visitors always see identical public data.
+4. **Dumb-Pipe-Safe Form Success Interpolation (`{{dataKey}}`):**
+   * `submitPublicForm` chains `.select('applicant_token, response').single()` onto the `submissions` `INSERT` mutation, returning the committed `response` JSONB to the submitting browser session without opening any public `SELECT` policy on `submissions`.
+   * Admins can embed `{{dataKey}}` placeholders in both the **Success Title** and **Success Message** alongside `{{TOKEN_BOX}}`.
+   * `interpolateSuccessText` (`lib/form-engine-utils.ts`) formats answers inline by field type (`text`/`textarea`/`email`/`mobile`/`applicant_token` as single-line text, `number` as raw number string, `select`/`radio`/`checkbox` as localized option labels, `date` as `yyyy-mm-dd`, and `time` as `hh:mm`). Valid keys left blank output `""`; unknown or unsupported keys (`file`, `info`) output `{{dataKey}}` literally. `<SuccessScreenPreview/>` renders live Indigo preview badges in the Form Builder.
 
-5. **Recurring Livestream Engine with Calendar Projection:**
+5. **Dynamic Registration State Inheritance & Crawler-Safe Public Resolution:**
+   * When an event is set to `registration_mode: 'internal_form'`, the public action button's state (`upcoming`, `open`, `closed`) and destination URL are not stored statically on the event.
+   * **Resolution:** `lib/events.ts` and `lib/content-pages.ts` use `getSupabaseAdmin()` (mirroring `getPublicForm` in `app/[locale]/form/[slug]/actions.ts`) to resolve public events, posts, static pages, cover assets, venues, organizers, and linked forms on the server without cookie or RLS discrepancies for anonymous visitors and social link preview crawlers (WhatsApp, WeChat, iMessage, Telegram).
+   * **Explicit Status Filtering:** Public resolvers explicitly filter `.in('status', ['published', 'unlisted'])` on direct permalink lookups and `.eq('status', 'published')` on joined `event_articles` items so signed-in admins and anonymous visitors always see identical public data.
+
+6. **Recurring Livestream Engine with Calendar Projection:**
    * Supports Zoom, YouTube, and Facebook Live simultaneously.
    * **Auto Mode:** An algorithmic projection engine calculates future recurring occurrences from RFC-5545 rules (`days_of_week`, `until_date`), filters out `blackout_dates`, and activates the live button strictly within `[session_start - open_minutes_before, session_end]`. Outside this window, it displays a localized countdown pill (`直播於 9月10日 19:15 開放` / *Opens at ...*).
    * **Manual Mode:** Broadcast state is driven by an explicit boolean `is_livestream_live`. When offline, the livestream entry remains completely hidden to prevent visual clutter.
 
-6. **Strict Bilingual Fallback Chain (`current lang > other lang > nil`):**
-   * Traditional Chinese (`/zh`) is the primary system locale. If a field lacks content in the requested locale, it gracefully falls back to the alternate language before displaying a placeholder or blank space.
-   * Applied across event and article titles, markdown descriptions, venue names (`venue_override` $\rightarrow$ `venue.name`), venue addresses, and organizer names.
+7. **Strict Bilingual Fallback Chain & Auto-Excerpt SEO Engine:**
+   * Traditional Chinese (`/zh`) is the primary system locale. All localized fields resolve via `resolveBilingualText` (`current lang > other lang > nil`).
+   * **Zero-Friction Summaries (`resolveBilingualExcerpt` in `lib/seo.ts`):** Custom summaries (`summary_zh`, `summary_en`) are collapsed by default in `<BilingualCanvas/>`. When left blank, `resolveBilingualExcerpt` automatically strips Markdown formatting from the opening ~150 characters of `body_zh` / `body_en` (`subtitleZh` / `subtitleEn` on forms) for OpenGraph descriptions and list previews.
 
-7. **Immutable Short IDs vs. Mutable Vanity Slugs:**
+8. **Immutable Short IDs, Mutable Vanity Slugs & Reserved Slug Guard (`lib/slug.ts`):**
    * Every public entity generates an immutable 8-character Base62 `short_id` (`nanoid(8)`).
-   * Slugs are optional, mutable, and sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`). Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`) so special characters like dots (`.`) never break filter parsing. Changing a slug never breaks existing inbound links or printed QR codes.
+   * Slugs are optional, mutable, sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`), and validated on both client and server against `RESERVED_SLUGS` (`admin`, `api`, `events`, `event`, `post`, `news`, `resources`, `form`, `apply`, `tags`, etc.) so top-level static pages (`/[locale]/[id_or_slug]`) never collide with system routes.
+   * Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`).
 
-8. **Silent Denial RBAC & Immutable Forms:**
-   * Permissions are strictly enforced server-side via `lib/permissions.ts`. Unauthorized UI controls (such as delete buttons) are silently omitted from the DOM rather than triggering disruptive error redirects.
-   * Submission status mutations are separated into `submissions:process` (toggling `is_processed` and bulk export processing) and `submissions:archive` (toggling `is_archived` to exclude duplicate/invalid rows from token recovery).
-   * Once a form moves to `open` or `closed`, its schema is locked. Backend Server Actions reject mutations until the form is explicitly reverted to `draft`.
+9. **Relative Markdown Heading Hierarchy (`<MarkdownRenderer/>`):**
+   * `<MarkdownRenderer/>` shifts Markdown `#`–`######` headings relative to a contextual `baseHeadingLevel` prop ($\text{effectiveLevel} = \min(6, \text{baseHeadingLevel} + \text{mdLevel} - 1)$): `baseHeadingLevel={2}` on Event/Post/Page bodies, `3` on Form subtitles and success messages, `4` on Form `info` blocks, and `5` on Form question hints.
+
+10. **Silent Denial RBAC & Immutable Forms:**
+    * Permissions are strictly enforced server-side via `lib/permissions.ts`. Unauthorized UI controls (such as delete buttons or status selectors) are silently omitted or disabled in the DOM rather than triggering disruptive error redirects.
+    * Submission status mutations are separated into `submissions:process` (toggling `is_processed` and bulk export processing) and `submissions:archive` (toggling `is_archived` to exclude duplicate/invalid rows from token recovery).
+    * Once a form moves to `open` or `closed`, its schema is locked. Backend Server Actions reject mutations until the form is explicitly reverted to `draft`.
 
 ---
 
@@ -56,7 +65,7 @@ These eight architectural conventions define how this platform solves specific o
   * *Private Bucket:* Encrypted applicant file uploads partitioned into `submissions/test/` vs `submissions/real/`.
   * *Public CDN Bucket:* Custom domain `https://cdn.ajahnyiu.org` for media pool assets and cropped banners.
 * **Upload Pipeline:** Direct browser-to-R2 presigned S3 PUT uploads bypassing serverless payload limits for files up to 100MB+.
-* **Internationalization:** `next-intl` (Default `/zh`, English `/en`). All public strings centralized in `messages/` under `"EventDetail"` and `"ApplyForm"`.
+* **Internationalization:** `next-intl` (Default `/zh`, English `/en`). All public strings centralized in `messages/` under `"EventDetail"`, `"PostDetail"`, and `"ApplyForm"`.
 * **Infrastructure:** Vercel Hosting with Cloudflare Reverse Proxy for Mainland China network mitigation.
 
 ---
@@ -70,10 +79,10 @@ These eight architectural conventions define how this platform solves specific o
 
 ### Component Primitives
 * **Admin Navigation:** Collapsible `<AdminSidebar/>` with persistent `localStorage` state, smooth transitions, and compact icon-only mode.
-* **Admin Tables:** `<AdminPageHeader/>`, `<AdminTableToolbar/>` (debounced search + status tabs), `<AdminTableCard/>`, `<ShareQrModal/>` (high-res QR PNG generation).
-* **Editor Architecture:** Two-pane `<EditorLayout/>` with fixed 460px inspector, `<BilingualCanvas/>`, `<CoverBannerPicker/>` (canvas cropper with master retention), and `<UrlSlugInspector/>`.
-* **Relational Pickers:** Extracted modals (`<FormPickerModal/>`, `<EventPickerModal/>`, `<VenueModal/>`, `<OrganizerModal/>`).
-* **Public Form Engine (`components/public/form/` & `lib/form-engine-utils.ts`):** Modularized into `<FormPreGateScreen/>`, `<FormSuccessScreen/>`, `<FormFieldCard/>`, `<TokenRecoveryModal/>`, and shared input primitives (`<MobilePhoneInput/>`, `<TokenDigitsInput/>`).
+* **Admin Tables:** `<AdminPageHeader/>`, `<AdminTableToolbar/>` (debounced search + status tabs), `<AdminTableCard/>`, `<StatusBadgeSelect/>`, `<ShareQrModal/>` (high-res QR PNG generation).
+* **Editor Architecture:** Two-pane `<EditorLayout/>` with fixed 460px inspector, `<BilingualCanvas/>` (with collapsible optional summaries), `<CoverBannerPicker/>` (`1.91:1` canvas cropper with master retention), and `<UrlSlugInspector/>`.
+* **Relational Pickers:** Extracted modals (`<FormPickerModal/>`, `<EventPickerModal/>` supporting both single-select and multi-select, `<VenueModal/>`, `<OrganizerModal/>`).
+* **Public Form Engine (`components/public/form/` & `lib/form-engine-utils.ts`):** Modularized into `<FormPreGateScreen/>`, `<FormSuccessScreen/>` (with `{{dataKey}}` interpolation), `<FormFieldCard/>`, `<TokenRecoveryModal/>`, and shared input primitives (`<MobilePhoneInput/>`, `<TokenDigitsInput/>`).
 
 ---
 
@@ -104,10 +113,10 @@ These eight architectural conventions define how this platform solves specific o
   * *In-Person:* `is_in_person` (boolean), `venue_id` (FK $\rightarrow$ `venues.id`), `venue_override_zh`, `venue_override_en`.
   * *Livestream:* `is_livestream` (boolean), `is_livestream_live` (boolean, manual override), `livestream_config` (JSONB: `mode` ['auto' | 'manual'], zoom, youtube, facebook URLs, meeting IDs, passcodes, open minutes).
 * **Registration Gate:** `registration_mode` (`internal_form` | `external_url` | `not_required`), `code` (1–8 uppercase alphanumeric, required for forms), `linked_form_id` (FK $\rightarrow$ `forms.id`, indexed via `idx_events_linked_form`), `external_url`, `registration_status`, `cta_label_zh`, `cta_label_en`.
-* **Media & Shell:** `banner_asset_id` (cropped), `banner_original_asset_id` (master), `status` (`draft` | `published` | `unlisted` | `archived`), `is_featured`, `is_standalone`.
+* **Media & Shell:** `banner_asset_id` (cropped `1.91:1`), `banner_original_asset_id` (master), `status` (`draft` | `published` | `unlisted` | `archived`), `is_featured`, `is_standalone`.
 
 ### 2. `forms` & `submissions` (Dynamic Form Engine)
-* **`forms`:** `id` (UUID PK), `slug`, `event_id` (UUID FK $\rightarrow$ `events.id` ON DELETE SET NULL), `title`, `is_followup` (token-gated), `status` (`draft` | `open` | `closed`), `schema` (JSONB: fields, validation, conditions, token-box positioning, anchor designations `is_identity_name` and `is_identity_phone`).
+* **`forms`:** `id` (UUID PK), `slug`, `event_id` (UUID FK $\rightarrow$ `events.id` ON DELETE SET NULL), `title`, `is_followup` (token-gated), `status` (`draft` | `open` | `closed`), `schema` (JSONB: fields, validation, conditions, token-box & `{{dataKey}}` positioning, anchor designations `is_identity_name` and `is_identity_phone`).
 * **`submissions`:** 
   * `id` (UUID PK), `form_id` (FK), `event_id`, `event_code`.
   * `locale`: Nullable `TEXT` recording the exact route locale code (`zh`, `en`, etc.) used when submitting the form, with no default assumption.
@@ -115,13 +124,13 @@ These eight architectural conventions define how this platform solves specific o
   * `applicant_seq_num`: Sequential counter scoped to `event_code`.
   * `applicant_name`: Canonicalized full name (all whitespace/punctuation stripped, lowercase).
   * `applicant_phone_suffix`: Suffix-8 mobile digits.
-  * `response`: JSONB raw answers.
+  * `response`: JSONB raw answers (returned to the submitting session on `INSERT` for `{{dataKey}}` success interpolation).
   * `is_archived`: Boolean flag to de-index duplicate or invalid records from challenge recovery.
   * `is_test`, `is_processed`.
 
-### 3. `content_pages` & `event_articles` (Editorial Content & Updates)
-* **`content_pages`:** `id` (UUID PK), `short_id` (Base62 unique), `slug` (RFC 3986 unique, nullable), `type` (`article` | `page`), `title_zh`, `title_en`, `body_zh`, `body_en`, `cover_asset_id` (FK $\rightarrow$ `assets.id`), `event_id` (FK $\rightarrow$ `events.id`), `is_in_feed` (boolean), `is_pinned_in_feed` (boolean), `status` (`draft` | `published` | `archived`), `published_at`.
-* **`event_articles`:** N:M junction table (`event_id`, `article_id`, `sort_order`) linking articles/updates to multiple events.
+### 3. `content_pages` & `event_articles` (Editorial Posts & Static Pages)
+* **`content_pages`:** `id` (UUID PK), `short_id` (Base62 unique), `slug` (RFC 3986 unique, nullable, guarded by `RESERVED_SLUGS`), `type` (`post` | `page`, default `'post'`), `title_zh`, `title_en`, `summary_zh`, `summary_en`, `body_zh`, `body_en`, `cover_asset_id` (cropped `1.91:1`), `cover_original_asset_id` (master), `is_pinned_in_feed` (boolean), `is_standalone` (boolean), `status` (`draft` | `published` | `unlisted` | `archived`), `published_at`.
+* **`event_articles`:** Single source of truth N:M junction table (`event_id`, `article_id`, `sort_order`) linking posts to one or more operational events.
 
 ### 4. `assets` (Media Pool) & `tags` / `taggables` (Taxonomy)
 * **`assets`:** `id`, `file_url`, `s3_key`, `file_name`, `mime_type`, `file_size_bytes`, `width`, `height`, `alt_text_zh`, `alt_text_en`, `is_system` (boolean: hides derivative crops from general picker), `created_by`.
@@ -139,7 +148,8 @@ These eight architectural conventions define how this platform solves specific o
 ---
 
 ## Public Routing & Visibility Matrix
-* **Published Events (`status = 'published'`):** Visible in public `/events` calendar listings and accessible via permalink (`/events/[short_id]` or `/events/[slug]`).
-* **Unlisted Events (`status = 'unlisted'`):** Excluded from `/events` calendar listings, but resolve when accessed via direct permalink (for private retreats, member-only programs, and preliminary testing).
-* **Published Content Pages (`status = 'published'`):** Accessible via permalink (`/[locale]/news/[id_or_slug]`) and attached event detail pages.
-* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace.
+* **Published Events (`status = 'published'`):** Visible in public `/[locale]/events` calendar listings and accessible via canonical permalink (`/[locale]/event/[id_or_slug]`, with 301 redirect from legacy `/[locale]/events/[id_or_slug]`).
+* **Unlisted Events (`status = 'unlisted'`):** Excluded from `/[locale]/events` calendar listings, but resolve when accessed via direct permalink (`/[locale]/event/[id_or_slug]`).
+* **Published & Unlisted Posts (`type = 'post'`, `status IN ('published', 'unlisted')`):** Accessible via canonical permalink (`/[locale]/post/[id_or_slug]`, with 301 redirect from legacy `/[locale]/news/[id_or_slug]`). Only `status = 'published'` posts appear in the `/[locale]/news` feed and under "Related Articles & Updates" on event detail pages.
+* **Published & Unlisted Static Pages (`type = 'page'`, `status IN ('published', 'unlisted')`):** Accessible via top-level permalink (`/[locale]/[id_or_slug]`).
+* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace (`/admin/events`, `/admin/content`, `/admin/forms`).

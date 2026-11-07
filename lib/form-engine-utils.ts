@@ -202,3 +202,204 @@ export const shouldShowField = (field: any, activeAnswers: Record<string, any>):
 
   return match === 'OR' ? evaluations.some(Boolean) : evaluations.every(Boolean);
 };
+
+export const SUPPORTED_SUCCESS_VARIABLE_TYPES = new Set([
+  'text',
+  'number',
+  'email',
+  'mobile',
+  'date',
+  'time',
+  'select',
+  'radio',
+  'checkbox',
+  'textarea',
+  'applicant_token',
+]);
+
+/**
+ * Escapes HTML and inline Markdown control characters so user-entered text
+ * renders as literal inline text inside MarkdownRenderer.
+ */
+function escapeInlineMarkdownText(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/([\\*_~`\[\]])/g, '\\$1');
+}
+
+/**
+ * Formats a single field's stored answer into an inline display string.
+ * Returns null if the field is unsupported, or '' if the answer is blank.
+ */
+export function formatFieldAnswerInline(
+  field: any,
+  rawVal: any,
+  locale: string
+): string | null {
+  if (!field || !SUPPORTED_SUCCESS_VARIABLE_TYPES.has(field.type)) {
+    return null;
+  }
+
+  // Valid key, but blank / unanswered -> output empty string
+  if (
+    rawVal === undefined ||
+    rawVal === null ||
+    rawVal === '' ||
+    (Array.isArray(rawVal) && rawVal.length === 0)
+  ) {
+    return '';
+  }
+
+  const isZh = locale === 'zh';
+
+  switch (field.type) {
+    case 'select':
+    case 'radio': {
+      const strVal = String(rawVal);
+      const matchedOpt = (field.options || []).find(
+        (opt: any) => String(opt.value) === strVal
+      );
+      if (matchedOpt) {
+        return (
+          (isZh
+            ? matchedOpt.labelZh || matchedOpt.labelEn || matchedOpt.value
+            : matchedOpt.labelEn || matchedOpt.labelZh || matchedOpt.value) || ''
+        );
+      }
+      return strVal;
+    }
+
+    case 'checkbox': {
+      const values = Array.isArray(rawVal) ? rawVal : [rawVal];
+      const labels = values
+        .map((v) => {
+          const strVal = String(v);
+          const matchedOpt = (field.options || []).find(
+            (opt: any) => String(opt.value) === strVal
+          );
+          if (matchedOpt) {
+            return (
+              (isZh
+                ? matchedOpt.labelZh || matchedOpt.labelEn || matchedOpt.value
+                : matchedOpt.labelEn || matchedOpt.labelZh || matchedOpt.value) || ''
+            );
+          }
+          return strVal;
+        })
+        .filter(Boolean);
+      return labels.join(isZh ? '、' : ', ');
+    }
+
+    case 'date': {
+      const s = String(rawVal).trim();
+      // Already yyyy-mm-dd
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // Convert dd/mm/yyyy or dd-mm-yyyy -> yyyy-mm-dd
+      const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        const [, d, m, y] = dmyMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      // ISO string fallback
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
+      return s;
+    }
+
+    case 'time': {
+      const s = String(rawVal).trim();
+      const timeMatch = s.match(/^(\d{1,2}):(\d{1,2})/);
+      if (timeMatch) {
+        const [, h, m] = timeMatch;
+        return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+      }
+      return s;
+    }
+
+    case 'number': {
+      return String(rawVal).trim();
+    }
+
+    default: {
+      // text, textarea, email, mobile, applicant_token -> single-line inline string
+      return String(rawVal).replace(/\r?\n+/g, ' ').trim();
+    }
+  }
+}
+
+/**
+ * Interpolates {{dataKey}} placeholders in a template string using the DB response.
+ * - Preserves {{TOKEN_BOX}} untouched.
+ * - Unknown or unsupported keys output {{dataKey}} literally.
+ * - Valid keys with blank answers output "".
+ */
+export function interpolateSuccessText(
+  template: string,
+  fields: any[] | undefined,
+  response: Record<string, any> | undefined | null,
+  locale: string,
+  options?: { escapeForMarkdown?: boolean }
+): string {
+  if (!template) return '';
+  const fieldList = Array.isArray(fields) ? fields : [];
+  const answerMap = response && typeof response === 'object' ? response : {};
+  const shouldEscape = Boolean(options?.escapeForMarkdown);
+
+  return template.replace(/\{\{([^{}]+)\}\}/g, (fullMatch, rawKey: string) => {
+    const key = rawKey.trim();
+    if (!key || key === 'TOKEN_BOX') return fullMatch;
+
+    const field = fieldList.find(
+      (f: any) => f.dataKey === key && SUPPORTED_SUCCESS_VARIABLE_TYPES.has(f.type)
+    );
+
+    if (!field) {
+      // Invalid or unsupported key -> output literal {{dataKey}}
+      return fullMatch;
+    }
+
+    const formatted = formatFieldAnswerInline(field, answerMap[key], locale);
+    if (formatted === null) return fullMatch;
+    if (formatted === '') return '';
+
+    return shouldEscape ? escapeInlineMarkdownText(formatted) : formatted;
+  });
+}
+
+/**
+ * Replaces valid {{dataKey}} tokens with styled HTML preview badges for MarkdownRenderer
+ * in the Admin Form Builder's Success Screen Preview tab. Invalid keys remain {{key}}.
+ */
+export function interpolateSuccessPreviewMarkdown(
+  template: string,
+  fields: any[] | undefined,
+  locale: 'en' | 'zh'
+): string {
+  if (!template) return '';
+  const fieldList = Array.isArray(fields) ? fields : [];
+
+  return template.replace(/\{\{([^{}]+)\}\}/g, (fullMatch, rawKey: string) => {
+    const key = rawKey.trim();
+    if (!key || key === 'TOKEN_BOX') return fullMatch;
+
+    const field = fieldList.find(
+      (f: any) => f.dataKey === key && SUPPORTED_SUCCESS_VARIABLE_TYPES.has(f.type)
+    );
+
+    if (!field) {
+      return fullMatch;
+    }
+
+    const rawLabel =
+      locale === 'zh'
+        ? field.labelZh || field.labelEn || key
+        : field.labelEn || field.labelZh || key;
+    const safeLabel = String(rawLabel)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md text-xs font-mono font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 align-baseline">{{${key}}} <span class="font-sans font-normal text-indigo-500">(${safeLabel})</span></span>`;
+  });
+}

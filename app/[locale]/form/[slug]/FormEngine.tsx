@@ -1,3 +1,4 @@
+// app/[locale]/form/[slug]/FormEngine.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -45,6 +46,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [submittedResponse, setSubmittedResponse] = useState<Record<string, any>>({});
 
   // Pre-gate state
   const [manualTokenBody, setManualTokenBody] = useState('');
@@ -113,6 +115,9 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
           if (parsed.submitted) {
             setIsSubmitted(true);
             if (parsed.token) setGeneratedToken(parsed.token);
+            if (parsed.response && typeof parsed.response === 'object') {
+              setSubmittedResponse(parsed.response);
+            }
           }
         } catch {}
       }
@@ -329,11 +334,20 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         newToken = response.applicant_token;
       }
 
+      const committedAnswers =
+        (response as any).response && typeof (response as any).response === 'object'
+          ? (response as any).response
+          : activeAnswers;
+
       if (formSuccessKey) {
-        sessionStorage.setItem(formSuccessKey, JSON.stringify({ submitted: true, token: newToken }));
+        sessionStorage.setItem(
+          formSuccessKey,
+          JSON.stringify({ submitted: true, token: newToken, response: committedAnswers })
+        );
       }
       if (formStorageKey) sessionStorage.removeItem(formStorageKey);
 
+      setSubmittedResponse(committedAnswers);
       setIsSubmitted(true);
       if (newToken) setGeneratedToken(newToken);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -359,6 +373,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
 
     setIsSubmitted(false);
     setGeneratedToken(null);
+    setSubmittedResponse({});
     setManualTokenBody('');
     setValidatedToken(null);
     setIsPreGatePassed(false);
@@ -420,6 +435,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
           locale={locale}
           isTest={isTest}
           generatedToken={generatedToken}
+          submittedResponse={submittedResponse}
           t={t as Record<string, any>}
           onStartOver={handleStartOver}
         />

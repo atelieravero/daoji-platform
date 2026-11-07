@@ -1,3 +1,4 @@
+// app/[locale]/form/[slug]/actions.ts
 'use server';
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -176,7 +177,8 @@ export async function recoverApplicantToken(params: {
 
 /**
  * Submits public form record scoped to event_code, records the raw locale code,
- * populates identity anchors, and provisions 8-digit numeric magic tokens.
+ * populates identity anchors, provisions 8-digit numeric magic tokens, and returns
+ * the committed response JSONB for success screen interpolation.
  */
 export async function submitPublicForm(payload: {
   form_id: string;
@@ -239,28 +241,36 @@ export async function submitPublicForm(payload: {
     applicantPhoneSuffix = canonicalizePhoneSuffix(rawPhone) || null;
   }
 
-  // 4. Ingest submission record with original locale code
-  const { error: insertError } = await supabase
+  // 4. Ingest submission record with original locale code and return committed response
+  const { data: insertedSubmission, error: insertError } = await supabase
     .from('submissions')
-    .insert([{
-      form_id: payload.form_id,
-      event_id: payload.event_id,
-      event_code: resolvedCode,
-      locale: payload.locale ?? null,
-      response: payload.answers,
-      applicant_token: activeToken,
-      applicant_name: applicantName,
-      applicant_phone_suffix: applicantPhoneSuffix,
-      is_archived: false,
-      is_test: isTest,
-    }]);
+    .insert([
+      {
+        form_id: payload.form_id,
+        event_id: payload.event_id,
+        event_code: resolvedCode,
+        locale: payload.locale ?? null,
+        response: payload.answers,
+        applicant_token: activeToken,
+        applicant_name: applicantName,
+        applicant_phone_suffix: applicantPhoneSuffix,
+        is_archived: false,
+        is_test: isTest,
+      },
+    ])
+    .select('applicant_token, response')
+    .single();
 
   if (insertError) {
     console.error('Submission error:', insertError);
     throw new Error('Failed to submit form. Please try again.');
   }
 
-  return { success: true, applicant_token: activeToken };
+  return {
+    success: true,
+    applicant_token: insertedSubmission?.applicant_token || activeToken,
+    response: (insertedSubmission?.response as Record<string, any>) || payload.answers,
+  };
 }
 
 export async function getPresignedUploadUrl(

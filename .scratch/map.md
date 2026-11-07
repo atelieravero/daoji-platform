@@ -1,26 +1,24 @@
 # Daoji Platform - Project Map
 
-## Active Sprint (Single Page / Post Editor & Public View)
-*   [ ] `17-articles-pages-news-feed.md` (Phase 1: Single Page & Post Engine):
-    *   [ ] Admin Content Pages & Posts table (`/admin/pages` or `/admin/articles`) with search, type/status tabs (`article` vs `page`, `draft` / `published` / `archived`), and QR sharing.
-    *   [ ] Two-pane Content Page / Post Editor (`ContentPageEditor.tsx`) reusing `<EditorLayout/>`, `<BilingualCanvas/>`, `<MarkdownEditor/>` with `<MediaPicker/>`, `<CoverBannerPicker/>`, and `<UrlSlugInspector/>`.
-    *   [ ] Multi-Event attachment selector (`event_articles` junction table with `sort_order`) and polymorphic tag assignment (`taggables` where `taggable_type = 'content_page'`).
-    *   [ ] Public Single Page / Post view (`/[locale]/news/[id_or_slug]` and static page route) with `short_id` / `slug` dual resolution, strict bilingual fallback (`current lang > other lang > nil`), `getSupabaseAdmin()` crawler-safe OpenGraph metadata, and standalone mode support.
-
-## Upcoming Sprints (Portal Structure, Hubs, Tags & Filters)
-*   [ ] **Phase 2: Public Portal Hubs, Feeds & Filtering** (Starts once single Page/Post view is complete):
+## Active Sprint (Portal Structure, Hubs & Feeds)
+*   [ ] **Sprint 17 (Phase 2): Public Portal Hubs, Feeds & Filtering**:
     *   [ ] Public Events Calendar Hub (`/[locale]/events/page.tsx`) with date filtering and standalone new-window detachment (completing `16-events-registration-hub.md`).
-    *   [ ] Public News & Bulletin Feed (`/[locale]/news/page.tsx`) with pinned posts (`is_pinned_in_feed`), feed visibility (`is_in_feed`), and category/tag filtering.
-    *   [ ] `18-resources-hub-cross-domain-taxonomy.md` - Curated Resource Hub (`/resources`), multi-source media catalog (`asset`, `youtube`, `article`, `external_link`), two-way Article ⟷ Resource sync, and cross-domain tag aggregator (`/tags/[id_or_slug]`).
-    *   [ ] Global navigation structure, header/footer links, and unified filter UX across Events, Contents, and Resources.
+    *   [ ] Public News & Bulletin Feed (`/[locale]/news/page.tsx`) with pinned posts (`is_pinned_in_feed`), `status = 'published'` feed filtering, and `1.91:1` thumbnail cards.
+    *   [ ] Global navigation structure, header/footer links, and unified filter UX across Events, Posts, and Resources.
+
+## Upcoming Sprints
+*   [ ] `18-resources-hub-cross-domain-taxonomy.md` - Curated Resource Hub (`/resources`), multi-source media catalog (`asset`, `youtube`, `article`, `external_link`), and two-way Post ⟷ Resource sync.
+*   [ ] **Dedicated Taxonomy & Tags Sprint** - Clarify cross-domain tag use cases, integrate polymorphic tag selectors (`taggables`) into Event, Content, and Resource editors, and build the public tag aggregator (`/tags/[id_or_slug]`).
 
 ## Backlog
 *   [ ] Optimize submission CSV exports with batch streaming.
 *   [ ] Add cursor-based pagination for Audit Logs Explorer when total log volume exceeds 2,500 entries.
 
 ## Completed
+*   [x] `22-markdown-headings-and-success-interpolation.md` - Added `{{dataKey}}` inline variable interpolation to Form Success Screen Titles and Messages backed by the committed `submissions.response` JSONB returned from `submitPublicForm`, added live inline variable badges in `<SuccessScreenPreview/>`, and implemented relative heading hierarchy (`baseHeadingLevel` `2`–`5`) in `<MarkdownRenderer/>`.
+*   [x] `17-articles-pages-news-feed.md` (Phase 1: Single Page & Post Engine) - Upgraded `content_pages` schema (`type` `'post' | 'page'`, `status` including `'unlisted'`, `summary_zh`/`summary_en`, `cover_original_asset_id`, `is_standalone`), standardized cover crops to `1.91:1` (`1200×630`), added collapsible summaries with auto-excerpt SEO fallback (`lib/seo.ts`), extracted `RESERVED_SLUGS` (`lib/slug.ts`), built Admin Content Workspace (`/admin/content`) and `ContentPageEditor.tsx` with multi-event attachments, and launched Public Single Post (`/[locale]/post/[id_or_slug]`), Static Page (`/[locale]/[id_or_slug]`), and canonical Single Event (`/[locale]/event/[id_or_slug]`) views with 301 legacy redirects.
 *   [x] `21-numeric-tokens-and-identity-challenge-recovery.md` - Transitioned applicant tokens to 8-digit numeric sequences (`[CODE]-DDDD-DDDD`), added pre-filled event code prefix masks, restricted identity anchors (`is_identity_name`, `is_identity_phone`) to initial application forms with format locking and save-time submission backfills, split RBAC into `submissions:process` and `submissions:archive`, recorded raw submission `locale`, unified DRY challenge recovery across Pre-Gate and inline token questions, and modularized `FormEngine.tsx` into `components/public/form/` and `lib/form-engine-utils.ts`.
-*   [x] `16-events-registration-hub.md` (Single Event & Admin Operations) - Completed Admin Events table (`EventsClient.tsx`) with quick livestream broadcast toggle, Event Editor (`EventEditor.tsx`) with master banner retention and derivative crops, and Public Event Detail page (`/events/[id_or_slug]`) with `getSupabaseAdmin()` crawler-safe OpenGraph metadata, dynamic form status inheritance, manual/auto livestream gateway, dual maps, `.ics` exports, and zero-flash standalone mode.
+*   [x] `16-events-registration-hub.md` (Single Event & Admin Operations) - Completed Admin Events table (`EventsClient.tsx`) with quick livestream broadcast toggle, Event Editor (`EventEditor.tsx`) with master banner retention and derivative crops, and Public Event Detail page (`/event/[id_or_slug]`) with `getSupabaseAdmin()` crawler-safe OpenGraph metadata, dynamic form status inheritance, manual/auto livestream gateway, dual maps, `.ics` exports, and zero-flash standalone mode.
 *   [x] `20-forms-event-scoping-and-builder-hardening.md` - Decoupled applicant sequence numbers & tokens to `event_code` scope, enforced mandatory event linkage with relational forms table metadata (`[CODE] Title`), integrated MediaPicker into form cover and MarkdownEditor, introduced number field type with decimal precision, added `forms:view_schema` read-only mode, and enabled RFC 3986 vanity URL slug characters *(deployed to production)*.
 *   [x] `19-admin-design-system-and-component-extraction.md` - Admin workspace UI design system unification (Indigo palette), extraction of shared list view primitives, editor primitives, and Media Pool deduplication.
 *   [x] `15-storage-taxonomy-rbac-foundation.md` - Core database migration, `nanoid(8)` generator, centralized RBAC matrix expansion, R2 Media Pool with direct presigned PUT uploads, reusable `<MediaPicker/>`, Taxonomy Manager, and silent denial UI patterns.

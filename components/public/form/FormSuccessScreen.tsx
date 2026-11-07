@@ -1,14 +1,17 @@
+// components/public/form/FormSuccessScreen.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { CheckSquare, RotateCcw, Check, Copy } from 'lucide-react';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
+import { interpolateSuccessText } from '@/lib/form-engine-utils';
 
-interface FormSuccessScreenProps {
+export interface FormSuccessScreenProps {
   form: any;
   locale: string;
   isTest: boolean;
   generatedToken: string | null;
+  submittedResponse?: Record<string, any>;
   t: Record<string, any>;
   onStartOver: () => void;
 }
@@ -18,22 +21,32 @@ export default function FormSuccessScreen({
   locale,
   isTest,
   generatedToken,
+  submittedResponse = {},
   t,
   onStartOver,
 }: FormSuccessScreenProps) {
   const [isCopied, setIsCopied] = useState(false);
+  const fields = form?.schema?.fields || [];
 
-  const successTitle =
+  const rawSuccessTitle =
     locale === 'zh'
       ? form.schema?.successTitleZh || form.schema?.successTitleEn || t.successTitle
       : form.schema?.successTitleEn || form.schema?.successTitleZh || t.successTitle;
 
-  const successMessage =
+  const rawSuccessMessage =
     locale === 'zh'
       ? form.schema?.successMessageZh || form.schema?.successMessageEn || t.successMessage
       : form.schema?.successMessageEn || form.schema?.successMessageZh || t.successMessage;
 
-  const messageParts = successMessage.split('{{TOKEN_BOX}}');
+  const successTitle = interpolateSuccessText(
+    rawSuccessTitle || '',
+    fields,
+    submittedResponse,
+    locale,
+    { escapeForMarkdown: false }
+  );
+
+  const messageParts = (rawSuccessMessage || '').split('{{TOKEN_BOX}}');
 
   const TokenUIRenderer = () => {
     if (!generatedToken) return null;
@@ -62,7 +75,11 @@ export default function FormSuccessScreen({
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
+    <div
+      className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${
+        isTest ? 'bg-surface-test' : 'bg-surface-base'
+      }`}
+    >
       <div className="max-w-2xl w-full bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
         {form.schema?.bannerImageUrl && (
           <img
@@ -75,18 +92,29 @@ export default function FormSuccessScreen({
           <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
             <CheckSquare className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">{successTitle}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">
+            {successTitle}
+          </h1>
           <div className="text-left">
-            {messageParts.map((part: string, index: number, array: string[]) => (
-              <React.Fragment key={index}>
-                <MarkdownRenderer
-                  content={part}
-                  baseHeadingLevel={3}
-                  className="text-sm md:text-base text-stone-600"
-                />
-                {index < array.length - 1 && <TokenUIRenderer />}
-              </React.Fragment>
-            ))}
+            {messageParts.map((part: string, index: number, array: string[]) => {
+              const interpolatedPart = interpolateSuccessText(
+                part,
+                fields,
+                submittedResponse,
+                locale,
+                { escapeForMarkdown: true }
+              );
+              return (
+                <React.Fragment key={index}>
+                  <MarkdownRenderer
+                    content={interpolatedPart}
+                    baseHeadingLevel={3}
+                    className="text-sm md:text-base text-stone-600"
+                  />
+                  {index < array.length - 1 && <TokenUIRenderer />}
+                </React.Fragment>
+              );
+            })}
           </div>
           <div className="mt-12 pt-6 border-t border-stone-100 text-center">
             <button

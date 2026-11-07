@@ -1,3 +1,4 @@
+// app/admin/(dashboard)/forms/builder/BuilderClient.tsx
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -19,6 +20,7 @@ import MarkdownEditor from '@/components/shared/MarkdownEditor';
 import { FormInput, FormSelect } from '@/components/ui/FormControls';
 import MediaPicker from '@/components/admin/MediaPicker';
 import { AssetRecord } from '@/app/admin/(dashboard)/assets/actions';
+import { SUPPORTED_SUCCESS_VARIABLE_TYPES } from '@/lib/form-engine-utils';
 
 import EditorLayout from '@/components/admin/editor/EditorLayout';
 import EditorHeader from '@/components/admin/editor/EditorHeader';
@@ -155,6 +157,10 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
   const previousFields = fields
     .slice(0, activeFieldIndex > -1 ? activeFieldIndex : 0)
     .filter((f) => f.type !== 'info');
+
+  const availableVariableFields = fields.filter(
+    (f) => f.dataKey && SUPPORTED_SUCCESS_VARIABLE_TYPES.has(f.type)
+  );
 
   const updateActiveField = (updates: Partial<FormField>) => {
     if (isReadOnly) return;
@@ -520,6 +526,7 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                     titleZh={formConfig.successTitleZh}
                     messageEn={formConfig.successMessageEn}
                     messageZh={formConfig.successMessageZh}
+                    fields={fields}
                   />
                 )}
               </div>
@@ -563,10 +570,33 @@ function FormBuilderContent({ canEditPermission = false }: BuilderClientProps) {
                   <hr className="border-gray-100" />
                   <div className="space-y-4">
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Success Content</h3>
-                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-                      <p className="text-xs text-amber-800 font-medium">
-                        Use <code className="bg-white px-1 py-0.5 rounded font-bold">{'{{TOKEN_BOX}}'}</code> exactly as written to place the Applicant Token card inside your message. If omitted, no token card will be displayed.
+                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 space-y-2">
+                      <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                        Use <code className="bg-white px-1 py-0.5 rounded font-bold">{'{{TOKEN_BOX}}'}</code> to place the Applicant Token card, or <code className="bg-white px-1 py-0.5 rounded font-bold">{'{{dataKey}}'}</code> in the title or message to display a submitted answer inline.
                       </p>
+                      {availableVariableFields.length > 0 && (
+                        <div className="pt-1 border-t border-amber-200/70">
+                          <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block mb-1">
+                            Available Field Variables (Click to Copy):
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {availableVariableFields.map((f) => {
+                              const tokenStr = `{{${f.dataKey}}}`;
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(tokenStr)}
+                                  className="px-1.5 py-0.5 bg-white hover:bg-indigo-50 text-amber-900 hover:text-indigo-700 border border-amber-300 hover:border-indigo-300 rounded text-[11px] font-mono transition-colors cursor-pointer"
+                                  title={`${f.labelZh || f.labelEn} — Click to copy ${tokenStr}`}
+                                >
+                                  {tokenStr}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-gray-950 mb-1.5">Message (English)</label>
