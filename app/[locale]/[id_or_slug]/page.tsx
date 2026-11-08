@@ -13,11 +13,11 @@ import { isReservedSlug } from '@/lib/slug';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
+export const dynamic = 'force-dynamic';
+
 interface StaticPageProps {
   params: Promise<{ locale: string; id_or_slug: string }>;
 }
-
-export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -80,7 +80,7 @@ export default async function PublicStaticPage({ params }: StaticPageProps) {
     : null;
 
   return (
-    <div className="min-h-screen bg-surface-base py-12 px-6 md:px-12 font-sans text-stone-900">
+    <div className="min-h-screen bg-surface-base py-12 px-6 md:px-12 font-sans text-ink-body">
       <StandaloneNotifier
         isStandalone={Boolean(page.is_standalone)}
         locale={locale}
@@ -89,7 +89,7 @@ export default async function PublicStaticPage({ params }: StaticPageProps) {
 
       <article className="max-w-4xl mx-auto space-y-8">
         {page.cover_asset?.file_url && (
-          <div className="w-full rounded-3xl overflow-hidden shadow-sm border border-stone-200/60 bg-surface-cream">
+          <div className="w-full rounded-3xl overflow-hidden shadow-xs border border-surface-dark bg-surface-cream">
             <img
               src={page.cover_asset.file_url}
               alt={title}
@@ -100,24 +100,27 @@ export default async function PublicStaticPage({ params }: StaticPageProps) {
 
         <header className="space-y-3">
           {formattedPublishedDate && (
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500">
+            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted">
               <Clock className="w-3.5 h-3.5 text-primary" />
               <time dateTime={page.published_at || undefined}>
-                {isZh ? `發佈於 ${formattedPublishedDate}` : `Published on ${formattedPublishedDate}`}
+                {isZh
+                  ? `發佈於 ${formattedPublishedDate}`
+                  : `Published on ${formattedPublishedDate}`}
               </time>
             </div>
           )}
 
-          <h1 className="text-2xl md:text-4xl font-extrabold text-stone-900 tracking-tight leading-tight">
+          <h1 className="text-[26px] md:text-4xl font-extrabold text-ink-primary tracking-tight leading-[1.25]">
             {title}
           </h1>
         </header>
 
         {body && (
-          <div className="bg-white p-8 md:p-10 rounded-3xl border border-stone-200/80 shadow-xs">
+          <div className="bg-surface-card p-8 md:p-10 rounded-3xl border border-surface-dark shadow-xs">
             <MarkdownRenderer
               content={body}
-              className="text-sm md:text-base leading-relaxed text-stone-800 space-y-4"
+              baseHeadingLevel={2}
+              className="text-base leading-[1.8] text-ink-body"
             />
           </div>
         )}

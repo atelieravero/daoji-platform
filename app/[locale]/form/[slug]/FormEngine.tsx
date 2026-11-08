@@ -390,7 +390,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
   const renderScreen = () => {
     if (form.status === 'draft' && !isTest) {
       return (
-        <div className={`min-h-screen flex items-center justify-center text-stone-500 font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
+        <div className={`min-h-screen flex items-center justify-center text-ink-muted font-medium ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
           {t.notFound}
         </div>
       );
@@ -399,10 +399,10 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
     if (form.status === 'closed') {
       return (
         <div className={`min-h-screen flex items-center justify-center px-4 ${isTest ? 'bg-surface-test' : 'bg-surface-base'}`}>
-          <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-stone-200 text-center">
-            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-stone-800">{t.formClosed}</h1>
-            <p className="text-sm text-stone-500 mt-2">{t.closedSub}</p>
+          <div className="max-w-md w-full bg-surface-card p-8 rounded-2xl shadow-xs border border-surface-dark text-center">
+            <AlertCircle className="w-12 h-12 text-status-warning mx-auto mb-4" />
+            <h1 className="text-xl font-bold text-ink-primary">{t.formClosed}</h1>
+            <p className="text-sm text-ink-muted mt-2">{t.closedSub}</p>
           </div>
         </div>
       );
@@ -461,22 +461,24 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
             </div>
           )}
 
-          <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden mb-6">
+          <div className="bg-surface-card rounded-3xl shadow-xs border border-surface-dark overflow-hidden mb-6">
             {form.schema?.bannerImageUrl && (
               <img
                 src={form.schema.bannerImageUrl}
                 alt="Banner"
-                className="w-full h-auto max-h-64 object-contain bg-stone-50 border-b border-stone-100"
+                className="w-full h-auto object-contain block bg-surface-cream border-b border-surface-dark"
               />
             )}
 
             <div className="p-8">
-              <h1 className="text-2xl font-bold text-stone-800">{formTitle}</h1>
+              <h1 className="text-[22px] md:text-[28px] font-extrabold text-ink-primary tracking-tight leading-[1.3]">
+                {formTitle}
+              </h1>
               {formSubtitle && (
                 <MarkdownRenderer
                   content={formSubtitle}
                   baseHeadingLevel={3}
-                  className="text-sm text-stone-500 mt-3"
+                  className="text-base leading-[1.8] text-ink-body mt-4"
                 />
               )}
             </div>
@@ -515,7 +517,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
             ))}
 
             {errorMessage && (
-              <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-xl flex items-center">
+              <div className="p-4 bg-red-50 border border-red-200 text-status-danger text-sm font-medium rounded-xl flex items-center">
                 <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                 {errorMessage}
               </div>
@@ -524,7 +526,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-xl shadow-sm transition-colors focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center cursor-pointer"
+              className="w-full py-3.5 mt-4 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-semibold text-sm rounded-xl shadow-xs transition-colors focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 focus:outline-none disabled:opacity-50 flex items-center justify-center cursor-pointer"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               {isSubmitting ? t.submitting : isTest ? t.submitTest || 'Submit Form (Test Data)' : t.submit}

@@ -85,8 +85,11 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
     event.recurrence_rule
   );
 
+  const externalLinkClass =
+    'font-semibold text-link underline decoration-dotted decoration-link-underline decoration-[2px] underline-offset-4 hover:text-link-hover hover:bg-link-highlight hover:decoration-solid hover:decoration-link-hover px-1 -mx-1 rounded-sm transition-all inline-flex items-center gap-1';
+
   return (
-    <div className="min-h-screen bg-surface-base py-10 px-6 md:px-12 font-sans text-stone-900">
+    <div className="min-h-screen bg-surface-base py-10 px-6 md:px-12 font-sans text-ink-body">
       <StandaloneNotifier 
         isStandalone={Boolean(event.is_standalone)} 
         locale={locale} 
@@ -99,16 +102,16 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
         {!event.is_standalone && (
           <Link
             href={`/${locale}/events`}
-            className="inline-flex items-center text-xs font-semibold text-stone-500 hover:text-primary transition-colors"
+            className="group inline-flex items-center text-[13px] font-semibold text-ink-muted hover:text-primary transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 mr-1.5" />
+            <ArrowLeft className="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-0.5" />
             <span>{t('backToEvents')}</span>
           </Link>
         )}
 
         {/* HERO BANNER */}
         {event.banner_asset?.file_url && (
-          <div className="w-full rounded-3xl overflow-hidden shadow-sm border border-stone-200/60 bg-surface-cream">
+          <div className="w-full rounded-3xl overflow-hidden shadow-xs border border-surface-dark bg-surface-cream">
             <img 
               src={event.banner_asset.file_url} 
               alt={title} 
@@ -119,16 +122,16 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
 
         {/* EVENT TITLE & ACTIONS BAR */}
         <div className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-center gap-2 flex-wrap">
               {event.code && (
-                <span className="bg-surface-cream text-primary text-xs font-mono font-bold px-2 py-0.5 rounded-md border border-primary/20">
+                <span className="bg-primary-soft text-primary text-xs font-mono font-bold px-2.5 py-0.5 rounded-md border border-primary-border">
                   {event.code}
                 </span>
               )}
 
               {event.recurrence_rule && (
-                <span className="bg-purple-50 text-purple-700 text-xs font-semibold px-2 py-0.5 rounded-md border border-purple-200">
+                <span className="bg-surface-cream text-primary-active text-xs font-semibold px-2.5 py-0.5 rounded-md border border-surface-dark">
                   {describeRecurrenceRule(event.recurrence_rule, event.start_date, isZh ? 'zh-HK' : 'en-US')}
                 </span>
               )}
@@ -136,9 +139,12 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
               {/* Delivery Languages */}
               {event.languages && event.languages.length > 0 && (
                 <div className="inline-flex items-center gap-1">
-                  <Globe2 className="w-3.5 h-3.5 text-stone-400 shrink-0 ml-1" />
+                  <Globe2 className="w-3.5 h-3.5 text-ink-muted shrink-0 ml-1" />
                   {event.languages.map((lang) => (
-                    <span key={lang} className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 text-[11px] font-medium border border-stone-200/60">
+                    <span
+                      key={lang}
+                      className="px-2 py-0.5 rounded-md bg-surface-cream text-ink-body text-[11px] font-medium border border-surface-dark"
+                    >
                       {tLanguages(lang as any) || lang}
                     </span>
                   ))}
@@ -146,39 +152,44 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
               )}
             </div>
 
-            <h1 className="text-2xl md:text-4xl font-extrabold text-stone-900 tracking-tight">
+            <h1 className="text-[26px] md:text-4xl font-extrabold text-ink-primary tracking-tight leading-[1.25]">
               {title}
             </h1>
 
             {/* Organizer Citation */}
             {event.organizers && organizerName && (
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 pt-1">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted pt-1">
                 <Building2 className="w-3.5 h-3.5 text-primary" />
                 <span>{t('organizedBy')}</span>
                 {event.organizers.url ? (
-                  <a href={event.organizers.url} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                  <a
+                    href={event.organizers.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={externalLinkClass}
+                  >
                     <span>{organizerName}</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 ) : (
-                  <span>{organizerName}</span>
+                  <span className="text-ink-primary">{organizerName}</span>
                 )}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-2xl border border-stone-200/80 shadow-xs">
-            <div className="space-y-3 text-xs text-stone-700">
-              <div className="flex items-start gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-card p-5 rounded-2xl border border-surface-dark shadow-xs">
+            <div className="space-y-3 text-xs text-ink-body">
+              <div className="flex items-start gap-2.5">
                 <Calendar className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                 <div>
-                  <span className="font-bold block text-stone-900 text-sm">{scheduleDisplay}</span>
-                  <span className="text-stone-500">{t('timezone')} {event.timezone}</span>
+                  <span className="font-bold block text-ink-primary text-sm">{scheduleDisplay}</span>
+                  <span className="text-ink-muted">{t('timezone')} {event.timezone}</span>
                   
                   {/* Blackout Notice */}
                   {event.blackout_dates && event.blackout_dates.length > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] text-amber-700 mt-1.5 bg-amber-50/80 border border-amber-200/80 px-2 py-1 rounded-lg">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-status-warning mt-1.5 bg-amber-50/90 border border-amber-200/80 px-2.5 py-1 rounded-lg">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-status-warning" />
                       <span>
                         {t('blackoutNotice', { dates: event.blackout_dates.join(isZh ? '、' : ', ') })}
                       </span>
@@ -188,21 +199,33 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
               </div>
 
               {event.is_in_person && (
-                <div className="flex items-start gap-2 pt-2 border-t border-stone-100">
+                <div className="flex items-start gap-2.5 pt-2.5 border-t border-surface-dark/70">
                   <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <span className="font-bold block text-stone-900">{venueName}</span>
-                    {venueAddress && <span className="text-stone-500 block">{venueAddress}</span>}
+                    <span className="font-bold block text-ink-primary text-sm">{venueName}</span>
+                    {venueAddress && <span className="text-ink-muted block mt-0.5">{venueAddress}</span>}
                     {venue && (venue.google_maps_url || venue.amap_url) && (
-                      <div className="flex items-center gap-3 mt-1.5 font-semibold text-[11px]">
+                      <div className="flex items-center gap-3.5 mt-2 font-semibold text-xs">
                         {venue.google_maps_url && (
-                          <a href={venue.google_maps_url} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                            {t('googleMaps')} <ExternalLink className="w-3 h-3" />
+                          <a
+                            href={venue.google_maps_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={externalLinkClass}
+                          >
+                            <span>{t('googleMaps')}</span>
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                         {venue.amap_url && (
-                          <a href={venue.amap_url} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                            {t('amap')} <ExternalLink className="w-3 h-3" />
+                          <a
+                            href={venue.amap_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={externalLinkClass}
+                          >
+                            <span>{t('amap')}</span>
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>
@@ -212,10 +235,10 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
               )}
 
               {event.is_livestream && (
-                <div className="flex items-start gap-2 pt-2 border-t border-stone-100">
-                  <Radio className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-2.5 pt-2.5 border-t border-surface-dark/70">
+                  <Radio className="w-4 h-4 text-status-danger mt-0.5 shrink-0" />
                   <div>
-                    <span className="font-bold block text-stone-900">
+                    <span className="font-bold block text-ink-primary">
                       {event.is_livestream_live ? t('livestreamLive') : t('livestreamAvailable')}
                     </span>
                   </div>
@@ -229,19 +252,23 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
 
         {/* BODY */}
         {body && (
-          <div className="bg-white p-8 rounded-3xl border border-stone-200/80 shadow-xs">
-            <MarkdownRenderer content={body} className="text-sm leading-relaxed text-stone-800 space-y-4" />
+          <div className="bg-surface-card p-8 md:p-10 rounded-3xl border border-surface-dark shadow-xs">
+            <MarkdownRenderer
+              content={body}
+              baseHeadingLevel={2}
+              className="text-base leading-[1.8] text-ink-body"
+            />
           </div>
         )}
 
         {/* ATTACHED UPDATES */}
         {event.articles && event.articles.length > 0 && !event.is_standalone && (
-          <div className="bg-white p-6 rounded-3xl border border-stone-200/80 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-stone-400 flex items-center gap-2">
+          <div className="bg-surface-card p-6 md:p-8 rounded-3xl border border-surface-dark shadow-xs space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" />
               <span>{t('relatedArticles')}</span>
             </h3>
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y divide-surface-dark/70">
               {event.articles.map((art) => {
                 const artIdentifier = art.slug || art.short_id;
                 const artHref = art.type === 'page'
@@ -251,13 +278,13 @@ export default async function PublicEventDetailPage({ params }: EventPageProps) 
                   <Link
                     key={art.id}
                     href={artHref}
-                    className="py-3 flex items-center justify-between group hover:text-primary transition-colors"
+                    className="py-3.5 flex items-center justify-between group hover:text-primary transition-colors"
                   >
-                    <span className="text-sm font-semibold text-stone-800 group-hover:text-primary">
+                    <span className="text-[15px] font-bold text-ink-primary group-hover:text-primary transition-colors">
                       {resolveBilingualText(locale, art.title_zh, art.title_en)}
                     </span>
                     {art.published_at && (
-                      <span className="text-xs text-stone-400 font-mono">
+                      <span className="text-xs text-ink-muted font-mono shrink-0 ml-4">
                         {new Date(art.published_at).toLocaleDateString(isZh ? 'zh-HK' : 'en-US')}
                       </span>
                     )}

@@ -21,6 +21,8 @@ import { formatEventDateRange } from '@/lib/date';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
+export const dynamic = 'force-dynamic';
+
 interface PostPageProps {
   params: Promise<{ locale: string; id_or_slug: string }>;
 }
@@ -79,7 +81,7 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
     : null;
 
   return (
-    <div className="min-h-screen bg-surface-base py-10 px-6 md:px-12 font-sans text-stone-900">
+    <div className="min-h-screen bg-surface-base py-10 px-6 md:px-12 font-sans text-ink-body">
       <StandaloneNotifier
         isStandalone={Boolean(post.is_standalone)}
         locale={locale}
@@ -95,9 +97,9 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
         {!post.is_standalone && (
           <Link
             href={`/${locale}/news`}
-            className="inline-flex items-center text-xs font-semibold text-stone-500 hover:text-primary transition-colors"
+            className="group inline-flex items-center text-[13px] font-semibold text-ink-muted hover:text-primary transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 mr-1.5" />
+            <ArrowLeft className="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-0.5" />
             <span>{t('backToNews')}</span>
           </Link>
         )}
@@ -118,7 +120,7 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
           >
             {/* COVER BANNER */}
             {post.cover_asset?.file_url && (
-              <div className="w-full rounded-3xl overflow-hidden shadow-sm border border-stone-200/60 bg-surface-cream">
+              <div className="w-full rounded-3xl overflow-hidden shadow-xs border border-surface-dark bg-surface-cream">
                 <img
                   src={post.cover_asset.file_url}
                   alt={title}
@@ -128,9 +130,9 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
             )}
 
             {/* ARTICLE HEADER */}
-            <div className="space-y-3">
+            <header className="space-y-3">
               {formattedPublishedDate && (
-                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500">
+                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted">
                   <Clock className="w-3.5 h-3.5 text-primary" />
                   <time dateTime={post.published_at || undefined}>
                     {t('publishedOn', { date: formattedPublishedDate })}
@@ -138,17 +140,18 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
                 </div>
               )}
 
-              <h1 className="text-2xl md:text-4xl font-extrabold text-stone-900 tracking-tight leading-tight">
+              <h1 className="text-[26px] md:text-4xl font-extrabold text-ink-primary tracking-tight leading-[1.25]">
                 {title}
               </h1>
-            </div>
+            </header>
 
             {/* MARKDOWN BODY */}
             {body && (
-              <div className="bg-white p-8 md:p-10 rounded-3xl border border-stone-200/80 shadow-xs">
+              <div className="bg-surface-card p-8 md:p-10 rounded-3xl border border-surface-dark shadow-xs">
                 <MarkdownRenderer
                   content={body}
-                  className="text-sm md:text-base leading-relaxed text-stone-800 space-y-4"
+                  baseHeadingLevel={2}
+                  className="text-base leading-[1.8] text-ink-body"
                 />
               </div>
             )}
@@ -157,8 +160,8 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
           {/* RIGHT STICKY SIDEBAR (DESKTOP) / BOTTOM CARD (MOBILE) FOR RELATED EVENTS */}
           {hasRelatedEvents && (
             <aside className="lg:col-span-4 lg:sticky lg:top-8 space-y-4">
-              <div className="bg-white p-6 rounded-3xl border border-stone-200/80 shadow-xs space-y-4">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-stone-500 flex items-center gap-2">
+              <div className="bg-surface-card p-6 rounded-3xl border border-surface-dark shadow-xs space-y-4">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-primary" />
                   <span>{t('relatedEventsTitle')}</span>
                 </h2>
@@ -190,10 +193,10 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
                       <Link
                         key={evt.id}
                         href={`/${locale}/event/${evt.slug || evt.short_id}`}
-                        className="block p-4 rounded-2xl bg-surface-cream/70 hover:bg-surface-cream border border-stone-200/70 hover:border-primary/40 transition-all group space-y-2.5"
+                        className="block p-4 rounded-2xl bg-surface-cream/75 hover:bg-surface-cream border border-surface-dark hover:border-primary/40 hover:shadow-xs transition-all group space-y-2.5"
                       >
                         {evt.banner_asset?.file_url && (
-                          <div className="w-full rounded-xl overflow-hidden border border-stone-200/60 bg-white">
+                          <div className="w-full rounded-xl overflow-hidden border border-surface-dark bg-surface-card">
                             <img
                               src={evt.banner_asset.file_url}
                               alt={evtTitle}
@@ -204,16 +207,16 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
 
                         <div className="space-y-1">
                           {evt.code && (
-                            <span className="inline-block bg-white text-primary text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-primary/20">
+                            <span className="inline-block bg-primary-soft text-primary text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-primary-border">
                               {evt.code}
                             </span>
                           )}
-                          <h3 className="text-sm font-bold text-stone-900 group-hover:text-primary transition-colors leading-snug">
+                          <h3 className="text-[15px] font-bold text-ink-primary group-hover:text-primary transition-colors leading-snug">
                             {evtTitle}
                           </h3>
                         </div>
 
-                        <div className="space-y-1 text-xs text-stone-600">
+                        <div className="space-y-1 text-xs text-ink-body">
                           <div className="flex items-start gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                             <span>{evtSchedule}</span>
@@ -226,7 +229,7 @@ export default async function PublicPostDetailPage({ params }: PostPageProps) {
                           )}
                         </div>
 
-                        <div className="pt-1 flex items-center text-xs font-bold text-primary">
+                        <div className="pt-1 flex items-center text-xs font-bold text-primary group-hover:text-primary-hover">
                           <span>{t('viewEventDetails')}</span>
                           <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" />
                         </div>

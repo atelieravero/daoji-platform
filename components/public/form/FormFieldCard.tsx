@@ -1,3 +1,4 @@
+// components/public/form/FormFieldCard.tsx
 'use client';
 
 import React from 'react';
@@ -58,12 +59,12 @@ export default function FormFieldCard({
   if (field.type === 'info') {
     return (
       <div className="bg-surface-cream border border-surface-dark p-6 rounded-2xl">
-        <h3 className="text-base font-semibold text-stone-800 mb-1">{fieldLabel}</h3>
+        <h3 className="text-base font-bold text-ink-primary mb-1.5">{fieldLabel}</h3>
         {fieldDesc && (
           <MarkdownRenderer
             content={fieldDesc}
             baseHeadingLevel={4}
-            className="text-sm text-stone-600 mt-2"
+            className="text-[15px] leading-[1.8] text-ink-body mt-2"
           />
         )}
       </div>
@@ -71,15 +72,15 @@ export default function FormFieldCard({
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-3">
-      <label className="block text-sm font-semibold text-stone-800">
-        {fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
+    <div className="bg-surface-card p-6 rounded-2xl shadow-xs border border-surface-dark space-y-3">
+      <label className="block text-[15px] font-semibold text-ink-primary leading-snug">
+        {fieldLabel} {field.required && <span className="text-status-danger ml-0.5">*</span>}
       </label>
       {fieldDesc && (
         <MarkdownRenderer
           content={fieldDesc}
           baseHeadingLevel={5}
-          className="text-xs text-stone-500"
+          className="text-xs md:text-[13px] leading-relaxed text-ink-muted"
         />
       )}
 
@@ -107,7 +108,7 @@ export default function FormFieldCard({
                 }
               }
             }}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-surface-dark text-sm font-mono focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow"
             placeholder={field.decimals === 2 ? '0.00' : field.decimals === 0 ? '0' : '...'}
           />
         </div>
@@ -117,7 +118,7 @@ export default function FormFieldCard({
           required={field.required}
           value={value || ''}
           onChange={(e) => onChange(field.dataKey, e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
+          className="w-full px-3.5 py-2.5 rounded-xl border border-surface-dark text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow mt-2"
           placeholder="..."
         />
       ) : field.type === 'textarea' ? (
@@ -126,7 +127,7 @@ export default function FormFieldCard({
           required={field.required}
           value={value || ''}
           onChange={(e) => onChange(field.dataKey, e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow mt-2"
+          className="w-full px-3.5 py-2.5 rounded-xl border border-surface-dark text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow mt-2"
           placeholder="..."
         />
       ) : field.type === 'mobile' ? (
@@ -139,19 +140,19 @@ export default function FormFieldCard({
         </div>
       ) : field.type === 'date' ? (
         <div className="relative mt-2">
-          <Calendar className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+          <Calendar className="absolute left-3.5 top-3 w-4 h-4 text-ink-muted" />
           <input
             type="date"
             required={field.required}
             value={value || ''}
             onChange={(e) => onChange(field.dataKey, e.target.value)}
-            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+            className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-surface-dark text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow"
           />
         </div>
       ) : field.type === 'time' ? (
         <div className="mt-2 flex items-center gap-2 max-w-[200px]">
           <div className="relative flex-1">
-            <Clock className="absolute left-3.5 top-3 w-4 h-4 text-stone-400" />
+            <Clock className="absolute left-3.5 top-3 w-4 h-4 text-ink-muted" />
             <input
               type="text"
               inputMode="numeric"
@@ -172,10 +173,10 @@ export default function FormFieldCard({
                   onChange(field.dataKey, `${padded}:${currentMm}`);
                 }
               }}
-              className="w-full pl-10 pr-2 py-2.5 rounded-xl border border-stone-300 text-sm font-mono text-center focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+              className="w-full pl-10 pr-2 py-2.5 rounded-xl border border-surface-dark text-sm font-mono text-center focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow"
             />
           </div>
-          <span className="text-stone-400 font-bold select-none">:</span>
+          <span className="text-ink-muted font-bold select-none">:</span>
           <div className="flex-1">
             <input
               type="text"
@@ -197,7 +198,7 @@ export default function FormFieldCard({
                   onChange(field.dataKey, `${currentHh}:${padded}`);
                 }
               }}
-              className="w-full px-2 py-2.5 rounded-xl border border-stone-300 text-sm font-mono text-center focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-stone-800 bg-white transition-shadow"
+              className="w-full px-2 py-2.5 rounded-xl border border-surface-dark text-sm font-mono text-center focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card transition-shadow"
             />
           </div>
         </div>
@@ -206,26 +207,26 @@ export default function FormFieldCard({
           {value ? (
             <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
               <div className="flex items-center truncate">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 mr-2 shrink-0" />
-                <span className="text-sm font-medium text-emerald-700 truncate">
+                <CheckCircle2 className="w-5 h-5 text-status-success mr-2 shrink-0" />
+                <span className="text-sm font-medium text-status-success truncate">
                   {value.split('/').pop() || t.uploadedFile}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onFileRemove(field.dataKey)}
-                className="text-xs text-red-500 hover:text-red-700 font-medium ml-4 shrink-0 cursor-pointer"
+                className="text-xs text-status-danger hover:opacity-80 font-medium ml-4 shrink-0 cursor-pointer"
               >
                 {t.remove}
               </button>
             </div>
           ) : uploadState?.isUploading ? (
-            <div className="p-4 border border-stone-200 rounded-xl bg-stone-50">
-              <div className="flex justify-between text-xs font-medium text-stone-500 mb-2">
+            <div className="p-4 border border-surface-dark rounded-xl bg-surface-base">
+              <div className="flex justify-between text-xs font-medium text-ink-muted mb-2">
                 <span>{t.uploading}</span>
                 <span>{uploadState.progress || 0}%</span>
               </div>
-              <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-surface-dark rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadState.progress || 0}%` }}
@@ -233,7 +234,7 @@ export default function FormFieldCard({
               </div>
             </div>
           ) : (
-            <div className="relative border-2 border-dashed border-stone-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-stone-50 hover:bg-stone-100 transition-colors group">
+            <div className="relative border-2 border-dashed border-surface-dark rounded-xl p-6 flex flex-col items-center justify-center text-center bg-surface-base hover:bg-surface-cream/60 transition-colors group">
               <input
                 type="file"
                 required={field.required}
@@ -243,13 +244,13 @@ export default function FormFieldCard({
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 accept="image/*,.pdf,.doc,.docx"
               />
-              <UploadCloud className="w-8 h-8 text-stone-400 mb-2 group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium text-stone-600 group-hover:text-primary transition-colors">
+              <UploadCloud className="w-8 h-8 text-ink-muted mb-2 group-hover:text-primary transition-colors" />
+              <span className="text-sm font-semibold text-ink-body group-hover:text-primary transition-colors">
                 {t.clickToUpload}
               </span>
-              <span className="text-xs text-stone-400 mt-1">{t.fileTypes}</span>
+              <span className="text-xs text-ink-muted mt-1">{t.fileTypes}</span>
               {uploadState?.error && (
-                <p className="text-xs text-red-500 font-medium mt-3 flex items-center justify-center text-center">
+                <p className="text-xs text-status-danger font-medium mt-3 flex items-center justify-center text-center">
                   <AlertCircle className="w-4 h-4 mr-1.5 shrink-0" /> {uploadState.error}
                 </p>
               )}
@@ -286,12 +287,12 @@ export default function FormFieldCard({
                     type="button"
                     onClick={() => onInlineVerify(field.dataKey, rawVal)}
                     disabled={digitCount !== 8 || isVerifying || isFieldVerified}
-                    className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded-xl border border-stone-200 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px] cursor-pointer"
+                    className="px-5 py-2.5 bg-surface-cream hover:bg-primary-soft text-ink-primary hover:text-primary text-sm font-semibold rounded-xl border border-surface-dark hover:border-primary-border transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px] cursor-pointer"
                   >
                     {isVerifying ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : isFieldVerified ? (
-                      <Check className="w-5 h-5 text-emerald-600" />
+                      <Check className="w-5 h-5 text-status-success" />
                     ) : (
                       t.verify
                     )}
@@ -301,12 +302,12 @@ export default function FormFieldCard({
                 <div className="flex items-center justify-between pt-1">
                   <div>
                     {isError && (
-                      <p className="text-xs text-red-500 font-medium flex items-center">
+                      <p className="text-xs text-status-danger font-medium flex items-center">
                         <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> {isError}
                       </p>
                     )}
                     {isFieldVerified && (
-                      <p className="text-xs text-emerald-600 font-medium flex items-center">
+                      <p className="text-xs text-status-success font-medium flex items-center">
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> {t.tokenVerified}
                       </p>
                     )}
@@ -315,7 +316,7 @@ export default function FormFieldCard({
                   <button
                     type="button"
                     onClick={() => onOpenRecovery(field.dataKey)}
-                    className="text-xs font-semibold text-stone-500 hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1"
+                    className="text-xs font-semibold text-ink-muted hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1"
                   >
                     <Search className="w-3 h-3" />
                     <span>{t.forgotTokenShort}</span>
@@ -330,7 +331,7 @@ export default function FormFieldCard({
           required={field.required}
           value={value || ''}
           onChange={(e) => onChange(field.dataKey, e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none bg-white text-stone-800 transition-shadow mt-2"
+          className="w-full px-3.5 py-2.5 rounded-xl border border-surface-dark text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none bg-surface-card text-ink-primary transition-shadow mt-2"
         >
           <option value="">{t.selectDefault}</option>
           {field.options?.map((opt: any, idx: number) => {
@@ -355,7 +356,7 @@ export default function FormFieldCard({
             const isChecked = value === opt.value;
 
             return (
-              <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
+              <label key={idx} className="flex items-center space-x-3 text-sm text-ink-body cursor-pointer group">
                 <input
                   type="radio"
                   name={field.dataKey}
@@ -368,9 +369,9 @@ export default function FormFieldCard({
                       onChange(field.dataKey, '');
                     }
                   }}
-                  className="w-4 h-4 text-primary border-stone-300 focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 accent-primary border-surface-dark focus:ring-primary cursor-pointer"
                 />
-                <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
+                <span className="group-hover:text-ink-primary transition-colors">{optionLabel}</span>
               </label>
             );
           })}
@@ -385,7 +386,7 @@ export default function FormFieldCard({
             const currentVals = value || [];
             const isChecked = currentVals.includes(opt.value);
             return (
-              <label key={idx} className="flex items-center space-x-3 text-sm text-stone-700 cursor-pointer group">
+              <label key={idx} className="flex items-center space-x-3 text-sm text-ink-body cursor-pointer group">
                 <input
                   type="checkbox"
                   required={field.required && currentVals.length === 0}
@@ -396,9 +397,9 @@ export default function FormFieldCard({
                     else updated = updated.filter((v: string) => v !== opt.value);
                     onChange(field.dataKey, updated);
                   }}
-                  className="w-4 h-4 text-primary border-stone-300 rounded focus:ring-primary cursor-pointer"
+                  className="w-4 h-4 accent-primary border-surface-dark rounded focus:ring-primary cursor-pointer"
                 />
-                <span className="group-hover:text-stone-900 transition-colors">{optionLabel}</span>
+                <span className="group-hover:text-ink-primary transition-colors">{optionLabel}</span>
               </label>
             );
           })}

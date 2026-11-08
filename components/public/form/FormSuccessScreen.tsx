@@ -51,12 +51,12 @@ export default function FormSuccessScreen({
   const TokenUIRenderer = () => {
     if (!generatedToken) return null;
     return (
-      <div className="my-6 p-6 bg-stone-50 border border-stone-200 rounded-xl text-left">
-        <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+      <div className="my-6 p-6 bg-surface-cream border border-primary-border rounded-2xl text-left">
+        <p className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-3">
           {t.saveTokenTitle}
         </p>
-        <div className="flex items-center justify-between bg-white border border-stone-300 rounded-xl p-2 pl-4">
-          <code className="text-xl font-bold text-primary tracking-wider">{generatedToken}</code>
+        <div className="flex items-center justify-between bg-surface-card border border-surface-dark rounded-xl p-2 pl-4">
+          <code className="text-xl font-bold font-mono text-primary tracking-wider">{generatedToken}</code>
           <button
             type="button"
             onClick={() => {
@@ -64,35 +64,35 @@ export default function FormSuccessScreen({
               setIsCopied(true);
               setTimeout(() => setIsCopied(false), 2000);
             }}
-            className="p-2.5 text-stone-400 hover:text-primary hover:bg-surface-cream rounded-lg transition-colors focus:outline-none cursor-pointer"
+            className="p-2.5 text-ink-muted hover:text-primary hover:bg-primary-soft rounded-lg transition-colors focus:outline-none cursor-pointer"
           >
-            {isCopied ? <Check className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+            {isCopied ? <Check className="w-5 h-5 text-status-success" /> : <Copy className="w-5 h-5" />}
           </button>
         </div>
-        <p className="text-xs text-stone-400 mt-3 leading-relaxed">{t.saveTokenDesc}</p>
+        <p className="text-xs text-ink-muted mt-3 leading-relaxed">{t.saveTokenDesc}</p>
       </div>
     );
   };
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center px-4 py-12 transition-colors ${
+      className={`min-h-screen flex items-center justify-center px-4 py-12 font-sans transition-colors ${
         isTest ? 'bg-surface-test' : 'bg-surface-base'
       }`}
     >
-      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+      <div className="max-w-2xl w-full bg-surface-card rounded-3xl shadow-xs border border-surface-dark overflow-hidden">
         {form.schema?.bannerImageUrl && (
           <img
             src={form.schema.bannerImageUrl}
             alt="Banner"
-            className="w-full h-auto max-h-64 object-contain bg-stone-50 border-b border-stone-100"
+            className="w-full h-auto object-contain block bg-surface-cream border-b border-surface-dark"
           />
         )}
         <div className="p-8 md:p-12">
-          <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mx-auto mb-6">
+          <div className="flex items-center justify-center w-16 h-16 bg-emerald-100 text-status-success rounded-full mx-auto mb-6">
             <CheckSquare className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-stone-800 text-center mb-8">
+          <h1 className="text-[22px] md:text-3xl font-extrabold text-ink-primary text-center mb-8 tracking-tight leading-snug">
             {successTitle}
           </h1>
           <div className="text-left">
@@ -109,18 +109,18 @@ export default function FormSuccessScreen({
                   <MarkdownRenderer
                     content={interpolatedPart}
                     baseHeadingLevel={3}
-                    className="text-sm md:text-base text-stone-600"
+                    className="text-base leading-[1.8] text-ink-body"
                   />
                   {index < array.length - 1 && <TokenUIRenderer />}
                 </React.Fragment>
               );
             })}
           </div>
-          <div className="mt-12 pt-6 border-t border-stone-100 text-center">
+          <div className="mt-12 pt-6 border-t border-surface-dark text-center">
             <button
               type="button"
               onClick={onStartOver}
-              className="inline-flex items-center text-sm font-medium text-stone-400 hover:text-stone-600 transition-colors focus:outline-none cursor-pointer"
+              className="inline-flex items-center text-sm font-semibold text-ink-muted hover:text-primary transition-colors focus:outline-none cursor-pointer"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               {t.submitAnother}
