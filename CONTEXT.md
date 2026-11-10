@@ -14,7 +14,7 @@ These ten architectural conventions define how this platform solves specific ope
    * **Strict DB vs. Query Enforcement:** When `is_standalone = true` on an Event, Post, or Static Page, standalone mode is enforced directly on the server (`forceStandaloneParam={false}`) so visitors cannot exit standalone mode by editing the URL. On public forms, `?standalone=true` is also supported and preserved across `/zh` $\leftrightarrow$ `/en` switches.
 
 2. **Uniform `1.91:1` Master Asset Retention & Derivative Crop Partitioning:**
-   * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages & Posts (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails.
+   * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages & Posts (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails, and rendering full-width without artificial `max-height` letterboxing.
    * **Partitioning:** Cropped derivatives are saved under `derivatives/crops/YYYY/MM/...` with `is_system = true`. The user-facing Media Pool query strictly filters out `is_system = true` to prevent derivative crops from cluttering the asset library.
 
 3. **Event-Code Scoped Submissions, Numeric Tokens & Identity Challenge Recovery:**
@@ -47,8 +47,9 @@ These ten architectural conventions define how this platform solves specific ope
    * Slugs are optional, mutable, sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`), and validated on both client and server against `RESERVED_SLUGS` (`admin`, `api`, `events`, `event`, `post`, `news`, `resources`, `form`, `apply`, `tags`, etc.) so top-level static pages (`/[locale]/[id_or_slug]`) never collide with system routes.
    * Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`).
 
-9. **Relative Markdown Heading Hierarchy (`<MarkdownRenderer/>`):**
+9. **Relative Markdown Heading Hierarchy & Hyperlink Visual Separation (`<MarkdownRenderer/>`):**
    * `<MarkdownRenderer/>` shifts Markdown `#`–`######` headings relative to a contextual `baseHeadingLevel` prop ($\text{effectiveLevel} = \min(6, \text{baseHeadingLevel} + \text{mdLevel} - 1)$): `baseHeadingLevel={2}` on Event/Post/Page bodies, `3` on Form subtitles and success messages, `4` on Form `info` blocks, and `5` on Form question hints.
+   * **Heading vs. Link Distinction:** Top-level Markdown section headings (`h2`) feature a `3px` left accent bar in `--color-primary` (`#8E442A`) with charcoal ink (`#26241F`), `h3` uses deep sienna-umber (`#5C2A18`), and inline hyperlinks use complementary **Peacock Teal (`#0D6E6E`)** with a thick `2.5px` dotted jade underline (`#22A699`) that turns solid with a soft mint highlight (`#E0F5F2`) on hover.
 
 10. **Silent Denial RBAC & Immutable Forms:**
     * Permissions are strictly enforced server-side via `lib/permissions.ts`. Unauthorized UI controls (such as delete buttons or status selectors) are silently omitted or disabled in the DOM rather than triggering disruptive error redirects.
@@ -59,7 +60,7 @@ These ten architectural conventions define how this platform solves specific ope
 
 ## Tech Stack & Infrastructure
 * **Framework:** Next.js (App Router, Server Actions, Route Groups).
-* **Styling:** Tailwind CSS (v4 `@theme inline` with Daoji Ochre brand palette).
+* **Styling:** Tailwind CSS (v4 `@theme inline` with Daoji Terracotta `#8E442A` brand palette, Peacock Teal `#0D6E6E` hyperlinks, and warm rice-paper surfaces).
 * **Database & Auth:** Supabase (PostgreSQL with idempotent RLS policies, explicit `anon`/`authenticated` table grants, `pgcrypto`, and CDC audit triggers).
 * **Storage:** Dual Cloudflare R2 bucket architecture via `@aws-sdk/client-s3`:
   * *Private Bucket:* Encrypted applicant file uploads partitioned into `submissions/test/` vs `submissions/real/`.
@@ -72,10 +73,16 @@ These ten architectural conventions define how this platform solves specific ope
 
 ## Workspace Design System
 
-### Palette Partitioning
+### Palette Partitioning & Typography (`app/globals.css`)
 * **Admin Dashboard (`/admin`):** Standardized on the **Indigo** system palette (`bg-indigo-600`, `text-indigo-600`, `bg-indigo-50`).
-* **Public Portal (`/[locale]`):** Standardized on the **Daoji Ochre** brand palette (`--color-primary: #A65D24`, `--color-surface-cream: #FAF5F0`, `--color-surface-base: #FCFAF8`).
-* **Test Mode:** High-contrast Navy palette (`--color-surface-test: #1e1b4b`) to prevent accidental production testing.
+* **Public Portal (`/[locale]`):** Standardized on the **Daoji Terracotta & Warm Monastic Rice-Paper** palette (with OS dark-mode overrides disabled so the portal always renders on its intended warm light surfaces):
+  * *Brand Primary:* `--color-primary: #8E442A` (from the official 道迹禅院 logo swatch `C=41 M=76 Y=100 K=13`), `--color-primary-hover: #743620`, `--color-primary-active: #5C2A18`, `--color-primary-soft: #F8EFEA`, `--color-primary-border: #E2C6B9`, `--color-accent-ochre: #B88644`.
+  * *Distinct Hyperlinks (Peacock Teal & Jade):* `--color-link: #0D6E6E`, `--color-link-hover: #084C4C`, `--color-link-underline: #22A699`, `--color-link-highlight: #E0F5F2`.
+  * *Warm Surfaces:* `--color-surface-base: #FCFAF7`, `--color-surface-card: #FFFFFF`, `--color-surface-cream: #F5EFE6`, `--color-surface-dark: #E6DDD0`.
+  * *Ink Hierarchy:* `--color-ink-primary: #26241F` (titles & labels), `--color-ink-body: #3D3A33` (`16px` / `1.8` line-height long-form prose), `--color-ink-muted: #787166` (captions, dates, hints).
+  * *Semantic Status Tokens:* `--color-status-success: #2D6A4F`, `--color-status-warning: #A16207`, `--color-status-danger: #B91C1C`.
+* **Test Mode:** High-contrast Navy palette (`--color-surface-test: #1E1B4B`) to prevent accidental production testing.
+* **Bilingual Font Stack (`--font-sans`):** `var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "HarmonyOS Sans TC", "Microsoft JhengHei", "Heiti TC", sans-serif`.
 
 ### Component Primitives
 * **Admin Navigation:** Collapsible `<AdminSidebar/>` with persistent `localStorage` state, smooth transitions, and compact icon-only mode.
