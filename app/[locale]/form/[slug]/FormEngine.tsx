@@ -329,10 +329,7 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
         locale: locale,
       });
 
-      let newToken = null;
-      if (response.applicant_token && !validatedToken && !inlineTokenVal) {
-        newToken = response.applicant_token;
-      }
+      const resolvedToken = response.applicant_token || applicantToken || null;
 
       const committedAnswers =
         (response as any).response && typeof (response as any).response === 'object'
@@ -342,14 +339,18 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       if (formSuccessKey) {
         sessionStorage.setItem(
           formSuccessKey,
-          JSON.stringify({ submitted: true, token: newToken, response: committedAnswers })
+          JSON.stringify({
+            submitted: true,
+            token: resolvedToken,
+            response: committedAnswers,
+          })
         );
       }
       if (formStorageKey) sessionStorage.removeItem(formStorageKey);
 
       setSubmittedResponse(committedAnswers);
+      setGeneratedToken(resolvedToken);
       setIsSubmitted(true);
-      if (newToken) setGeneratedToken(newToken);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setErrorMessage(err.message?.includes('Invalid or expired') ? t.invalidToken : t.submissionFailed);
