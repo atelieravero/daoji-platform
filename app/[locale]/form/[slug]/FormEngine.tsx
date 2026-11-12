@@ -412,18 +412,16 @@ export default function FormEngine({ initialForm, locale }: FormEngineProps) {
       return (
         <FormPreGateScreen
           eventCode={eventCode}
+          eventId={form.event_id}
           isTest={isTest}
           isUrlTokenVerifying={isUrlTokenVerifying}
           manualTokenBody={manualTokenBody}
-          isPreGateVerifying={isPreGateVerifying}
           preGateError={preGateError}
           t={t as Record<string, any>}
-          onChangeTokenBody={(formatted) => {
-            setManualTokenBody(formatted);
-            if (preGateError) setPreGateError(null);
-          }}
-          onVerifySubmit={handlePreGateVerify}
-          onOpenRecovery={() => openRecoveryModal(null)}
+          onClearError={() => setPreGateError(null)}
+          onVerified={(verifiedFullToken) =>
+            applyVerifiedToken(verifiedFullToken, null)
+          }
         />
       );
     }

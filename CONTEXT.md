@@ -10,18 +10,18 @@ These eleven architectural conventions define how this platform solves specific 
 
 1. **Zero-Flash Standalone Shell (`<StandaloneNotifier/>` & `<StandaloneLanguageSwitcher/>`):**
    * Standalone pages (public forms, status inquiry pages, standalone events, and standalone posts/pages) suppress the top navbar, header, and footer without hydration flashes.
-   * **Mechanism:** Rather than waiting for a client-side `useEffect` to unmount shell不下 components, `StandaloneNotifier` synchronously injects an inline `<style>header, footer, nav { display: none !important; }</style>` tag into the initial server-rendered HTML payload.
+   * **Mechanism:** Rather than waiting for a client-side `useEffect` to unmount shell components, `StandaloneNotifier` synchronously injects an inline `<style>header, footer, nav { display: none !important; }</style>` tag into the initial server-rendered HTML payload.
    * **Strict DB vs. Query Enforcement:** When `is_standalone = true` on an Event, Post, or Static Page, standalone mode is enforced directly on the server (`forceStandaloneParam={false}`) so visitors cannot exit standalone mode by editing the URL. On public forms and status inquiry routes, `?standalone=true` is also supported and preserved across `/zh` $\leftrightarrow$ `/en` switches.
 
 2. **Uniform `1.91:1` Master Asset Retention & Derivative Crop Partitioning:**
    * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages & Posts (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails, and rendering full-width without artificial `max-height` letterboxing.
    * **Partitioning:** Cropped derivatives are saved under `derivatives/crops/YYYY/MM/...` with `is_system = true`. The user-facing Media Pool query strictly filters out `is_system = true` to prevent derivative crops from cluttering the asset library.
 
-3. **Event-Code Scoped Submissions, Numeric Tokens & Identity Challenge Recovery:**
-   * Applicant sequence numbers (`applicant_seq_num`) and magic return tokens are scoped globally to `event_code` (e.g., `STAY`), **not** individual form IDs or event UUIDs.
-   * **8-Digit Numeric Tokens:** Tokens use pure numeric digits formatted as `[EVENT_CODE]-[DDDD-DDDD]` (e.g., `OCT26-3829-1940`). Both the follow-up pre-gate and inline `applicant_token` questions render `<TokenDigitsInput/>`, which displays the event code as a fixed read-only badge and prompts the applicant for only the 8 numeric digits (`inputMode="numeric"`).
+3. **Event-Code Scoped Submissions, Numeric Application Codes & DRY Identity Gate:**
+   * Applicant sequence numbers (`applicant_seq_num`) and return codes are scoped globally to `event_code` (e.g., `STAY`), **not** individual form IDs or event UUIDs.
+   * **Unified Terminology (`Application Code` / `報名代碼`):** Standardized across all public interfaces so applicants never confuse their `[EVENT_CODE]-[DDDD-DDDD]` reference code (e.g., `OCT26-3829-1940`) with an SMS 2FA code. `<TokenDigitsInput/>` displays the event code as a fixed read-only badge and prompts for only the 8 trailing digits (`inputMode="numeric"`).
    * **Identity Anchors (Application Forms Only):** On initial application forms (`is_followup = false`), form builders can designate one `text` question as `Identity Anchor: Full Name` (`is_identity_name`) and one `mobile` question as `Identity Anchor: Mobile Number` (`is_identity_phone`). Question type dropdowns are locked while designated as anchors. Saving the form recalculates anchor columns (`applicant_name`, `applicant_phone_suffix`) across existing submissions.
-   * **Self-Service Challenge Recovery:** Applicants who misplace their token can challenge either the follow-up pre-gate or an inline `applicant_token` question via `<TokenRecoveryModal/>` using their Name and Mobile Number. The server canonicalizes the name (all spaces/punctuation stripped, lowercased) and phone (suffix-8 digits) and verifies that **exactly one non-archived match exists** with non-empty anchor values. Real mode matches against real submissions; test mode matches against test submissions.
+   * **DRY Side-by-Side Identity Verification (`<ApplicantIdentityGate/>`):** Both the Follow-up Form Pre-Gate (`FormPreGateScreen.tsx`) and the Status Inquiry page (`StatusInquiryClient.tsx`) render `<ApplicantIdentityGate/>`, placing **By Application Code** and **By Name & Phone** side-by-side. For inline `applicant_token` questions inside regular forms, `<TokenRecoveryModal/>` provides the same challenge verification. The server canonicalizes the name (all spaces/punctuation stripped, lowercased) and phone (suffix-8 digits) and verifies that **exactly one non-archived match exists** with non-empty anchor values.
 
 4. **Dumb-Pipe-Safe Form Success Interpolation (`{{dataKey}}`):**
    * `submitPublicForm` chains `.select('applicant_token, response').single()` onto the `submissions` `INSERT` mutation, returning the committed `response` JSONB to the submitting browser session without opening any public `SELECT` policy on `submissions`.
@@ -30,8 +30,8 @@ These eleven architectural conventions define how this platform solves specific 
 
 5. **Stateless, Zero-PII Application Status & Instruction Inquiry (`forms.status_config` & `submissions.status_data`):**
    * Initial application forms (`!is_followup`) can enable a public Status Inquiry portal (`/[locale]/form/[slug]/status` and a secondary link beneath the `Register Now` button in `<EventActionPortal/>`).
-   * **Decoupled from Schema Lock:** Status field definitions and bilingual Markdown instructions live in `forms.status_config` (guarded by `submissions:process`) so coordinators can add checkpoints (e.g., `application_status`, `fees_paid`, `insurance_uploaded`, `flight_confirmed`) or update instructions even while the form is `open` or `closed`.
-   * **Zero-PII Guarantee:** `inquireApplicantStatus` authenticates the applicant via 8-digit token or canonicalized Full Name + Mobile Suffix-8 (requiring an exact single non-archived match) and selects **only** `applicant_token, status_data` from `submissions`—never querying or returning `submissions.response`.
+   * **Decoupled from Schema Lock:** Status field definitions and bilingual Markdown instructions live in `forms.status_config` (guarded by `submissions:process`) so coordinators can add checkpoints (e.g., `status`, `fee`, `insurance`, `flight`) or update instructions even while the form is `open` or `closed`.
+   * **Zero-PII Guarantee:** `inquireApplicantStatus` authenticates the applicant via 8-digit Application Code or canonicalized Full Name + Mobile Suffix-8 (requiring an exact single non-archived match) and selects **only** `applicant_token, status_data` from `submissions`—never querying or returning `submissions.response`.
    * **Conditional Field Visibility & `{{TOKEN}}` Interpolation:** Status fields left unset on a submission without a `defaultValue` are omitted from the applicant's status view. Active option instructions support `{{TOKEN}}` interpolation so admins can embed pre-authenticated follow-up form links (e.g., `/zh/form/oct26-flight?token={{TOKEN}}`).
 
 6. **Dynamic Registration State Inheritance & Crawler-Safe Public Resolution:**
@@ -59,7 +59,7 @@ These eleven architectural conventions define how this platform solves specific 
 
 11. **Silent Denial RBAC & Immutable Forms:**
     * Permissions are strictly enforced server-side via `lib/permissions.ts`. Unauthorized UI controls (such as delete buttons or status selectors) are silently omitted or disabled in the DOM rather than triggering disruptive error redirects.
-    * Submission status mutations are separated into `submissions:process` (toggling `is_processed`, configuring `forms.status_config`, updating `submissions.status_data`, and bulk export processing) and `submissions:archive` (toggling `is_archived` to exclude duplicate/invalid rows from token recovery and status inquiry).
+    * Submission status mutations are separated into `submissions:process` (toggling `is_processed`, configuring `forms.status_config`, updating `submissions.status_data`, and bulk export processing) and `submissions:archive` (toggling `is_archived` via the `<Trash2/>` rubbish bin icon to exclude duplicate/invalid rows from identity lookup and status inquiry).
     * Once a form moves to `open` or `closed`, its question `schema` is locked. Backend Server Actions reject question schema mutations until the form is explicitly reverted to `draft`.
 
 ---
@@ -92,10 +92,10 @@ These eleven architectural conventions define how this platform solves specific 
 
 ### Component Primitives
 * **Admin Navigation:** Collapsible `<AdminSidebar/>` with persistent `localStorage` state, smooth transitions, and compact icon-only mode.
-* **Admin Tables:** `<AdminPageHeader/>`, `<AdminTableToolbar/>` (debounced search + status tabs), `<AdminTableCard/>`, `<StatusBadgeSelect/>`, `<ShareQrModal/>` (high-res QR PNG generation), and `<StatusConfigModal/>` (application status & Markdown instruction configurator).
+* **Admin Tables & Spreadsheet Filters:** `<AdminPageHeader/>`, `<AdminTableToolbar/>` (debounced search + status tabs), `<AdminTableCard/>`, `<AdminColumnHeaderFilter/>` & `useAdminTableFilters` (`components/admin/shared/AdminColumnFilter.tsx` — portal-rendered Google Sheets-style per-column value checklist filter & sort engine), `<StatusBadgeSelect/>`, `<ShareQrModal/>` (high-res QR PNG generation), and `<StatusConfigModal/>` (application status & Markdown instruction configurator).
 * **Editor Architecture:** Two-pane `<EditorLayout/>` with fixed 460px inspector, `<BilingualCanvas/>` (with collapsible optional summaries), `<CoverBannerPicker/>` (`1.91:1` canvas cropper with master retention), and `<UrlSlugInspector/>`.
 * **Relational Pickers:** Extracted modals (`<FormPickerModal/>`, `<EventPickerModal/>` supporting both single-select and multi-select, `<VenueModal/>`, `<OrganizerModal/>`).
-* **Public Form & Status Engine (`components/public/form/`, `lib/form-engine-utils.ts`, `lib/status-inquiry.ts`):** Modularized into `<FormPreGateScreen/>`, `<FormSuccessScreen/>` (with `{{dataKey}}` interpolation), `<FormFieldCard/>`, `<TokenRecoveryModal/>`, `StatusInquiryClient.tsx` (`/[locale]/form/[slug]/status`), and shared input primitives (`<MobilePhoneInput/>`, `<TokenDigitsInput/>`).
+* **Public Form & Status Engine (`components/public/form/`, `lib/form-engine-utils.ts`, `lib/status-inquiry.ts`):** Modularized into `<ApplicantIdentityGate/>` (shared side-by-side Application Code vs. Name + Mobile verification), `<FormPreGateScreen/>`, `<FormSuccessScreen/>` (with `{{dataKey}}` interpolation), `<FormFieldCard/>`, `<TokenRecoveryModal/>`, `StatusInquiryClient.tsx` (`/[locale]/form/[slug]/status`), and shared input primitives (`<MobilePhoneInput/>`, `<TokenDigitsInput/>`).
 
 ---
 
@@ -133,13 +133,13 @@ These eleven architectural conventions define how this platform solves specific 
 * **`submissions`:** 
   * `id` (UUID PK), `form_id` (FK), `event_id`, `event_code`.
   * `locale`: Nullable `TEXT` recording the exact route locale code (`zh`, `en`, etc.) used when submitting the form, with no default assumption.
-  * `applicant_token`: 8-digit numeric token (`[CODE]-DDDD-DDDD`).
+  * `applicant_token`: 8-digit numeric Application Code (`[CODE]-DDDD-DDDD`).
   * `applicant_seq_num`: Sequential counter scoped to `event_code`.
   * `applicant_name`: Canonicalized full name (all whitespace/punctuation stripped, lowercase).
   * `applicant_phone_suffix`: Suffix-8 mobile digits.
   * `response`: JSONB raw answers (returned to the submitting session on `INSERT` for `{{dataKey}}` success interpolation; never exposed on status inquiry).
   * `status_data`: JSONB flat map (`{ [fieldKey]: optionValue }`) storing assigned application status checkpoints per submission.
-  * `is_archived`: Boolean flag to de-index duplicate or invalid records from challenge recovery and status inquiry.
+  * `is_archived`: Boolean flag (toggled via `<Trash2/>` rubbish bin icon) to de-index duplicate or invalid records from challenge recovery and status inquiry.
   * `is_test`, `is_processed`.
 
 ### 3. `content_pages` & `event_articles` (Editorial Posts & Static Pages)
@@ -164,7 +164,7 @@ These eleven architectural conventions define how this platform solves specific 
 ## Public Routing & Visibility Matrix
 * **Published Events (`status = 'published'`):** Visible in public `/[locale]/events` calendar listings and accessible via canonical permalink (`/[locale]/event/[id_or_slug]`, with 301 redirect from legacy `/[locale]/events/[id_or_slug]`).
 * **Unlisted Events (`status = 'unlisted'`):** Excluded from `/[locale]/events` calendar listings, but resolve when accessed via direct permalink (`/[locale]/event/[id_or_slug]`).
-* **Public Forms & Status Inquiry (`/[locale]/form/[slug]` & `/[locale]/form/[slug]/status`):** Public forms resolve when `status = 'open'` (or in `?test=true` preview mode). Status inquiry resolves whenever `status_config.enabled = true` (even after `forms.status` moves to `'closed'`).
+* **Public Forms & Status Inquiry (`/[locale]/form/[slug]` & `/[locale]/form/[slug]/status`):** Public forms resolve when `status = 'open'` (or in `?test=true` preview mode). Status inquiry resolves whenever `status_config.enabled = true` (even after `forms.status` moves to `'closed'`), with `robots: { index: false, follow: false }`.
 * **Published & Unlisted Posts (`type = 'post'`, `status IN ('published', 'unlisted')`):** Accessible via canonical permalink (`/[locale]/post/[id_or_slug]`, with 301 redirect from legacy `/[locale]/news/[id_or_slug]`). Only `status = 'published'` posts appear in the `/[locale]/news` feed and under "Related Articles & Updates" on event detail pages.
 * **Published & Unlisted Static Pages (`type = 'page'`, `status IN ('published', 'unlisted')`):** Accessible via top-level permalink (`/[locale]/[id_or_slug]`).
 * **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace (`/admin/events`, `/admin/content`, `/admin/forms`).

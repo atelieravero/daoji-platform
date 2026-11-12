@@ -6,9 +6,6 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ClipboardCheck,
-  KeyRound,
-  UserCheck,
-  Loader2,
   AlertCircle,
   Copy,
   Check,
@@ -16,17 +13,15 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { inquireApplicantStatus } from '../actions';
-import {
-  extractTokenDigits,
-  formatTokenBodyDisplay,
-  buildFullToken,
-} from '@/lib/form-engine-utils';
+import { formatTokenBodyDisplay } from '@/lib/form-engine-utils';
 import {
   normalizeStatusConfig,
   getStatusToneStyle,
   ResolvedPublicStatusItem,
 } from '@/lib/status-inquiry';
-import { MobilePhoneInput, TokenDigitsInput } from '@/components/public/form/FormInputs';
+import ApplicantIdentityGate, {
+  IdentityLookupPayload,
+} from '@/components/public/form/ApplicantIdentityGate';
 import MarkdownRenderer from '@/components/shared/MarkdownRenderer';
 import StandaloneNotifier from '@/components/public/StandaloneNotifier';
 
@@ -56,11 +51,6 @@ export default function StatusInquiryClient({
   const eventCode =
     initialForm?.events?.code || initialForm?.schema?.interimEventCode || 'MMC';
 
-  const [lookupMode, setLookupMode] = useState<'token' | 'identity'>('token');
-  const [tokenDigitsBody, setTokenDigitsBody] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [mobilePhone, setMobilePhone] = useState('');
-
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -89,15 +79,13 @@ export default function StatusInquiryClient({
       case 'multiple_matches':
         return t.recoveryErrorFailed;
       default:
-        return t.statusInquiryNotFound || t.recoveryErrorFailed;
+        return t.recoveryErrorFailed;
     }
   };
 
-  // Auto-lookup if ?token= is provided in URL
   useEffect(() => {
     if (urlToken && !hasAutoCheckedUrlToken) {
       setHasAutoCheckedUrlToken(true);
-      setTokenDigitsBody(formatTokenBodyDisplay(urlToken, eventCode));
       setIsLoading(true);
       inquireApplicantStatus({
         formId: initialForm.id,
@@ -119,63 +107,42 @@ export default function StatusInquiryClient({
     }
   }, [urlToken, hasAutoCheckedUrlToken, initialForm.id, eventCode, isTest]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLookup = async (payload: IdentityLookupPayload) => {
     setErrorMsg(null);
+    setIsLoading(true);
+    try {
+      const res =
+        payload.mode === 'token'
+          ? await inquireApplicantStatus({
+              formId: initialForm.id,
+              eventCode,
+              mode: 'token',
+              token: payload.token,
+              isTest,
+            })
+          : await inquireApplicantStatus({
+              formId: initialForm.id,
+              eventCode,
+              mode: 'identity',
+              name: payload.name,
+              phone: payload.phone,
+              isTest,
+            });
 
-    if (lookupMode === 'token') {
-      const digits = extractTokenDigits(tokenDigitsBody, eventCode);
-      if (digits.length !== 8) {
-        setErrorMsg(t.invalidToken);
-        return;
+      if (res.success && res.items) {
+        setVerifiedToken(
+          res.applicantToken || (payload.mode === 'token' ? payload.token : '')
+        );
+        setStatusItems(res.items);
+      } else {
+        setErrorMsg(mapErrorCode(res.errorCode));
       }
-      const fullToken = buildFullToken(eventCode, digits);
-      setIsLoading(true);
-      try {
-        const res = await inquireApplicantStatus({
-          formId: initialForm.id,
-          eventCode,
-          mode: 'token',
-          token: fullToken,
-          isTest,
-        });
-        if (res.success && res.items) {
-          setVerifiedToken(res.applicantToken || fullToken);
-          setStatusItems(res.items);
-        } else {
-          setErrorMsg(mapErrorCode(res.errorCode));
-        }
-      } catch {
-        setErrorMsg(t.invalidToken);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      if (!fullName.trim() || !mobilePhone.trim()) {
-        setErrorMsg(t.recoveryErrorMissing);
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const res = await inquireApplicantStatus({
-          formId: initialForm.id,
-          eventCode,
-          mode: 'identity',
-          name: fullName,
-          phone: mobilePhone,
-          isTest,
-        });
-        if (res.success && res.items) {
-          setVerifiedToken(res.applicantToken || '');
-          setStatusItems(res.items);
-        } else {
-          setErrorMsg(mapErrorCode(res.errorCode));
-        }
-      } catch {
-        setErrorMsg(t.recoveryErrorFailed);
-      } finally {
-        setIsLoading(false);
-      }
+    } catch {
+      setErrorMsg(
+        payload.mode === 'token' ? t.invalidToken : t.recoveryErrorFailed
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -183,9 +150,6 @@ export default function StatusInquiryClient({
     setVerifiedToken(null);
     setStatusItems(null);
     setErrorMsg(null);
-    setTokenDigitsBody('');
-    setFullName('');
-    setMobilePhone('');
   };
 
   if (!statusConfig.enabled && !isTest) {
@@ -199,7 +163,7 @@ export default function StatusInquiryClient({
         <div className="max-w-md w-full bg-surface-card p-8 rounded-3xl border border-surface-dark text-center space-y-3">
           <AlertCircle className="w-10 h-10 text-ink-muted mx-auto" />
           <h1 className="text-lg font-bold text-ink-primary">
-            {t.statusInquiryUnavailable || 'Status Inquiry Unavailable'}
+            {t.statusInquiryUnavailable}
           </h1>
         </div>
       </div>
@@ -249,7 +213,7 @@ export default function StatusInquiryClient({
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
                 <ClipboardCheck className="w-4 h-4" />
-                <span>{t.statusInquiryBadge || 'Application Status Inquiry'}</span>
+                <span>{t.statusInquiryBadge}</span>
               </div>
               <h1 className="text-[22px] md:text-[28px] font-extrabold text-ink-primary tracking-tight leading-[1.3]">
                 {formTitle}
@@ -257,120 +221,26 @@ export default function StatusInquiryClient({
             </div>
 
             {statusItems === null ? (
-              /* STEP 1: IDENTITY VERIFICATION GATE */
               <div className="space-y-6 pt-2">
                 <p className="text-sm text-ink-body leading-relaxed">
                   {t.statusInquirySubtitle}
                 </p>
 
-                {/* MODE SWITCHER TABS */}
-                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-cream rounded-xl border border-surface-dark">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLookupMode('token');
-                      setErrorMsg(null);
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      lookupMode === 'token'
-                        ? 'bg-surface-card text-primary shadow-2xs border border-surface-dark/60'
-                        : 'text-ink-muted hover:text-ink-primary'
-                    }`}
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>{t.statusLookupByToken}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLookupMode('identity');
-                      setErrorMsg(null);
-                    }}
-                    className={`py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      lookupMode === 'identity'
-                        ? 'bg-surface-card text-primary shadow-2xs border border-surface-dark/60'
-                        : 'text-ink-muted hover:text-ink-primary'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>{t.statusLookupByIdentity}</span>
-                  </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {lookupMode === 'token' ? (
-                    <div className="space-y-2">
-                      <label className="block text-sm font-semibold text-ink-primary">
-                        {t.tokenGateTitle}
-                      </label>
-                      <TokenDigitsInput
-                        eventCode={eventCode}
-                        value={tokenDigitsBody}
-                        required
-                        placeholder={t.tokenPlaceholder || '1234-5678'}
-                        onChangeDigits={(formatted) => {
-                          setTokenDigitsBody(formatted);
-                          if (errorMsg) setErrorMsg(null);
-                        }}
-                      />
-                      <p className="text-xs text-ink-muted">{t.tokenPrefixHint}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-ink-primary mb-1.5">
-                          {t.recoveryFullNameLabel}
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={fullName}
-                          onChange={(e) => {
-                            setFullName(e.target.value);
-                            if (errorMsg) setErrorMsg(null);
-                          }}
-                          placeholder={t.recoveryFullNamePlaceholder}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-surface-dark text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none text-ink-primary bg-surface-card"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-ink-primary mb-1.5">
-                          {t.recoveryPhoneLabel}
-                        </label>
-                        <MobilePhoneInput
-                          required
-                          value={mobilePhone}
-                          onChange={(val) => {
-                            setMobilePhone(val);
-                            if (errorMsg) setErrorMsg(null);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {errorMsg && (
-                    <div className="p-3.5 bg-red-50 border border-red-200 text-status-danger text-xs font-medium rounded-xl flex items-center">
-                      <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
-                      <span>{errorMsg}</span>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3.5 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-semibold text-sm rounded-xl shadow-xs transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
-                  >
-                    {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                    <span>{isLoading ? t.verifying : t.statusCheckButton}</span>
-                  </button>
-                </form>
+                <ApplicantIdentityGate
+                  eventCode={eventCode}
+                  t={t}
+                  isLoading={isLoading}
+                  errorMessage={errorMsg}
+                  initialTokenBody={
+                    urlToken ? formatTokenBodyDisplay(urlToken, eventCode) : ''
+                  }
+                  submitLabel={t.statusCheckButton}
+                  onClearError={() => setErrorMsg(null)}
+                  onSubmitLookup={handleLookup}
+                />
               </div>
             ) : (
-              /* STEP 2: ZERO-PII STATUS & INSTRUCTION RESULTS */
               <div className="space-y-6 pt-2 animate-in fade-in">
-                {/* APPLICANT TOKEN BAR */}
                 {verifiedToken && (
                   <div className="p-4 bg-surface-cream border border-primary-border rounded-2xl flex items-center justify-between gap-4">
                     <div>
@@ -407,7 +277,6 @@ export default function StatusInquiryClient({
                   />
                 )}
 
-                {/* RESOLVED STATUS ITEMS */}
                 {statusItems.length === 0 ? (
                   <div className="p-8 bg-surface-base rounded-2xl border border-surface-dark text-center text-sm text-ink-muted">
                     {t.statusNoItemsYet}
