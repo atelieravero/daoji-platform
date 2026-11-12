@@ -65,7 +65,8 @@
     "copyPasscode": "Copy Passcode",
     "youtubeLive": "YouTube Live Stream",
     "facebookLive": "Facebook Live Stream",
-    "relatedArticles": "Related Articles & Updates"
+    "relatedArticles": "Related Articles & Updates",
+    "checkApplicationStatus": "Check Application Status"
   },
   "ApplyForm": {
     "back": "Back to Event",
@@ -118,7 +119,16 @@
     "recoverySubmit": "Verify & Unlock",
     "recoverySubmitting": "Verifying...",
     "recoveryErrorMissing": "Please provide both your full name and mobile number.",
-    "recoveryErrorFailed": "Verification failed. Please check your details or contact the organizers."
+    "recoveryErrorFailed": "Verification failed. Please check your details or contact the organizers.",
+    "statusInquiryBadge": "Application Status Inquiry",
+    "statusInquirySubtitle": "Verify with your Access Token or the Full Name & Mobile Number used in your application to check your status and pending steps.",
+    "statusLookupByToken": "By Access Token",
+    "statusLookupByIdentity": "By Name & Phone",
+    "statusCheckButton": "Check Status",
+    "yourApplicantToken": "Your Applicant Token",
+    "statusNoItemsYet": "Your application has been received and is currently awaiting status updates.",
+    "statusCheckAnother": "Check another application",
+    "statusInquiryUnavailable": "Status inquiry is not enabled for this form."
   },
   "PostDetail": {
     "backToNews": "Back to News & Updates",

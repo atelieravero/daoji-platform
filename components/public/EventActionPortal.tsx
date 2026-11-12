@@ -1,18 +1,14 @@
+// components/public/EventActionPortal.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ExternalLink, FileSignature, CheckCircle2, Radio } from 'lucide-react';
+import { ExternalLink, FileSignature, CheckCircle2, Radio, ClipboardCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { EventRecord } from '@/app/admin/(dashboard)/events/actions';
 import CalendarExportDropdown from '@/components/public/CalendarExportDropdown';
 import { LivestreamGatewayModal } from '@/components/public/LivestreamGatewayModal';
 
-/**
- * Formats a Date object:
- * - Chinese: `m月d日` (e.g. 9月10日)
- * - English: `d mmm` (e.g. 10 Sep)
- */
 function formatShortDate(date: Date, isZh: boolean): string {
   if (isZh) {
     return `${date.getMonth() + 1}月${date.getDate()}日`;
@@ -23,7 +19,7 @@ function formatShortDate(date: Date, isZh: boolean): string {
 }
 
 interface EventActionPortalProps {
-  event: EventRecord;
+  event: EventRecord & { linked_form?: any };
   locale?: 'zh' | 'en';
 }
 
@@ -49,24 +45,20 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
       return { status: 'disabled', message: '' };
     }
 
-    // 1. Manual live toggle override
     if (isLive) {
       return { status: 'active', message: t('joinLivestream') };
     }
 
-    // 2. Manual mode without active live broadcast remains hidden
     if (mode === 'manual') {
       return { status: 'disabled', message: '' };
     }
 
-    // 3. Auto schedule-based window calculation
     if (!now) return { status: 'disabled', message: '' };
 
     const start = new Date(event.start_date);
     const end = new Date(event.end_date);
     const durationMs = end.getTime() - start.getTime();
 
-    // 3a. Single Session
     if (!event.recurrence_rule) {
       let sessionStart = new Date(start);
       let sessionEnd = new Date(end);
@@ -94,7 +86,6 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
       return { status: 'disabled', message: '' };
     }
 
-    // 3b. Recurring Series Projection Engine
     const targetDays: number[] = event.recurrence_rule.days_of_week || [start.getDay()];
     const until = event.recurrence_rule.until_date ? new Date(`${event.recurrence_rule.until_date}T23:59:59`) : null;
     const blackouts: string[] = event.blackout_dates || [];
@@ -149,7 +140,6 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
   const livestreamState = calculateLivestreamState();
   const customLabel = isZh ? event.cta_label_zh : event.cta_label_en;
 
-  // Venue Name fallback for calendar export
   const venue = event.venues;
   const venueNameZh = event.venue_override_zh || venue?.name_zh;
   const venueNameEn = event.venue_override_en || venue?.name_en;
@@ -157,11 +147,18 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
     ? (venueNameZh || venueNameEn || undefined)
     : (venueNameEn || venueNameZh || undefined);
 
+  const formSlugOrId = event.linked_form?.slug || event.linked_form_id;
+  const hasStatusInquiry =
+    event.registration_mode === 'internal_form' &&
+    Boolean(formSlugOrId) &&
+    Boolean(event.linked_form?.status_config?.enabled) &&
+    event.registration_status !== 'upcoming';
+
   const renderRegistrationButton = () => {
     if (event.registration_mode === 'not_required') {
       return (
-        <div className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-xs font-semibold rounded-xl select-none shadow-2xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 text-status-success border border-emerald-200/80 text-xs font-semibold rounded-xl select-none shadow-2xs">
+          <CheckCircle2 className="w-4 h-4 text-status-success" />
           <span>{t('noRegistrationRequired')}</span>
         </div>
       );
@@ -169,7 +166,10 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
 
     if (event.registration_status === 'upcoming') {
       return (
-        <button disabled className="px-6 py-2.5 bg-[#FAF5F0] border border-[#A65D24]/40 text-[#A65D24] text-xs font-bold rounded-xl shadow-2xs cursor-not-allowed select-none">
+        <button
+          disabled
+          className="px-6 py-2.5 bg-primary-soft border border-primary-border text-primary text-xs font-bold rounded-xl shadow-2xs cursor-not-allowed select-none"
+        >
           {customLabel || t('openingSoon')}
         </button>
       );
@@ -177,7 +177,10 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
 
     if (event.registration_status === 'closed') {
       return (
-        <button disabled className="px-6 py-2.5 bg-stone-200 border border-stone-300 text-stone-500 text-xs font-bold rounded-xl cursor-not-allowed select-none">
+        <button
+          disabled
+          className="px-6 py-2.5 bg-surface-cream border border-surface-dark text-ink-muted text-xs font-bold rounded-xl cursor-not-allowed select-none"
+        >
           {customLabel || t('registrationClosed')}
         </button>
       );
@@ -197,7 +200,6 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
       );
     }
 
-    const formSlugOrId = event.linked_form?.slug || event.linked_form_id;
     const formTarget = formSlugOrId ? `/${locale}/form/${formSlugOrId}` : '#register';
 
     return (
@@ -205,7 +207,7 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
         href={formTarget}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer"
+        className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
       >
         <FileSignature className="w-3.5 h-3.5" />
         <span>{customLabel || t('registerNow')}</span>
@@ -214,7 +216,7 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
   };
 
   return (
-    <div className="flex flex-col md:items-end justify-between gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-stone-100">
+    <div className="flex flex-col md:items-end justify-between gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-surface-dark/70">
       <CalendarExportDropdown
         event={{
           title: isZh ? (event.title_zh || event.title_en || '') : (event.title_en || event.title_zh || ''),
@@ -228,24 +230,39 @@ export default function EventActionPortal({ event, locale = 'zh' }: EventActionP
         }}
       />
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {livestreamState.status === 'active' ? (
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer animate-pulse"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>{livestreamState.message}</span>
-          </button>
-        ) : livestreamState.status === 'upcoming' ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50/80 border border-blue-200/80 text-blue-700 text-[11px] font-semibold rounded-xl select-none">
-            <Radio className="w-3 h-3 text-blue-500 shrink-0" />
-            <span>{livestreamState.message}</span>
-          </div>
-        ) : null}
+      <div className="flex flex-col md:items-end gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {livestreamState.status === 'active' ? (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer animate-pulse"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>{livestreamState.message}</span>
+            </button>
+          ) : livestreamState.status === 'upcoming' ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 text-sky-800 text-[11px] font-semibold rounded-xl select-none">
+              <Radio className="w-3 h-3 text-sky-600 shrink-0" />
+              <span>{livestreamState.message}</span>
+            </div>
+          ) : null}
 
-        {renderRegistrationButton()}
+          {renderRegistrationButton()}
+        </div>
+
+        {/* SECONDARY LINK: APPLICATION STATUS INQUIRY */}
+        {hasStatusInquiry && (
+          <Link
+            href={`/${locale}/form/${formSlugOrId}/status`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-link underline decoration-dotted decoration-link-underline decoration-[2px] underline-offset-4 hover:text-link-hover hover:bg-link-highlight hover:decoration-solid hover:decoration-link-hover px-1 py-0.5 rounded-sm transition-all"
+          >
+            <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('checkApplicationStatus')}</span>
+          </Link>
+        )}
       </div>
 
       {streamConfig && (

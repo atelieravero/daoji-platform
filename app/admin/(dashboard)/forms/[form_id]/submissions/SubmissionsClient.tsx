@@ -1,25 +1,49 @@
+// app/admin/(dashboard)/forms/[form_id]/submissions/SubmissionsClient.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Download, Filter, Eye, EyeOff, CheckCircle2, Circle, 
-  Check, Settings2, ChevronUp, ChevronDown, Beaker, Archive 
+import {
+  Download,
+  Filter,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Circle,
+  Check,
+  Settings2,
+  ChevronUp,
+  ChevronDown,
+  Beaker,
+  Archive,
+  ClipboardCheck,
+  Layers,
 } from 'lucide-react';
-import { 
-  getFormAndSubmissions, 
-  toggleSubmissionProcessedStatus, 
-  toggleSubmissionArchivedStatus, 
-  bulkMarkAsProcessed 
+import {
+  getFormAndSubmissions,
+  toggleSubmissionProcessedStatus,
+  toggleSubmissionArchivedStatus,
+  bulkMarkAsProcessed,
+  saveFormStatusConfig,
+  updateSubmissionStatusField,
+  bulkUpdateSubmissionStatusField,
 } from './actions';
 import AdminPageHeader from '@/components/admin/shared/AdminPageHeader';
 import AdminTableToolbar from '@/components/admin/shared/AdminTableToolbar';
 import AdminTableCard from '@/components/admin/shared/AdminTableCard';
+import StatusConfigModal from '@/components/admin/forms/StatusConfigModal';
+import {
+  FormStatusConfig,
+  normalizeStatusConfig,
+  getStatusToneStyle,
+} from '@/lib/status-inquiry';
 
 interface ColumnDef {
   id: string;
   label: string;
   visible: boolean;
   isMeta: boolean;
+  isStatus?: boolean;
+  statusKey?: string;
 }
 
 interface SubmissionsClientProps {
@@ -35,6 +59,10 @@ interface SubmissionsClientProps {
 
 export default function SubmissionsClient({ form_id, permissions }: SubmissionsClientProps) {
   const [formConfig, setFormConfig] = useState<any>(null);
+  const [statusConfig, setStatusConfig] = useState<FormStatusConfig>({
+    enabled: false,
+    fields: [],
+  });
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,12 +71,59 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [filterProcessed, setFilterProcessed] = useState(false);
   const [filterArchived, setFilterArchived] = useState(false);
-  const [showExportToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Status Config Modal & Bulk Status Assignment States
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [bulkFieldKey, setBulkFieldKey] = useState<string>('');
+  const [bulkOptionValue, setBulkOptionValue] = useState<string>('');
+  const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
 
   // Column Management States
   const [columns, setColumns] = useState<ColumnDef[]>([]);
   const [showColManager, setShowColManager] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const buildColumns = (form: any, parsedStatusConfig: FormStatusConfig): ColumnDef[] => {
+    const cols: ColumnDef[] = [
+      { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
+      { id: 'locale', label: 'locale', visible: true, isMeta: true },
+      { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
+      { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
+    ];
+
+    parsedStatusConfig.fields.forEach((sf) => {
+      if (sf.key) {
+        cols.push({
+          id: `status:${sf.key}`,
+          label: `${sf.labelZh || sf.labelEn} (${sf.key})`,
+          visible: true,
+          isMeta: false,
+          isStatus: true,
+          statusKey: sf.key,
+        });
+      }
+    });
+
+    const fields = form?.schema?.fields || [];
+    fields.forEach((field: any) => {
+      if (field.type !== 'info' && field.dataKey) {
+        cols.push({
+          id: field.dataKey,
+          label: field.dataKey,
+          visible: true,
+          isMeta: false,
+        });
+      }
+    });
+
+    return cols;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -61,29 +136,14 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
     getFormAndSubmissions(form_id)
       .then(({ form, submissions }) => {
         if (!isMounted) return;
+        const parsedStatus = normalizeStatusConfig(form?.status_config);
         setFormConfig(form);
+        setStatusConfig(parsedStatus);
         setSubmissions(submissions || []);
-
-        const initialCols: ColumnDef[] = [
-          { id: 'created_at', label: 'created_at', visible: true, isMeta: true },
-          { id: 'locale', label: 'locale', visible: true, isMeta: true },
-          { id: 'applicant_seq_num', label: 'seq_num', visible: true, isMeta: true },
-          { id: 'applicant_token', label: 'applicant_token', visible: true, isMeta: true },
-        ];
-
-        const fields = form?.schema?.fields || [];
-        fields.forEach((field: any) => {
-          if (field.type !== 'info' && field.dataKey) {
-            initialCols.push({
-              id: field.dataKey,
-              label: field.dataKey,
-              visible: true,
-              isMeta: false,
-            });
-          }
-        });
-
-        setColumns(initialCols);
+        setColumns(buildColumns(form, parsedStatus));
+        if (parsedStatus.fields.length > 0) {
+          setBulkFieldKey(parsedStatus.fields[0].key);
+        }
         setIsLoading(false);
       })
       .catch((err) => {
@@ -147,6 +207,79 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
     }
   };
 
+  const handleInlineStatusChange = async (
+    sub: any,
+    fieldKey: string,
+    newValue: string
+  ) => {
+    if (!permissions.canProcess) return;
+    const prevStatusData = sub.status_data || {};
+    const nextStatusData = { ...prevStatusData };
+    if (!newValue) {
+      delete nextStatusData[fieldKey];
+    } else {
+      nextStatusData[fieldKey] = newValue;
+    }
+
+    setSubmissions((subs) =>
+      subs.map((s) =>
+        s.id === sub.id ? { ...s, status_data: nextStatusData } : s
+      )
+    );
+
+    try {
+      await updateSubmissionStatusField(sub.id, fieldKey, newValue || null);
+    } catch (err) {
+      setSubmissions((subs) =>
+        subs.map((s) =>
+          s.id === sub.id ? { ...s, status_data: prevStatusData } : s
+        )
+      );
+      alert('Failed to update status field.');
+    }
+  };
+
+  const handleBulkStatusApply = async () => {
+    if (!permissions.canProcess || selectedRows.length === 0 || !bulkFieldKey) return;
+    setIsBulkUpdatingStatus(true);
+    try {
+      await bulkUpdateSubmissionStatusField(
+        selectedRows,
+        bulkFieldKey,
+        bulkOptionValue || null
+      );
+      setSubmissions((subs) =>
+        subs.map((s) => {
+          if (!selectedRows.includes(s.id)) return s;
+          const nextData = { ...(s.status_data || {}) };
+          if (!bulkOptionValue) {
+            delete nextData[bulkFieldKey];
+          } else {
+            nextData[bulkFieldKey] = bulkOptionValue;
+          }
+          return { ...s, status_data: nextData };
+        })
+      );
+      triggerToast(`Updated status for ${selectedRows.length} submissions!`);
+    } catch (err) {
+      alert('Failed to bulk update status.');
+    } finally {
+      setIsBulkUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveStatusConfig = async (newConfig: FormStatusConfig) => {
+    const res = await saveFormStatusConfig(form_id, newConfig);
+    if (res.success) {
+      setStatusConfig(res.status_config);
+      setColumns(buildColumns(formConfig, res.status_config));
+      if (res.status_config.fields.length > 0 && !bulkFieldKey) {
+        setBulkFieldKey(res.status_config.fields[0].key);
+      }
+      triggerToast('Status Inquiry configuration saved!');
+    }
+  };
+
   const escapeCSV = (val: any) => {
     if (val === null || val === undefined || val === '') return '""';
     const str = String(val);
@@ -182,6 +315,12 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
           return escapeCSV(sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-');
         if (c.id === 'applicant_token') return escapeCSV(sub.applicant_token);
 
+        if (c.isStatus && c.statusKey) {
+          const sf = statusConfig.fields.find((f) => f.key === c.statusKey);
+          const rawStatusVal = sub.status_data?.[c.statusKey] || sf?.defaultValue || '';
+          return escapeCSV(rawStatusVal);
+        }
+
         let rawVal = sub.response?.[c.id];
 
         if (fileDataKeys.includes(c.id) && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
@@ -213,8 +352,7 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
         );
       }
       setSelectedRows([]);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      triggerToast('CSV Exported & records marked as processed!');
     } catch (e) {
       alert('Export successful, but failed to flag records as processed in the database.');
     }
@@ -231,20 +369,22 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
       const nameMatch = (sub.applicant_name || '').toLowerCase().includes(term);
       const localeMatch = (sub.locale || '').toLowerCase().includes(term);
       const dataMatch = JSON.stringify(sub.response || {}).toLowerCase().includes(term);
-      return tokenMatch || seqMatch || nameMatch || localeMatch || dataMatch;
+      const statusMatch = JSON.stringify(sub.status_data || {}).toLowerCase().includes(term);
+      return tokenMatch || seqMatch || nameMatch || localeMatch || dataMatch || statusMatch;
     }
 
     return true;
   });
 
   const hasTestData = filteredSubmissions.some((sub) => sub.is_test);
+  const selectedBulkField = statusConfig.fields.find((f) => f.key === bulkFieldKey);
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 p-8 h-full font-sans relative">
-      {showExportToast && (
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-3 z-50 animate-in fade-in slide-in-from-top-4">
+      {toastMessage && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-3 z-50 animate-in fade-in slide-in-from-top-4">
           <Check className="w-5 h-5 text-emerald-400" />
-          <span className="text-sm font-medium">CSV Exported & records marked as processed!</span>
+          <span className="text-sm font-medium">{toastMessage}</span>
         </div>
       )}
 
@@ -257,6 +397,23 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
         <span className="text-sm text-gray-500 font-medium mr-2">
           {selectedRows.length} selected
         </span>
+
+        {permissions.canProcess && !formConfig?.is_followup && (
+          <button
+            type="button"
+            onClick={() => setShowStatusModal(true)}
+            className="inline-flex items-center px-4 py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+          >
+            <ClipboardCheck className="w-4 h-4 mr-2 text-indigo-600" />
+            <span>Status Inquiry Config</span>
+            {statusConfig.enabled && (
+              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full">
+                LIVE
+              </span>
+            )}
+          </button>
+        )}
+
         {permissions.canExport && (
           <button
             type="button"
@@ -273,11 +430,64 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
         )}
       </AdminPageHeader>
 
+      {/* MULTI-ROW BULK STATUS ASSIGNMENT BAR */}
+      {permissions.canProcess &&
+        selectedRows.length > 0 &&
+        statusConfig.fields.length > 0 && (
+          <div className="mb-4 p-3.5 bg-indigo-50/90 border border-indigo-200 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <span>
+                Bulk Assign Status ({selectedRows.length} selected):
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={bulkFieldKey}
+                onChange={(e) => {
+                  setBulkFieldKey(e.target.value);
+                  setBulkOptionValue('');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold bg-white border border-indigo-200 rounded-lg text-gray-800"
+              >
+                {statusConfig.fields.map((sf) => (
+                  <option key={sf.id} value={sf.key}>
+                    {sf.labelZh || sf.labelEn} ({sf.key})
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={bulkOptionValue}
+                onChange={(e) => setBulkOptionValue(e.target.value)}
+                className="px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg text-gray-800"
+              >
+                <option value="">— Clear / Reset to Unset —</option>
+                {(selectedBulkField?.options || []).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.labelZh || opt.labelEn} ({opt.value})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                disabled={isBulkUpdatingStatus}
+                onClick={handleBulkStatusApply}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isBulkUpdatingStatus ? 'Applying...' : `Apply to ${selectedRows.length} Selected`}
+              </button>
+            </div>
+          </div>
+        )}
+
       {/* TOOLBAR */}
       <AdminTableToolbar
         search={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search data, names, or tokens..."
+        searchPlaceholder="Search data, names, tokens, or status..."
       >
         <button
           type="button"
@@ -398,7 +608,11 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
                     key={col.id}
                     scope="col"
                     className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap font-mono ${
-                      col.isMeta ? 'text-gray-500' : 'text-indigo-600 bg-indigo-50/30'
+                      col.isStatus
+                        ? 'text-emerald-700 bg-emerald-50/40'
+                        : col.isMeta
+                        ? 'text-gray-500'
+                        : 'text-indigo-600 bg-indigo-50/30'
                     }`}
                   >
                     {col.label}
@@ -505,6 +719,38 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
                       cellValue = sub.applicant_seq_num ? `#${String(sub.applicant_seq_num).padStart(3, '0')}` : '-';
                     } else if (col.id === 'applicant_token') {
                       cellValue = sub.applicant_token || '-';
+                    } else if (col.isStatus && col.statusKey) {
+                      const sf = statusConfig.fields.find((f) => f.key === col.statusKey);
+                      const explicitVal = sub.status_data?.[col.statusKey] || '';
+                      const effectiveVal = explicitVal || sf?.defaultValue || '';
+                      const matchedOpt = sf?.options.find((o) => o.value === effectiveVal);
+                      const toneStyle = getStatusToneStyle(matchedOpt?.tone);
+
+                      cellValue = (
+                        <select
+                          disabled={!permissions.canProcess}
+                          value={explicitVal}
+                          onChange={(e) =>
+                            handleInlineStatusChange(sub, col.statusKey!, e.target.value)
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border outline-none transition-colors ${
+                            matchedOpt
+                              ? toneStyle.adminBadgeClass
+                              : 'bg-gray-50 text-gray-400 border-gray-200'
+                          } ${permissions.canProcess ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                        >
+                          <option value="">
+                            {sf?.defaultValue
+                              ? `Default (${sf.options.find((o) => o.value === sf.defaultValue)?.labelZh || sf.defaultValue})`
+                              : '— Unset (Hidden) —'}
+                          </option>
+                          {(sf?.options || []).map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.labelZh || opt.labelEn} ({opt.value})
+                            </option>
+                          ))}
+                        </select>
+                      );
                     } else {
                       const rawVal = sub.response?.[col.id];
                       const isFileField =
@@ -542,7 +788,7 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
                     return (
                       <td
                         key={col.id}
-                        className={`px-6 py-4 text-sm whitespace-nowrap truncate max-w-[250px] ${
+                        className={`px-6 py-4 text-sm whitespace-nowrap truncate max-w-[260px] ${
                           col.isMeta ? 'text-gray-500 font-mono text-xs' : 'text-gray-900'
                         }`}
                       >
@@ -555,6 +801,15 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
           </tbody>
         </table>
       </AdminTableCard>
+
+      {/* STATUS CONFIG MODAL */}
+      <StatusConfigModal
+        isOpen={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        initialConfig={statusConfig}
+        formSlug={formConfig?.slug}
+        onSave={handleSaveStatusConfig}
+      />
     </div>
   );
 }

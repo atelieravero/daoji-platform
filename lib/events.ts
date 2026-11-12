@@ -1,6 +1,7 @@
 // lib/events.ts
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { EventRecord } from '@/app/admin/(dashboard)/events/actions';
+import { FormStatusConfig } from '@/lib/status-inquiry';
 
 export interface PublicArticleItem {
   id: string;
@@ -18,6 +19,8 @@ export interface LinkedFormSummary {
   id: string;
   slug: string | null;
   status: string;
+  is_followup?: boolean;
+  status_config?: FormStatusConfig | null;
 }
 
 export interface PublicEventDetail extends EventRecord {
@@ -63,7 +66,7 @@ export async function getPublicEvents(): Promise<EventRecord[]> {
   if (formIds.length > 0) {
     const { data: formsList } = await supabase
       .from('forms')
-      .select('id, slug, status')
+      .select('id, slug, status, is_followup, status_config')
       .in('id', formIds);
 
     (formsList || []).forEach((f: any) => {
@@ -107,7 +110,7 @@ export async function getPublicEventByIdOrSlug(idOrSlug: string): Promise<Public
     event.registration_mode === 'internal_form' && event.linked_form_id
       ? supabase
           .from('forms')
-          .select('id, slug, status')
+          .select('id, slug, status, is_followup, status_config')
           .eq('id', event.linked_form_id)
           .single()
       : Promise.resolve({ data: null }),

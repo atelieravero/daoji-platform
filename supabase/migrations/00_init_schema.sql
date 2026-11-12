@@ -168,10 +168,14 @@ CREATE TABLE IF NOT EXISTS forms (
     is_followup BOOLEAN DEFAULT FALSE,
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'open', 'closed')),
     schema JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status_config JSONB NOT NULL DEFAULT '{"enabled": false, "fields": []}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT forms_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
 );
+
+ALTER TABLE forms
+  ADD COLUMN IF NOT EXISTS status_config JSONB NOT NULL DEFAULT '{"enabled": false, "fields": []}'::jsonb;
 
 -- Circular FK connection for Events linked form
 ALTER TABLE events 
@@ -193,11 +197,15 @@ CREATE TABLE IF NOT EXISTS submissions (
     applicant_name TEXT,
     applicant_phone_suffix VARCHAR(8),
     response JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_test BOOLEAN DEFAULT FALSE,
     is_processed BOOLEAN DEFAULT FALSE,
     is_archived BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE submissions
+  ADD COLUMN IF NOT EXISTS status_data JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ==============================================================================
 -- 5. EDITORIAL CONTENT & KNOWLEDGE HUB

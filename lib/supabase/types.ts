@@ -411,7 +411,9 @@ export type Database = {
           schema: Json
           slug: string | null
           status: string
+          status_config: Json
           title: string
+          updated_at: string | null
         }
         Insert: {
           created_at?: string
@@ -421,7 +423,9 @@ export type Database = {
           schema?: Json
           slug?: string | null
           status?: string
+          status_config?: Json
           title: string
+          updated_at?: string | null
         }
         Update: {
           created_at?: string
@@ -431,7 +435,9 @@ export type Database = {
           schema?: Json
           slug?: string | null
           status?: string
+          status_config?: Json
           title?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -574,6 +580,7 @@ export type Database = {
           is_test: boolean | null
           locale: string | null
           response: Json
+          status_data: Json
         }
         Insert: {
           applicant_name?: string | null
@@ -590,6 +597,7 @@ export type Database = {
           is_test?: boolean | null
           locale?: string | null
           response?: Json
+          status_data?: Json
         }
         Update: {
           applicant_name?: string | null
@@ -606,6 +614,7 @@ export type Database = {
           is_test?: boolean | null
           locale?: string | null
           response?: Json
+          status_data?: Json
         }
         Relationships: [
           {

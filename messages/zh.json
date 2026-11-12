@@ -65,7 +65,8 @@
     "copyPasscode": "複製密碼",
     "youtubeLive": "YouTube 線上直播",
     "facebookLive": "Facebook 線上直播",
-    "relatedArticles": "活動最新公告與報導"
+    "relatedArticles": "活動最新公告與報導",
+    "checkApplicationStatus": "查詢報名進度與待辦事項"
   },
   "ApplyForm": {
     "back": "返回活動詳情",
@@ -118,7 +119,16 @@
     "recoverySubmit": "核對並進入",
     "recoverySubmitting": "核對中...",
     "recoveryErrorMissing": "請填寫姓名與流動電話號碼。",
-    "recoveryErrorFailed": "核對未通過，未找到相符紀錄或找到多筆紀錄。請檢查輸入或聯絡主辦方。"
+    "recoveryErrorFailed": "核對未通過，未找到相符紀錄或找到多筆紀錄。請檢查輸入或聯絡主辦方。",
+    "statusInquiryBadge": "報名進度與待辦事項查詢",
+    "statusInquirySubtitle": "請輸入您的身份核驗碼，或填寫初次報名時使用的姓名與流動電話號碼，以查詢最新進度及待辦指引。",
+    "statusLookupByToken": "使用核驗碼查詢",
+    "statusLookupByIdentity": "使用姓名與電話查詢",
+    "statusCheckButton": "立即查詢",
+    "yourApplicantToken": "您的申請核驗碼",
+    "statusNoItemsYet": "我們已收到您的報名資料，目前尚無待更新之狀態項目。",
+    "statusCheckAnother": "查詢另一筆報名",
+    "statusInquiryUnavailable": "此表單尚未開放進度查詢功能。"
   },
   "PostDetail": {
     "backToNews": "返回最新消息",

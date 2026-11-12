@@ -11,6 +11,11 @@ import {
   canonicalizePhoneSuffix,
   generateNumericToken,
 } from '@/lib/applicant-identity';
+import {
+  normalizeStatusConfig,
+  resolveApplicantStatusItems,
+  ResolvedPublicStatusItem,
+} from '@/lib/status-inquiry';
 
 const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -297,4 +302,124 @@ export async function getPresignedUploadUrl(
     console.error('Error generating pre-signed URL:', error);
     return { success: false, error: 'Failed to generate secure upload URL.' };
   }
+}
+
+/**
+ * Stateless, Zero-PII Application Status Inquiry:
+ * Authenticates the applicant via Token OR Full Name + Mobile Suffix (8 digits),
+ * queries ONLY applicant_token and status_data (never submissions.response),
+ * and returns the resolved status badges and Markdown instructions.
+ */
+export async function inquireApplicantStatus(params: {
+  formId: string;
+  eventCode: string;
+  mode: 'token' | 'identity';
+  token?: string;
+  name?: string;
+  phone?: string;
+  isTest?: boolean;
+}): Promise<{
+  success: boolean;
+  applicantToken?: string;
+  items?: ResolvedPublicStatusItem[];
+  errorCode?: 'invalid_token' | 'missing_identity' | 'not_found' | 'multiple_matches' | 'disabled';
+}> {
+  const supabase = getSupabaseAdmin();
+  const isTest = Boolean(params.isTest);
+
+  // 1. Fetch form status_config & event code
+  const { data: formRecord, error: formError } = await supabase
+    .from('forms')
+    .select('id, event_id, status_config, schema')
+    .eq('id', params.formId)
+    .single();
+
+  if (formError || !formRecord) {
+    return { success: false, errorCode: 'not_found' };
+  }
+
+  const statusConfig = normalizeStatusConfig(formRecord.status_config);
+  if (!statusConfig.enabled && !isTest) {
+    return { success: false, errorCode: 'disabled' };
+  }
+
+  const targetCode = await resolveEventCode(
+    supabase,
+    formRecord.event_id,
+    params.eventCode || formRecord.schema?.interimEventCode || 'MMC'
+  );
+
+  // 2. Resolve submission strictly selecting ONLY applicant_token and status_data
+  let matchedSubmission: { applicant_token: string; status_data: Record<string, any> } | null =
+    null;
+
+  if (params.mode === 'token') {
+    const cleanToken = normalizeApplicantToken(params.token, targetCode);
+    if (!cleanToken) {
+      return { success: false, errorCode: 'invalid_token' };
+    }
+
+    const { data: rows, error } = await supabase
+      .from('submissions')
+      .select('applicant_token, status_data')
+      .eq('form_id', formRecord.id)
+      .eq('event_code', targetCode)
+      .eq('applicant_token', cleanToken)
+      .eq('is_archived', false)
+      .eq('is_test', isTest)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error || !rows || rows.length === 0) {
+      return { success: false, errorCode: 'invalid_token' };
+    }
+    matchedSubmission = rows[0] as any;
+  } else {
+    const cleanName = canonicalizeApplicantName(params.name || '');
+    const cleanPhone = canonicalizePhoneSuffix(params.phone || '');
+
+    if (!cleanName || !cleanPhone) {
+      return { success: false, errorCode: 'missing_identity' };
+    }
+
+    const { data: matches, error } = await supabase
+      .from('submissions')
+      .select('applicant_token, status_data')
+      .eq('form_id', formRecord.id)
+      .eq('event_code', targetCode)
+      .eq('applicant_name', cleanName)
+      .eq('applicant_phone_suffix', cleanPhone)
+      .eq('is_archived', false)
+      .eq('is_test', isTest)
+      .not('applicant_name', 'is', null)
+      .neq('applicant_name', '')
+      .not('applicant_phone_suffix', 'is', null)
+      .neq('applicant_phone_suffix', '');
+
+    if (error || !matches || matches.length === 0) {
+      return { success: false, errorCode: 'not_found' };
+    }
+
+    if (matches.length > 1) {
+      return { success: false, errorCode: 'multiple_matches' };
+    }
+
+    matchedSubmission = matches[0] as any;
+  }
+
+  if (!matchedSubmission) {
+    return { success: false, errorCode: 'not_found' };
+  }
+
+  const resolvedItems = resolveApplicantStatusItems(
+    statusConfig,
+    matchedSubmission.status_data,
+    matchedSubmission.applicant_token || ''
+  );
+
+  return {
+    success: true,
+    applicantToken: matchedSubmission.applicant_token || '',
+    items: resolvedItems,
+  };
 }
