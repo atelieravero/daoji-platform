@@ -106,9 +106,9 @@ These eleven architectural conventions define how this platform solves specific 
                  │          organizers            │
                  └──────────────┬─────────────────┘
                                 │ 1:N
-┌──────────────┐ 1:N            ▼             N:M            ┌──────────────────┐
-│    venues    │◄─────────── events ─────────►│ event_articles│◄──── content_pages
-└──────────────┘                │                            └──────────────────┘
+┌──────────────┐ 1:N            ▼         N:M ┌──────────────────┐
+│    venues    │◄─────────── events ─────────►│  event_articles  │◄──── content_pages
+└──────────────┘                │             └──────────────────┘
                                 │ 1:N
                                 ▼
                              forms
