@@ -629,14 +629,9 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
       <AdminTableCard
         isLoading={isLoading}
         loadingText="Loading submissions..."
-        isEmpty={filteredSubmissions.length === 0}
+        isEmpty={submissions.length === 0}
         emptyTitle="No submissions found"
-        emptyDescription={
-          fetchError ||
-          (activeFilterCount > 0 || searchTerm
-            ? 'No submissions match your active filters.'
-            : 'No responses have been submitted to this form yet.')
-        }
+        emptyDescription={fetchError || 'No responses have been submitted to this form yet.'}
       >
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50/80">
@@ -736,204 +731,215 @@ export default function SubmissionsClient({ form_id, permissions }: SubmissionsC
           </thead>
 
           <tbody className="bg-white divide-y divide-gray-100">
-            {filteredSubmissions.map((sub) => {
-              const isSelected = selectedRows.includes(sub.id);
-              return (
-                <tr
-                  key={sub.id}
-                  className={`transition-colors group ${
-                    isSelected
-                      ? 'bg-indigo-100/90 hover:bg-indigo-200/75 ring-1 ring-inset ring-indigo-300'
-                      : sub.is_archived
-                      ? 'bg-amber-50/40 hover:bg-amber-50/70'
-                      : 'hover:bg-gray-50/90'
-                  } ${sub.is_processed && !isSelected ? 'opacity-60' : ''}`}
+            {filteredSubmissions.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.filter((c) => c.visible).length + (hasTestData ? 4 : 3)}
+                  className="px-6 py-12 text-center text-sm text-gray-400"
                 >
-                  <td
-                    className={`px-4 py-3.5 whitespace-nowrap text-center border-r border-gray-100 ${
-                      isSelected ? 'border-l-4 border-l-indigo-600' : ''
-                    }`}
+                  No submissions match your active filters.
+                </td>
+              </tr>
+            ) : (
+              filteredSubmissions.map((sub) => {
+                const isSelected = selectedRows.includes(sub.id);
+                return (
+                  <tr
+                    key={sub.id}
+                    className={`transition-colors group ${
+                      isSelected
+                        ? 'bg-indigo-100/90 hover:bg-indigo-200/75 ring-1 ring-inset ring-indigo-300'
+                        : sub.is_archived
+                        ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                        : 'hover:bg-gray-50/90'
+                    } ${sub.is_processed && !isSelected ? 'opacity-60' : ''}`}
                   >
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                      checked={isSelected}
-                      onChange={() => handleSelectRow(sub.id)}
-                    />
-                  </td>
-
-                  {/* PROCESSED CELL */}
-                  <td className="px-2 py-3.5 whitespace-nowrap text-center border-r border-gray-100">
-                    {permissions.canProcess ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleProcessed(sub)}
-                        className="focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full p-0.5 transition-transform active:scale-95 cursor-pointer"
-                        title={sub.is_processed ? 'Mark as Unprocessed' : 'Mark as Processed'}
-                      >
-                        {sub.is_processed ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
-                        )}
-                      </button>
-                    ) : (
-                      <div className="inline-flex rounded-full p-0.5 cursor-default">
-                        {sub.is_processed ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Circle className="w-4 h-4 text-gray-300" />
-                        )}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* ARCHIVED CELL (RUBBISH BIN) */}
-                  <td className="px-2 py-3.5 whitespace-nowrap text-center border-r border-gray-100">
-                    {permissions.canArchive ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleArchived(sub)}
-                        className={`focus:outline-none focus:ring-2 focus:ring-amber-500 rounded-md p-1 transition-transform active:scale-95 cursor-pointer ${
-                          sub.is_archived
-                            ? 'text-amber-700 bg-amber-100 hover:bg-amber-200'
-                            : 'text-gray-300 hover:text-red-500'
-                        }`}
-                        title={
-                          sub.is_archived
-                            ? 'Archived: Excluded from identity lookup. Click to restore.'
-                            : 'Active: Click to move to archived.'
-                        }
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <div
-                        className={`inline-flex rounded-md p-1 ${
-                          sub.is_archived ? 'text-amber-700 bg-amber-100' : 'text-gray-300'
-                        }`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </div>
-                    )}
-                  </td>
-
-                  {/* TEST CELL */}
-                  {hasTestData && (
+                    <td
+                      className={`px-4 py-3.5 whitespace-nowrap text-center border-r border-gray-100 ${
+                        isSelected ? 'border-l-4 border-l-indigo-600' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => handleSelectRow(sub.id)}
+                      />
+                    </td>
+  
+                    {/* PROCESSED CELL */}
                     <td className="px-2 py-3.5 whitespace-nowrap text-center border-r border-gray-100">
-                      {sub.is_test && (
-                        <div title="Test Submission" className="inline-flex items-center justify-center">
-                          <Beaker className="w-4 h-4 text-amber-500" />
+                      {permissions.canProcess ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleProcessed(sub)}
+                          className="focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full p-0.5 transition-transform active:scale-95 cursor-pointer"
+                          title={sub.is_processed ? 'Mark as Unprocessed' : 'Mark as Processed'}
+                        >
+                          {sub.is_processed ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
+                          )}
+                        </button>
+                      ) : (
+                        <div className="inline-flex rounded-full p-0.5 cursor-default">
+                          {sub.is_processed ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Circle className="w-4 h-4 text-gray-300" />
+                          )}
                         </div>
                       )}
                     </td>
-                  )}
-
-                  {/* DYNAMIC CELLS */}
-                  {columns
-                    .filter((c) => c.visible)
-                    .map((col) => {
-                      let cellValue: React.ReactNode = '-';
-
-                      if (col.id === 'created_at') {
-                        cellValue = new Date(sub.created_at).toLocaleString();
-                      } else if (col.id === 'locale') {
-                        cellValue = sub.locale || '-';
-                      } else if (col.id === 'applicant_seq_num') {
-                        cellValue = sub.applicant_seq_num
-                          ? `#${String(sub.applicant_seq_num).padStart(3, '0')}`
-                          : '-';
-                      } else if (col.id === 'applicant_token') {
-                        cellValue = sub.applicant_token || '-';
-                      } else if (col.isStatus && col.statusKey) {
-                        const sf = statusConfig.fields.find((f) => f.key === col.statusKey);
-                        const explicitVal = sub.status_data?.[col.statusKey] || '';
-                        const effectiveVal = explicitVal || sf?.defaultValue || '';
-                        const matchedOpt = sf?.options.find((o) => o.value === effectiveVal);
-                        const toneStyle = getStatusToneStyle(matchedOpt?.tone);
-
-                        cellValue = (
-                          <select
-                            disabled={!permissions.canProcess}
-                            value={explicitVal}
-                            title={
-                              matchedOpt
-                                ? `${matchedOpt.labelZh || ''} / ${matchedOpt.labelEn || ''} (${matchedOpt.value})`
-                                : 'Unset (Hidden on public inquiry)'
-                            }
-                            onChange={(e) =>
-                              handleInlineStatusChange(sub, col.statusKey!, e.target.value)
-                            }
-                            className={`px-2 py-0.5 rounded-md text-xs font-mono font-semibold border outline-none transition-colors ${
-                              matchedOpt
-                                ? toneStyle.adminBadgeClass
-                                : 'bg-gray-50 text-gray-400 border-gray-200'
-                            } ${permissions.canProcess ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-                          >
-                            <option value="">
-                              {sf?.defaultValue ? `${sf.defaultValue}*` : '—'}
-                            </option>
-                            {(sf?.options || []).map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.value}
-                              </option>
-                            ))}
-                          </select>
-                        );
-                      } else {
-                        const rawVal = sub.response?.[col.id];
-                        const isFileField =
-                          formConfig?.schema?.fields?.find((f: any) => f.dataKey === col.id)?.type === 'file';
-
-                        if (isFileField && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
-                          const baseUrl =
-                            process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-                          const fileUrl = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
-                          const canViewThisFile = sub.is_test ? permissions?.canViewTest !== false : permissions?.canViewReal;
-
-                          cellValue = canViewThisFile ? (
-                            <a
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium truncate block"
-                              title="Open secure file"
-                            >
-                              {rawVal.split('/').pop()}
-                            </a>
-                          ) : (
-                            <span
-                              className="text-gray-400 italic cursor-not-allowed truncate block select-none"
-                              title="Restricted: Requires production submission view permissions"
-                            >
-                              {rawVal.split('/').pop()}
-                            </span>
-                          );
-                        } else {
-                          cellValue = Array.isArray(rawVal) ? rawVal.join(', ') : rawVal || '-';
-                        }
-                      }
-
-                      return (
-                        <td
-                          key={col.id}
-                          className={`py-3.5 text-sm whitespace-nowrap truncate max-w-[240px] border-r border-gray-100 last:border-r-0 ${
-                            col.isCompactIcon
-                              ? 'px-2 text-center font-mono text-xs text-gray-500'
-                              : col.isMeta
-                              ? 'px-4 text-gray-500 font-mono text-xs'
-                              : col.isStatus
-                              ? 'px-3 text-center'
-                              : 'px-4 text-gray-900'
+  
+                    {/* ARCHIVED CELL (RUBBISH BIN) */}
+                    <td className="px-2 py-3.5 whitespace-nowrap text-center border-r border-gray-100">
+                      {permissions.canArchive ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleArchived(sub)}
+                          className={`focus:outline-none focus:ring-2 focus:ring-amber-500 rounded-md p-1 transition-transform active:scale-95 cursor-pointer ${
+                            sub.is_archived
+                              ? 'text-amber-700 bg-amber-100 hover:bg-amber-200'
+                              : 'text-gray-300 hover:text-red-500'
+                          }`}
+                          title={
+                            sub.is_archived
+                              ? 'Archived: Excluded from identity lookup. Click to restore.'
+                              : 'Active: Click to move to archived.'
+                          }
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <div
+                          className={`inline-flex rounded-md p-1 ${
+                            sub.is_archived ? 'text-amber-700 bg-amber-100' : 'text-gray-300'
                           }`}
                         >
-                          {cellValue}
-                        </td>
-                      );
-                    })}
-                </tr>
-              );
-            })}
+                          <Trash2 className="w-4 h-4" />
+                        </div>
+                      )}
+                    </td>
+  
+                    {/* TEST CELL */}
+                    {hasTestData && (
+                      <td className="px-2 py-3.5 whitespace-nowrap text-center border-r border-gray-100">
+                        {sub.is_test && (
+                          <div title="Test Submission" className="inline-flex items-center justify-center">
+                            <Beaker className="w-4 h-4 text-amber-500" />
+                          </div>
+                        )}
+                      </td>
+                    )}
+  
+                    {/* DYNAMIC CELLS */}
+                    {columns
+                      .filter((c) => c.visible)
+                      .map((col) => {
+                        let cellValue: React.ReactNode = '-';
+  
+                        if (col.id === 'created_at') {
+                          cellValue = new Date(sub.created_at).toLocaleString();
+                        } else if (col.id === 'locale') {
+                          cellValue = sub.locale || '-';
+                        } else if (col.id === 'applicant_seq_num') {
+                          cellValue = sub.applicant_seq_num
+                            ? `#${String(sub.applicant_seq_num).padStart(3, '0')}`
+                            : '-';
+                        } else if (col.id === 'applicant_token') {
+                          cellValue = sub.applicant_token || '-';
+                        } else if (col.isStatus && col.statusKey) {
+                          const sf = statusConfig.fields.find((f) => f.key === col.statusKey);
+                          const explicitVal = sub.status_data?.[col.statusKey] || '';
+                          const effectiveVal = explicitVal || sf?.defaultValue || '';
+                          const matchedOpt = sf?.options.find((o) => o.value === effectiveVal);
+                          const toneStyle = getStatusToneStyle(matchedOpt?.tone);
+  
+                          cellValue = (
+                            <select
+                              disabled={!permissions.canProcess}
+                              value={explicitVal}
+                              title={
+                                matchedOpt
+                                  ? `${matchedOpt.labelZh || ''} / ${matchedOpt.labelEn || ''} (${matchedOpt.value})`
+                                  : 'Unset (Hidden on public inquiry)'
+                              }
+                              onChange={(e) =>
+                                handleInlineStatusChange(sub, col.statusKey!, e.target.value)
+                              }
+                              className={`px-2 py-0.5 rounded-md text-xs font-mono font-semibold border outline-none transition-colors ${
+                                matchedOpt
+                                  ? toneStyle.adminBadgeClass
+                                  : 'bg-gray-50 text-gray-400 border-gray-200'
+                              } ${permissions.canProcess ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                            >
+                              <option value="">
+                                {sf?.defaultValue ? `${sf.defaultValue}*` : '—'}
+                              </option>
+                              {(sf?.options || []).map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.value}
+                                </option>
+                              ))}
+                            </select>
+                          );
+                        } else {
+                          const rawVal = sub.response?.[col.id];
+                          const isFileField =
+                            formConfig?.schema?.fields?.find((f: any) => f.dataKey === col.id)?.type === 'file';
+  
+                          if (isFileField && typeof rawVal === 'string' && rawVal.startsWith('submissions/')) {
+                            const baseUrl =
+                              process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                            const fileUrl = `${baseUrl}/admin/file?path=${encodeURIComponent(rawVal)}`;
+                            const canViewThisFile = sub.is_test ? permissions?.canViewTest !== false : permissions?.canViewReal;
+  
+                            cellValue = canViewThisFile ? (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium truncate block"
+                                title="Open secure file"
+                              >
+                                {rawVal.split('/').pop()}
+                              </a>
+                            ) : (
+                              <span
+                                className="text-gray-400 italic cursor-not-allowed truncate block select-none"
+                                title="Restricted: Requires production submission view permissions"
+                              >
+                                {rawVal.split('/').pop()}
+                              </span>
+                            );
+                          } else {
+                            cellValue = Array.isArray(rawVal) ? rawVal.join(', ') : rawVal || '-';
+                          }
+                        }
+  
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-3.5 text-sm whitespace-nowrap truncate max-w-[240px] border-r border-gray-100 last:border-r-0 ${
+                              col.isCompactIcon
+                                ? 'px-2 text-center font-mono text-xs text-gray-500'
+                                : col.isMeta
+                                ? 'px-4 text-gray-500 font-mono text-xs'
+                                : col.isStatus
+                                ? 'px-3 text-center'
+                                : 'px-4 text-gray-900'
+                            }`}
+                          >
+                            {cellValue}
+                          </td>
+                        );
+                      })}
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </AdminTableCard>
