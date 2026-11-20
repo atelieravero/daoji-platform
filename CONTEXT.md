@@ -1,7 +1,7 @@
 # Daoji Platform - Domain Model & Architecture
 
 ## System Overview & Core Philosophy
-Daoji Platform is the public-facing operational portal and administrative management system for Maggapaṭipadā Meditation Centre (道跡禪院). It serves as a resilient, bilingual bridge connecting retreat applicants and Dhamma students with monastic operations. The platform operates as a high-performance "dumb pipe"—providing schema-driven dynamic application forms, stateless application status inquiry, recurring event calendars, editorial posts and static pages, multi-platform livestream gateways, and media archives, while deferring complex organizational fulfillment to external databases (Coda).
+Daoji Platform is the public-facing operational portal and administrative management system for Maggapaṭipadā Meditation Centre (道跡禪院). It serves as a resilient, bilingual bridge connecting retreat applicants and Dhamma students with monastic operations. The platform operates as a high-performance "dumb pipe"—providing schema-driven dynamic application forms, stateless application status inquiry, recurring event calendars, editorial news, teachings, and static pages, a curated Dhamma Library with audio playlists and article series, multi-platform livestream gateways, and media archives, while deferring complex organizational fulfillment to external databases (Coda).
 
 ---
 
@@ -9,12 +9,12 @@ Daoji Platform is the public-facing operational portal and administrative manage
 These eleven architectural conventions define how this platform solves specific operational, networking, and UX challenges:
 
 1. **Zero-Flash Standalone Shell (`<StandaloneNotifier/>` & `<StandaloneLanguageSwitcher/>`):**
-   * Standalone pages (public forms, status inquiry pages, standalone events, and standalone posts/pages) suppress the top navbar, header, and footer without hydration flashes.
+   * Standalone pages (public forms, status inquiry pages, standalone events, and standalone news/teaching/static pages) suppress the top navbar, header, and footer without hydration flashes.
    * **Mechanism:** Rather than waiting for a client-side `useEffect` to unmount shell components, `StandaloneNotifier` synchronously injects an inline `<style>header, footer, nav { display: none !important; }</style>` tag into the initial server-rendered HTML payload.
-   * **Strict DB vs. Query Enforcement:** When `is_standalone = true` on an Event, Post, or Static Page, standalone mode is enforced directly on the server (`forceStandaloneParam={false}`) so visitors cannot exit standalone mode by editing the URL. On public forms and status inquiry routes, `?standalone=true` is also supported and preserved across `/zh` $\leftrightarrow$ `/en` switches.
+   * **Strict DB vs. Query Enforcement:** When `is_standalone = true` on an Event or Content Page (`page`, `news`, `teaching`), standalone mode is enforced directly on the server (`forceStandaloneParam={false}`) so visitors cannot exit standalone mode by editing the URL. On public forms and status inquiry routes, `?standalone=true` is also supported and preserved across `/zh` $\leftrightarrow$ `/en` switches.
 
 2. **Uniform `1.91:1` Master Asset Retention & Derivative Crop Partitioning:**
-   * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages & Posts (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails, and rendering full-width without artificial `max-height` letterboxing.
+   * All cover banners across Events (`banner_asset_id` / `banner_original_asset_id`), Content Pages (`cover_asset_id` / `cover_original_asset_id`), and Forms (`bannerImageUrl` / `bannerOriginalImageUrl`) standardize on a **`1.91:1` (`1200×630`)** aspect ratio via `<CoverBannerPicker/>` and `<ImageCropModal/>`—matching OpenGraph social cards and compact list/grid thumbnails, and rendering full-width without artificial `max-height` letterboxing.
    * **Partitioning:** Cropped derivatives are saved under `derivatives/crops/YYYY/MM/...` with `is_system = true`. The user-facing Media Pool query strictly filters out `is_system = true` to prevent derivative crops from cluttering the asset library.
 
 3. **Event-Code Scoped Submissions, Numeric Application Codes & DRY Identity Gate:**
@@ -36,7 +36,7 @@ These eleven architectural conventions define how this platform solves specific 
 
 6. **Dynamic Registration State Inheritance & Crawler-Safe Public Resolution:**
    * When an event is set to `registration_mode: 'internal_form'`, the public action button's state (`upcoming`, `open`, `closed`) and destination URL are not stored statically on the event.
-   * **Resolution:** `lib/events.ts` and `lib/content-pages.ts` use `getSupabaseAdmin()` (mirroring `getPublicForm` in `app/[locale]/form/[slug]/actions.ts`) to resolve public events, posts, static pages, cover assets, venues, organizers, and linked forms (`id, slug, status, is_followup, status_config`) on the server without cookie or RLS discrepancies for anonymous visitors and social link preview crawlers (WhatsApp, WeChat, iMessage, Telegram).
+   * **Resolution:** `lib/events.ts` and `lib/content-pages.ts` use `getSupabaseAdmin()` (mirroring `getPublicForm` in `app/[locale]/form/[slug]/actions.ts`) to resolve public events, news, teachings, static pages, cover assets, venues, organizers, and linked forms (`id, slug, status, is_followup, status_config`) on the server without cookie or RLS discrepancies for anonymous visitors and social link preview crawlers (WhatsApp, WeChat, iMessage, Telegram).
    * **Explicit Status Filtering:** Public resolvers explicitly filter `.in('status', ['published', 'unlisted'])` on direct permalink lookups and `.eq('status', 'published')` on joined `event_articles` items so signed-in admins and anonymous visitors always see identical public data.
 
 7. **Recurring Livestream Engine with Calendar Projection:**
@@ -48,13 +48,13 @@ These eleven architectural conventions define how this platform solves specific 
    * Traditional Chinese (`/zh`) is the primary system locale. All localized fields resolve via `resolveBilingualText` (`current lang > other lang > nil`).
    * **Zero-Friction Summaries (`resolveBilingualExcerpt` in `lib/seo.ts`):** Custom summaries (`summary_zh`, `summary_en`) are collapsed by default in `<BilingualCanvas/>`. When left blank, `resolveBilingualExcerpt` automatically strips Markdown formatting from the opening ~150 characters of `body_zh` / `body_en` (`subtitleZh` / `subtitleEn` on forms) for OpenGraph descriptions and list previews.
 
-9. **Immutable Short IDs, Mutable Vanity Slugs & Reserved Slug Guard (`lib/slug.ts`):**
+9. **Immutable Short IDs, Mutable Vanity Slugs, Cross-Type 301 Redirects & Reserved Slug Guard (`lib/slug.ts`):**
    * Every public entity generates an immutable 8-character Base62 `short_id` (`nanoid(8)`).
-   * Slugs are optional, mutable, sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`), and validated on both client and server against `RESERVED_SLUGS` (`admin`, `api`, `events`, `event`, `post`, `news`, `resources`, `form`, `apply`, `tags`, etc.) so top-level static pages (`/[locale]/[id_or_slug]`) never collide with system routes.
-   * Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`).
+   * Slugs are optional, mutable, sanitized to RFC 3986 safe characters (`a-z0-9\-_.~+%`), and validated on both client and server against `RESERVED_SLUGS` (`admin`, `api`, `events`, `event`, `post`, `news`, `teaching`, `resources`, `form`, `apply`, `tags`, etc.) so top-level static pages (`/[locale]/[id_or_slug]`) never collide with system routes.
+   * Route resolvers query `WHERE short_id = $1 OR slug = $1` using double-quoted PostgREST filter values (`short_id.eq."${decoded}",slug.eq."${decoded}"`). Because `short_id` and `slug` are globally unique across `content_pages`, accessing a record on a non-matching route (or via legacy `/[locale]/post/[id_or_slug]`) issues a 301 permanent redirect to its canonical path (`/[id_or_slug]`, `/news/[id_or_slug]`, or `/teaching/[id_or_slug]`).
 
 10. **Relative Markdown Heading Hierarchy & Hyperlink Visual Separation (`<MarkdownRenderer/>`):**
-    * `<MarkdownRenderer/>` shifts Markdown `#`–`######` headings relative to a contextual `baseHeadingLevel` prop ($\text{effectiveLevel} = \min(6, \text{baseHeadingLevel} + \text{mdLevel} - 1)$): `baseHeadingLevel={2}` on Event/Post/Page bodies, `3` on Form subtitles and success messages, `4` on Form `info` blocks and status instruction cards, and `5` on Form question hints.
+    * `<MarkdownRenderer/>` shifts Markdown `#`–`######` headings relative to a contextual `baseHeadingLevel` prop ($\text{effectiveLevel} = \min(6, \text{baseHeadingLevel} + \text{mdLevel} - 1)$): `baseHeadingLevel={2}` on Event/News/Teaching/Page bodies, `3` on Form subtitles and success messages, `4` on Form `info` blocks and status instruction cards, and `5` on Form question hints.
     * **Heading vs. Link Distinction:** Top-level Markdown section headings (`h2`) feature a `3px` left accent bar in `--color-primary` (`#8E442A`) with charcoal ink (`#26241F`), `h3` uses deep sienna-umber (`#5C2A18`), and inline hyperlinks use complementary **Peacock Teal (`#0D6E6E`)** with a thick `2.5px` dotted jade underline (`#22A699`) that turns solid with a soft mint highlight (`#E0F5F2`) on hover.
 
 11. **Silent Denial RBAC & Immutable Forms:**
@@ -70,7 +70,7 @@ These eleven architectural conventions define how this platform solves specific 
 * **Database & Auth:** Supabase (PostgreSQL with idempotent RLS policies, explicit `anon`/`authenticated` table grants, `pgcrypto`, and CDC audit triggers).
 * **Storage:** Dual Cloudflare R2 bucket architecture via `@aws-sdk/client-s3`:
   * *Private Bucket:* Encrypted applicant file uploads partitioned into `submissions/test/` vs `submissions/real/`.
-  * *Public CDN Bucket:* Custom domain `https://cdn.ajahnyiu.org` for media pool assets and cropped banners.
+  * *Public CDN Bucket:* Custom domain `https://cdn.ajahnyiu.org` for media pool assets, cropped banners, PDF ebooks, mirrored WeChat images, and `96kbps mono` streaming MP3s.
 * **Upload Pipeline:** Direct browser-to-R2 presigned S3 PUT uploads bypassing serverless payload limits for files up to 100MB+.
 * **Internationalization:** `next-intl` (Default `/zh`, English `/en`). All public strings centralized in `messages/` under `"EventDetail"`, `"PostDetail"`, and `"ApplyForm"`.
 * **Infrastructure:** Vercel Hosting with Cloudflare Reverse Proxy for Mainland China network mitigation.
@@ -90,6 +90,13 @@ These eleven architectural conventions define how this platform solves specific 
 * **Test Mode:** High-contrast Navy palette (`--color-surface-test: #1E1B4B`) to prevent accidental production testing.
 * **Bilingual Font Stack (`--font-sans`):** `var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "HarmonyOS Sans TC", "Microsoft JhengHei", "Heiti TC", sans-serif`.
 
+### Canonical Public Display Terminology (`messages/zh.json` & `messages/en.json`)
+* **Applicant Reference:** `Application Code` / `報名代碼`
+* **Dhamma Library Format Tabs (`/[locale]/resources`):** `All / 全部`, `Audio / 錄音`, `Video / 錄影`, `Articles / 文字`, `Ebooks / 書籍`
+* **Curated Collections:** `Audio Playlist / 錄音播放清單`, `Video Playlist / 錄影播放清單`, `Article Series / 系列專題`
+* **Article ⟷ Media Pairing:** `Original Recording / 原錄音/原錄影`, `Read Edited Article / 閱讀文字整理稿`
+* **Six Core Pillar Tags:** `Guided Meditation / 禪修引導`, `Dhamma Discourse / 佛法開示`, `Dhamma Q&A / 佛法答疑`, `Active Practice / 動中修行`, `Dialogue & Interview / 對談與訪談`, `Ebooks / 出版書籍`
+
 ### Component Primitives
 * **Admin Navigation:** Collapsible `<AdminSidebar/>` with persistent `localStorage` state, smooth transitions, and compact icon-only mode.
 * **Admin Tables & Spreadsheet Filters:** `<AdminPageHeader/>`, `<AdminTableToolbar/>` (debounced search + status tabs), `<AdminTableCard/>`, `<AdminColumnHeaderFilter/>` & `useAdminTableFilters` (`components/admin/shared/AdminColumnFilter.tsx` — portal-rendered Google Sheets-style per-column value checklist filter & sort engine), `<StatusBadgeSelect/>`, `<ShareQrModal/>` (high-res QR PNG generation), and `<StatusConfigModal/>` (application status & Markdown instruction configurator).
@@ -108,13 +115,16 @@ These eleven architectural conventions define how this platform solves specific 
                                 │ 1:N
 ┌──────────────┐ 1:N            ▼         N:M ┌──────────────────┐
 │    venues    │◄─────────── events ─────────►│  event_articles  │◄──── content_pages
-└──────────────┘                │             └──────────────────┘
-                                │ 1:N
-                                ▼
-                             forms
-                                │ 1:N
-                                ▼
-                           submissions
+└──────────────┘            │      │          └──────────────────┘         │        ▲
+                            │ 1:N  │ 1:N                                   │ N:M    │
+                            ▼      ▼                                       ▼        │
+                         forms   collections ──► collection_items   article_resources
+                            │                            │                 │
+                            │ 1:N                        ▼                 ▼
+                            ▼                        resources ◄───────────┘
+                       submissions                       │
+                                                         ▼
+                                                       assets
 ```
 
 ### 1. `events` (Operational Event Domain)
@@ -142,29 +152,38 @@ These eleven architectural conventions define how this platform solves specific 
   * `is_archived`: Boolean flag (toggled via `<Trash2/>` rubbish bin icon) to de-index duplicate or invalid records from challenge recovery and status inquiry.
   * `is_test`, `is_processed`.
 
-### 3. `content_pages` & `event_articles` (Editorial Posts & Static Pages)
-* **`content_pages`:** `id` (UUID PK), `short_id` (Base62 unique), `slug` (RFC 3986 unique, nullable, guarded by `RESERVED_SLUGS`), `type` (`post` | `page`, default `'post'`), `title_zh`, `title_en`, `summary_zh`, `summary_en`, `body_zh`, `body_en`, `cover_asset_id` (cropped `1.91:1`), `cover_original_asset_id` (master), `is_pinned_in_feed` (boolean), `is_standalone` (boolean), `status` (`draft` | `published` | `unlisted` | `archived`), `published_at`.
-* **`event_articles`:** Single source of truth N:M junction table (`event_id`, `article_id`, `sort_order`) linking posts to one or more operational events.
+### 3. `content_pages`, `event_articles` & `article_resources` (Editorial News, Teachings & Static Pages)
+* **`content_pages`:** `id` (UUID PK), `short_id` (Base62 unique), `slug` (RFC 3986 unique, nullable, guarded by `RESERVED_SLUGS`), `type` (`'page' | 'news' | 'teaching'`, default `'news'`), `title_zh`, `title_en`, `summary_zh`, `summary_en`, `body_zh`, `body_en`, `cover_asset_id` (cropped `1.91:1`), `cover_original_asset_id` (master), `is_pinned_in_feed` (boolean), `is_standalone` (boolean), `external_source_key` (nullable unique for idempotent WeChat imports), `status` (`draft` | `published` | `unlisted` | `archived`), `published_at`.
+* **`event_articles`:** Single source of truth N:M junction table (`event_id`, `article_id`, `sort_order`) linking news posts (`type = 'news'`) to one or more operational events.
+* **`article_resources`:** N:M junction table (`article_id`, `resource_id`, `relation_type` IN `'source_audio' | 'source_video' | 'related'`, `sort_order`) pairing edited teaching articles (`type = 'teaching'`) bi-directionally with source R2 audio files and YouTube videos.
 
-### 4. `assets` (Media Pool) & `tags` / `taggables` (Taxonomy)
+### 4. `resources`, `collections` & `collection_items` (Dhamma Library & Curated Series)
+* **`resources`:** `id` (UUID PK), `short_id` (Base62 unique), `slug`, `source_type` (`'asset' | 'youtube' | 'article' | 'external_link'`), `target_asset_id` (FK $\rightarrow$ `assets.id`), `target_page_id` (legacy FK $\rightarrow$ `content_pages.id`), `external_url`, `title_zh`, `title_en`, `description_zh`, `description_en`, `author_speaker_zh`, `author_speaker_en`, `cover_asset_id`, `duration_seconds` (`INT`), `recorded_at` (`TIMESTAMPTZ`), `external_source_key` (nullable unique for idempotent CLI imports), `media_meta` (`JSONB`: `readmoo_url`, `youtube_id`, `wechat_url`, `session_segment`), `is_featured`, `status` (`'draft' | 'published' | 'unlisted' | 'archived'`).
+* **`collections`:** Ordered flat series container (`id`, `short_id`, `slug`, `collection_type` IN `'audio_playlist' | 'video_playlist' | 'article_series'`, `title_zh`, `title_en`, `description_zh`, `description_en`, `cover_asset_id`, `event_id`, `external_source_key`, `is_featured`, `status`).
+* **`collection_items`:** Ordered membership rows (`id`, `collection_id`, `resource_id`, `article_id`, `sort_order`) with check constraint enforcing exactly one target (`resource_id` OR `article_id`) and unique partial indexes preventing duplicates per collection.
+
+### 5. `assets` (Media Pool) & `tags` / `taggables` (Taxonomy)
 * **`assets`:** `id`, `file_url`, `s3_key`, `file_name`, `mime_type`, `file_size_bytes`, `width`, `height`, `alt_text_zh`, `alt_text_en`, `is_system` (boolean: hides derivative crops from general picker), `created_by`.
-* **`tags` & `taggables`:** `tags` (`id`, `short_id`, `slug`, `name_zh`, `name_en`, `is_pillar`, `color`) joined polymorphically via `taggables` (`tag_id`, `taggable_id`, `taggable_type` IN `'event' | 'content_page' | 'resource' | 'asset'`).
+* **`tags` & `taggables`:** `tags` (`id`, `short_id`, `slug`, `name_zh`, `name_en`, `is_pillar`, `color`) joined polymorphically via `taggables` (`tag_id`, `taggable_id`, `taggable_type` IN `'event' | 'content_page' | 'resource' | 'asset' | 'collection'`). Six core pillar tags (`is_pillar = true`): `Guided Meditation / 禪修引導`, `Dhamma Discourse / 佛法開示`, `Dhamma Q&A / 佛法答疑`, `Active Practice / 動中修行`, `Dialogue & Interview / 對談與訪談`, and `Ebooks / 出版書籍`.
 
-### 5. `venues` & `organizers`
+### 6. `venues` & `organizers`
 * **`venues`:** `id`, `name_zh`, `name_en`, `address_zh`, `address_en`, `google_maps_url`, `amap_url` (Mainland China routing), `transport_guide_zh`, `transport_guide_en`, `timezone`.
 * **`organizers`:** `id`, `name_en` (mandatory), `name_zh`, `url`, `description_zh`, `description_en`.
 
-### 6. `audit_logs` (CDC System Ledger)
-* Automated Change Data Capture engine via `log_cdc_mutation()` tracking mutations across `forms`, `events`, `venues`, `organizers`, `assets`, `team_members`, `tags`, `content_pages`, and `resources`.
+### 7. `audit_logs` (CDC System Ledger)
+* Automated Change Data Capture engine via `log_cdc_mutation()` tracking mutations across `forms`, `events`, `venues`, `organizers`, `assets`, `team_members`, `tags`, `content_pages`, `resources`, and `collections`.
 * Strictly records `CREATE` for all insert operations (check constraint enforced).
 * Tracks `old_values`, `new_values`, `operation` (`CREATE`, `UPDATE`, `DELETE`), actor email/name, and resolved entity titles with visual diffing in the Admin Audit Logs Explorer.
 
 ---
 
 ## Public Routing & Visibility Matrix
-* **Published Events (`status = 'published'`):** Visible in public `/[locale]/events` calendar listings and accessible via canonical permalink (`/[locale]/event/[id_or_slug]`, with 301 redirect from legacy `/[locale]/events/[id_or_slug]`).
+* **Published Events (`status = 'published'`):** Visible in public `/[locale]/events` calendar listings (Ticket 26) and accessible via canonical permalink (`/[locale]/event/[id_or_slug]`, with 301 redirect from legacy `/[locale]/events/[id_or_slug]`).
 * **Unlisted Events (`status = 'unlisted'`):** Excluded from `/[locale]/events` calendar listings, but resolve when accessed via direct permalink (`/[locale]/event/[id_or_slug]`).
 * **Public Forms & Status Inquiry (`/[locale]/form/[slug]` & `/[locale]/form/[slug]/status`):** Public forms resolve when `status = 'open'` (or in `?test=true` preview mode). Status inquiry resolves whenever `status_config.enabled = true` (even after `forms.status` moves to `'closed'`), with `robots: { index: false, follow: false }`.
-* **Published & Unlisted Posts (`type = 'post'`, `status IN ('published', 'unlisted')`):** Accessible via canonical permalink (`/[locale]/post/[id_or_slug]`, with 301 redirect from legacy `/[locale]/news/[id_or_slug]`). Only `status = 'published'` posts appear in the `/[locale]/news` feed and under "Related Articles & Updates" on event detail pages.
-* **Published & Unlisted Static Pages (`type = 'page'`, `status IN ('published', 'unlisted')`):** Accessible via top-level permalink (`/[locale]/[id_or_slug]`).
-* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace (`/admin/events`, `/admin/content`, `/admin/forms`).
+* **News Articles (`type = 'news'`, `status IN ('published', 'unlisted')`):** Accessible via canonical permalink `/[locale]/news/[id_or_slug]`. Only `status = 'published'` news items appear in the `/[locale]/news` feed and under "Related Articles & Updates" on event detail pages.
+* **Teaching Articles (`type = 'teaching'`, `status IN ('published', 'unlisted')`):** Accessible via canonical permalink `/[locale]/teaching/[id_or_slug]`. Only `status = 'published'` teaching items appear in `/[locale]/resources` (Dhamma Library) and `article_series` collections; teaching articles never appear in `/[locale]/news`.
+* **Static Pages (`type = 'page'`, `status IN ('published', 'unlisted')`):** Accessible via top-level permalink `/[locale]/[id_or_slug]`, guarded by `RESERVED_SLUGS`.
+* **Legacy & Cross-Type Redirects:** Legacy `/[locale]/post/[id_or_slug]` resolves the record and issues a 301 permanent redirect to `/[locale]/news/[id_or_slug]` or `/[locale]/teaching/[id_or_slug]`. Accessing any `content_pages` record under a mismatched route also 301 redirects to its canonical path based on `type`.
+* **Published & Unlisted Resources & Collections (`status IN ('published', 'unlisted')`):** Published items surface in `/[locale]/resources` (Ticket 18) with the audio-only global mini-player (`localStorage` queue) and direct new-tab PDF opening for ebooks; unlisted items resolve only via direct link.
+* **Draft / Archived (`status IN ('draft', 'archived')`):** Strictly restricted to authenticated staff inside the admin workspace (`/admin/events`, `/admin/content`, `/admin/forms`, `/admin/resources`).

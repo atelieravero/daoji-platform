@@ -78,10 +78,18 @@ CREATE TABLE IF NOT EXISTS tags (
 CREATE TABLE IF NOT EXISTS taggables (
     tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     taggable_id UUID NOT NULL,
-    taggable_type TEXT NOT NULL CHECK (taggable_type IN ('event', 'content_page', 'resource', 'asset')),
+    taggable_type TEXT NOT NULL CHECK (taggable_type IN ('event', 'content_page', 'resource', 'asset', 'collection')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (tag_id, taggable_id, taggable_type)
 );
+
+-- Idempotent check constraint expansion for existing deployments
+ALTER TABLE taggables
+  DROP CONSTRAINT IF EXISTS taggables_taggable_type_check;
+
+ALTER TABLE taggables
+  ADD CONSTRAINT taggables_taggable_type_check
+  CHECK (taggable_type IN ('event', 'content_page', 'resource', 'asset', 'collection'));
 
 -- ==============================================================================
 -- 3. OPERATIONAL REGISTRIES (Venues, Organizers, Events)
@@ -208,15 +216,15 @@ ALTER TABLE submissions
   ADD COLUMN IF NOT EXISTS status_data JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- ==============================================================================
--- 5. EDITORIAL CONTENT & KNOWLEDGE HUB
+-- 5. EDITORIAL CONTENT, DHAMMA LIBRARY & CURATED COLLECTIONS
 -- ==============================================================================
 
--- 5.1 Editorial Content Pages & Posts
+-- 5.1 Editorial Content Pages, News & Teachings
 CREATE TABLE IF NOT EXISTS content_pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
     slug TEXT,
-    type TEXT NOT NULL DEFAULT 'post' CHECK (type IN ('page', 'post')),
+    type TEXT NOT NULL DEFAULT 'news' CHECK (type IN ('page', 'news', 'teaching')),
     title_zh TEXT NOT NULL,
     title_en TEXT,
     summary_zh TEXT,
@@ -227,11 +235,30 @@ CREATE TABLE IF NOT EXISTS content_pages (
     cover_original_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
     is_pinned_in_feed BOOLEAN NOT NULL DEFAULT FALSE,
     is_standalone BOOLEAN NOT NULL DEFAULT FALSE,
+    external_source_key TEXT,
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'unlisted', 'archived')),
     published_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Idempotent migration for existing content_pages deployments
+ALTER TABLE content_pages
+  ADD COLUMN IF NOT EXISTS external_source_key TEXT;
+
+ALTER TABLE content_pages
+  DROP CONSTRAINT IF EXISTS content_pages_type_check;
+
+UPDATE content_pages
+SET type = 'news'
+WHERE type = 'post';
+
+ALTER TABLE content_pages
+  ALTER COLUMN type SET DEFAULT 'news';
+
+ALTER TABLE content_pages
+  ADD CONSTRAINT content_pages_type_check
+  CHECK (type IN ('page', 'news', 'teaching'));
 
 -- 5.2 Multi-Event Articles Junction Table
 CREATE TABLE IF NOT EXISTS event_articles (
@@ -242,7 +269,7 @@ CREATE TABLE IF NOT EXISTS event_articles (
     PRIMARY KEY (event_id, article_id)
 );
 
--- 5.3 Knowledge Hub Resources
+-- 5.3 Dhamma Library Resources (Audio, Video, Ebooks, External Links)
 CREATE TABLE IF NOT EXISTS resources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
@@ -258,10 +285,78 @@ CREATE TABLE IF NOT EXISTS resources (
     author_speaker_zh TEXT,
     author_speaker_en TEXT,
     cover_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    duration_seconds INTEGER,
+    recorded_at TIMESTAMPTZ,
+    external_source_key TEXT,
+    media_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_featured BOOLEAN NOT NULL DEFAULT FALSE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'unlisted', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Idempotent migration for existing resources deployments
+ALTER TABLE resources
+  ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;
+
+ALTER TABLE resources
+  ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMPTZ;
+
+ALTER TABLE resources
+  ADD COLUMN IF NOT EXISTS external_source_key TEXT;
+
+ALTER TABLE resources
+  ADD COLUMN IF NOT EXISTS media_meta JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE resources
+  DROP CONSTRAINT IF EXISTS resources_status_check;
+
+ALTER TABLE resources
+  ADD CONSTRAINT resources_status_check
+  CHECK (status IN ('draft', 'published', 'unlisted', 'archived'));
+
+-- 5.4 N:M Edited Article <-> Source Media Pairing
+CREATE TABLE IF NOT EXISTS article_resources (
+    article_id UUID NOT NULL REFERENCES content_pages(id) ON DELETE CASCADE,
+    resource_id UUID NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+    relation_type TEXT NOT NULL DEFAULT 'source_audio' CHECK (relation_type IN ('source_audio', 'source_video', 'related')),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (article_id, resource_id)
+);
+
+-- 5.5 Curated Collections (Audio Playlists, Video Playlists & Article Series)
+CREATE TABLE IF NOT EXISTS collections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    short_id TEXT NOT NULL UNIQUE DEFAULT nanoid(8),
+    slug TEXT,
+    collection_type TEXT NOT NULL CHECK (collection_type IN ('audio_playlist', 'video_playlist', 'article_series')),
+    title_zh TEXT NOT NULL,
+    title_en TEXT,
+    description_zh TEXT,
+    description_en TEXT,
+    cover_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+    event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+    external_source_key TEXT,
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'unlisted', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5.6 Ordered Collection Membership Items
+CREATE TABLE IF NOT EXISTS collection_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    collection_id UUID NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    resource_id UUID REFERENCES resources(id) ON DELETE CASCADE,
+    article_id UUID REFERENCES content_pages(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT collection_items_target_check
+      CHECK (
+        (resource_id IS NOT NULL AND article_id IS NULL) OR
+        (resource_id IS NULL AND article_id IS NOT NULL)
+      )
 );
 
 -- ==============================================================================
@@ -340,15 +435,31 @@ CREATE INDEX IF NOT EXISTS idx_submissions_event_code_seq ON submissions(event_c
 CREATE INDEX IF NOT EXISTS idx_submissions_form_date ON submissions(form_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_submissions_challenge_lookup ON submissions(event_code, applicant_phone_suffix, applicant_name, is_archived, is_test);
 
--- Content Pages & Resources
+-- Content Pages, Resources & Collections
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_pages_slug_unique ON content_pages(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_content_pages_short_id ON content_pages(short_id);
 CREATE INDEX IF NOT EXISTS idx_content_pages_feed ON content_pages(status, is_pinned_in_feed, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_pages_type_feed ON content_pages(type, status, is_pinned_in_feed, published_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_content_pages_external_source_key ON content_pages(external_source_key) WHERE external_source_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_content_pages_cover_original ON content_pages(cover_original_asset_id);
 CREATE INDEX IF NOT EXISTS idx_content_pages_is_standalone ON content_pages(is_standalone);
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_slug_unique ON resources(slug) WHERE slug IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_resources_short_id ON resources(short_id);
 CREATE INDEX IF NOT EXISTS idx_resources_status_featured ON resources(status, is_featured, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_resources_recorded_at ON resources(recorded_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_external_source_key ON resources(external_source_key) WHERE external_source_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_article_resources_resource ON article_resources(resource_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_slug_unique ON collections(slug) WHERE slug IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_collections_short_id ON collections(short_id);
+CREATE INDEX IF NOT EXISTS idx_collections_type_status ON collections(collection_type, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_external_source_key ON collections(external_source_key) WHERE external_source_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_collection_items_order ON collection_items(collection_id, sort_order ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_collection_items_unique_resource ON collection_items(collection_id, resource_id) WHERE resource_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_collection_items_unique_article ON collection_items(collection_id, article_id) WHERE article_id IS NOT NULL;
 
 -- Team & Audit Logs
 CREATE INDEX IF NOT EXISTS idx_team_members_roles ON team_members USING GIN (roles);
@@ -373,6 +484,9 @@ ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE article_resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collection_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
@@ -389,7 +503,10 @@ GRANT SELECT ON
   public.forms,
   public.content_pages,
   public.event_articles,
-  public.resources
+  public.resources,
+  public.article_resources,
+  public.collections,
+  public.collection_items
 TO anon, authenticated;
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
@@ -421,7 +538,17 @@ DROP POLICY IF EXISTS "Public read for event_articles" ON event_articles;
 CREATE POLICY "Public read for event_articles" ON event_articles FOR SELECT TO public USING (true);
 
 DROP POLICY IF EXISTS "Public read for published resources" ON resources;
-CREATE POLICY "Public read for published resources" ON resources FOR SELECT TO public USING (status = 'published');
+DROP POLICY IF EXISTS "Public read for published/unlisted resources" ON resources;
+CREATE POLICY "Public read for published/unlisted resources" ON resources FOR SELECT TO public USING (status IN ('published', 'unlisted'));
+
+DROP POLICY IF EXISTS "Public read for article_resources" ON article_resources;
+CREATE POLICY "Public read for article_resources" ON article_resources FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Public read for published/unlisted collections" ON collections;
+CREATE POLICY "Public read for published/unlisted collections" ON collections FOR SELECT TO public USING (status IN ('published', 'unlisted'));
+
+DROP POLICY IF EXISTS "Public read for collection_items" ON collection_items;
+CREATE POLICY "Public read for collection_items" ON collection_items FOR SELECT TO public USING (true);
 
 DROP POLICY IF EXISTS "Public read for forms" ON forms;
 CREATE POLICY "Public read for forms" ON forms FOR SELECT TO public USING (true);
@@ -459,6 +586,15 @@ CREATE POLICY "Authenticated staff full access event_articles" ON event_articles
 
 DROP POLICY IF EXISTS "Authenticated staff full access resources" ON resources;
 CREATE POLICY "Authenticated staff full access resources" ON resources FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access article_resources" ON article_resources;
+CREATE POLICY "Authenticated staff full access article_resources" ON article_resources FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access collections" ON collections;
+CREATE POLICY "Authenticated staff full access collections" ON collections FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated staff full access collection_items" ON collection_items;
+CREATE POLICY "Authenticated staff full access collection_items" ON collection_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Authenticated staff full access team_members" ON team_members;
 CREATE POLICY "Authenticated staff full access team_members" ON team_members FOR ALL TO authenticated USING (true) WITH CHECK (true);
@@ -652,4 +788,9 @@ FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
 DROP TRIGGER IF EXISTS audit_resources_trigger ON resources;
 CREATE TRIGGER audit_resources_trigger
 AFTER INSERT OR UPDATE OR DELETE ON resources
+FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
+
+DROP TRIGGER IF EXISTS audit_collections_trigger ON collections;
+CREATE TRIGGER audit_collections_trigger
+AFTER INSERT OR UPDATE OR DELETE ON collections
 FOR EACH ROW EXECUTE FUNCTION log_cdc_mutation();
